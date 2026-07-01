@@ -32,6 +32,7 @@ warehouse/.user.yml
 # --- local verification artifacts ---
 .playwright-mcp/
 /clinical-agent-*.png
+agent/eval_history.jsonl
 
 # --- OS / editor ---
 .DS_Store

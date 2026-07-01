@@ -40,7 +40,10 @@ _SYSTEM = (
     "not a grouped result. "
     "(7) When you compute a rate/proportion/prevalence, also SELECT its numerator (the count) and "
     "denominator (the group size), not only the percentage — the downstream statistical guardrail "
-    "needs them to compute confidence intervals and group contrasts."
+    "needs them to compute confidence intervals and group contrasts. "
+    "(8) To count DISTINCT patients who have a condition or medication, use COUNT(DISTINCT patient_id) "
+    "on fct_conditions / fct_medications (join the dim_ by code to filter by name) — never SUM a "
+    "per-group numerator from an analytics mart, which double-counts patients across strata."
 )
 
 
@@ -74,15 +77,19 @@ def _clean_sql(text: str) -> str:
 
 
 def _triage(question: str, context: str) -> dict:
-    """Decide if the question is answerable from the catalog, or needs clarification."""
+    """Decide ONLY whether the question is too vague to attempt. Deliberately conservative:
+    it must not second-guess whether a specific column exists (that's the SQL step's job)."""
     return llm.complete_json(
         _SYSTEM,
-        f"{context}\n\nQUESTION: {question}\n\n"
-        "Decide if this is answerable with the tables above. Default to answerable=true. Only set "
-        "answerable=false if it is genuinely ambiguous or under-specified in a way that materially "
-        "changes the query (missing metric/time frame/population), or asks for data not present. "
-        'Return JSON: {"answerable": bool, "clarification": "one specific question to ask the user '
-        'if not answerable, else empty"}.',
+        f"QUESTION: {question}\n\n"
+        "You are ONLY deciding whether this question is too vague to attempt at all. "
+        "Default answerable=true. Set answerable=false ONLY when the question names no concrete "
+        "metric or entity — e.g. 'show me the trends', 'what's interesting', 'tell me about the data', "
+        "'which treatment is best' — or asks for something clearly outside a healthcare EHR warehouse. "
+        "A question that names any count, rate, cost, condition, medication, demographic "
+        "(age/sex/gender/race), payer, provider, or time period is ANSWERABLE. Do NOT judge whether a "
+        "specific column exists; assume standard EHR fields are present and let the SQL step handle it. "
+        'Return JSON: {"answerable": bool, "clarification": "one specific question if not answerable, else empty"}.',
     )
 
 
@@ -151,6 +158,14 @@ def _citations(sql: str, table_names: list[str]) -> list[str]:
     return [t for t in table_names if re.search(rf"\b{re.escape(t)}\b", sql)]
 
 
+def _degenerate(df) -> bool:
+    """A single-row aggregate that is all zero/NULL — usually a filter that matched nothing."""
+    if df is None or len(df) != 1:
+        return False
+    nums = [df.iloc[0][c] for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
+    return bool(nums) and all((pd.isna(v) or v == 0) for v in nums)
+
+
 def run_analysis(question: str, max_tries: int = MAX_SQL_TRIES) -> AgentResult:
     result = AgentResult(question=question)
     try:
@@ -166,6 +181,7 @@ def run_analysis(question: str, max_tries: int = MAX_SQL_TRIES) -> AgentResult:
         sql = _gen_sql(question, context, result.plan)
 
         df = None
+        degen_used = False
         for attempt in range(1, max_tries + 1):
             try:
                 candidate = run_query(sql)
@@ -177,10 +193,19 @@ def run_analysis(question: str, max_tries: int = MAX_SQL_TRIES) -> AgentResult:
                     return result
                 sql = _fix_sql(question, context, sql, str(e))
                 continue
-            if len(candidate) == 0 and attempt < max_tries:      # self-heal on empty result
-                hint = ("Query executed but returned 0 rows. Reconsider the filters — e.g. to match "
-                        "a clinical name use ILIKE on a *_description column, not equality on a "
-                        "*_code column; check the example values in the catalog.")
+            empty = len(candidate) == 0
+            degen = (not empty) and (not degen_used) and _degenerate(candidate)
+            if (empty or degen) and attempt < max_tries:         # self-heal on empty / null-aggregate
+                if empty:
+                    hint = ("Query executed but returned 0 rows. Reconsider the filters — e.g. match a "
+                            "clinical name with ILIKE on a *_description column, not equality on a "
+                            "*_code column; check the example values in the catalog.")
+                else:
+                    degen_used = True
+                    hint = ("The query returned a single all-zero/NULL aggregate — the filter likely "
+                            "matched no rows. Check exact category values (e.g. gender is 'M'/'F', not "
+                            "'female'; match clinical names with ILIKE on *_description). If 0 is "
+                            "genuinely correct, return the same query.")
                 result.attempts.append({"sql": sql, "error": hint})
                 sql = _fix_sql(question, context, sql, hint)
                 continue

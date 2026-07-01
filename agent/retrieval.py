@@ -19,8 +19,12 @@ _STOP = {
 }
 
 
+def _stem(t: str) -> str:
+    return t[:-1] if len(t) > 3 and t.endswith("s") else t   # crude plural strip: patients→patient
+
+
 def _tokens(text: str) -> list[str]:
-    return [t for t in re.findall(r"[a-z0-9_]+", text.lower()) if t not in _STOP and len(t) > 1]
+    return [_stem(t) for t in re.findall(r"[a-z0-9_]+", text.lower()) if t not in _STOP and len(t) > 1]
 
 
 def load_catalog(path: Path = CATALOG_PATH) -> dict:
