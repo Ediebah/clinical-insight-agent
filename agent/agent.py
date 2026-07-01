@@ -1,16 +1,20 @@
 """The agent loop.
 
     question
+      → TRIAGE     (answerable, or ask a clarifying question?)      [LLM]
       → RETRIEVE   (RAG over the semantic catalog)
-      → PLAN       (hypothesis + approach)                     [LLM]
-      → SQL        (generate a read-only DuckDB query)         [LLM]
-      → EXECUTE    (run; on error feed the message back)       [self-heal, up to N tries]
-      → GUARDRAIL  (deterministic statistical checks)          [no LLM]
-      → INTERPRET  (findings + recommendation, honoring caveats)[LLM]
+      → PLAN       (hypothesis + approach)                          [LLM]
+      → SQL        (generate a read-only DuckDB query)              [LLM]
+      → EXECUTE    (run; on error/empty feed it back)               [self-heal, up to N tries]
+      → CITE       (which catalog tables the SQL used)              [deterministic]
+      → GUARDRAIL  (statistical checks)                             [deterministic]
+      → VERIFY     (does the SQL answer THIS question? confidence)  [LLM critic]
+      → INTERPRET  (findings + recommendation, honoring caveats)    [LLM]
 
 Returns an AgentResult carrying the full trace so the UI can show its work.
 """
 from __future__ import annotations
+import re
 from dataclasses import dataclass, field
 
 import pandas as pd
@@ -43,12 +47,15 @@ _SYSTEM = (
 @dataclass
 class AgentResult:
     question: str
+    clarification: str = ""                                  # set if the agent needs to ask back
     hypothesis: str = ""
     plan: str = ""
     sql: str = ""
-    attempts: list[dict] = field(default_factory=list)   # [{sql, error|None}]
+    attempts: list[dict] = field(default_factory=list)       # [{sql, error|None}]
     dataframe: pd.DataFrame | None = None
+    citations: list[str] = field(default_factory=list)        # catalog tables the SQL used
     findings: list[guardrails.Finding] = field(default_factory=list)
+    verification: dict | None = None                          # {answers_question, confidence, issues}
     interpretation: str = ""
     error: str | None = None
 
@@ -58,13 +65,25 @@ class AgentResult:
 
 
 def _clean_sql(text: str) -> str:
-    """Strip markdown fences / stray prose the model might add around the SQL."""
     t = text.strip()
     if t.startswith("```"):
         t = t.split("```", 2)[1] if t.count("```") >= 2 else t.strip("`")
         if t.lower().startswith("sql"):
             t = t[3:]
     return t.strip().strip("`").strip()
+
+
+def _triage(question: str, context: str) -> dict:
+    """Decide if the question is answerable from the catalog, or needs clarification."""
+    return llm.complete_json(
+        _SYSTEM,
+        f"{context}\n\nQUESTION: {question}\n\n"
+        "Decide if this is answerable with the tables above. Default to answerable=true. Only set "
+        "answerable=false if it is genuinely ambiguous or under-specified in a way that materially "
+        "changes the query (missing metric/time frame/population), or asks for data not present. "
+        'Return JSON: {"answerable": bool, "clarification": "one specific question to ask the user '
+        'if not answerable, else empty"}.',
+    )
 
 
 def _plan(question: str, context: str) -> tuple[str, str]:
@@ -94,6 +113,23 @@ def _fix_sql(question: str, context: str, bad_sql: str, error: str) -> str:
     ))
 
 
+def _verify(question: str, sql: str, df: pd.DataFrame) -> dict:
+    """Critic pass: does the SQL actually answer THIS question? Confidence + issues."""
+    preview = df.head(15).to_csv(index=False)
+    out = llm.complete_json(
+        _SYSTEM,
+        f"QUESTION: {question}\n\nSQL:\n{sql}\n\nRESULT (up to 15 rows):\n{preview}\n\n"
+        "Critically review whether this SQL answers the EXACT question asked (right grain, filters, "
+        "metric, denominators) and whether the result is plausible. Be skeptical. "
+        'Return JSON: {"answers_question": bool, "confidence": "high"|"medium"|"low", '
+        '"issues": [short strings, empty if none]}.',
+    )
+    out.setdefault("answers_question", True)
+    out.setdefault("confidence", "medium")
+    out.setdefault("issues", [])
+    return out
+
+
 def _interpret(question: str, sql: str, df: pd.DataFrame, findings: list[guardrails.Finding]) -> str:
     preview = df.head(30).to_csv(index=False)
     caveats = guardrails.render(findings)
@@ -111,11 +147,20 @@ def _interpret(question: str, sql: str, df: pd.DataFrame, findings: list[guardra
     )
 
 
+def _citations(sql: str, table_names: list[str]) -> list[str]:
+    return [t for t in table_names if re.search(rf"\b{re.escape(t)}\b", sql)]
+
+
 def run_analysis(question: str, max_tries: int = MAX_SQL_TRIES) -> AgentResult:
     result = AgentResult(question=question)
     try:
         retrieved = retrieval.retrieve(question)
         context = retrieval.render_context(retrieved)
+
+        triage = _triage(question, context)
+        if not triage.get("answerable", True) and triage.get("clarification"):
+            result.clarification = triage["clarification"]
+            return result
 
         result.hypothesis, result.plan = _plan(question, context)
         sql = _gen_sql(question, context, result.plan)
@@ -132,8 +177,7 @@ def run_analysis(question: str, max_tries: int = MAX_SQL_TRIES) -> AgentResult:
                     return result
                 sql = _fix_sql(question, context, sql, str(e))
                 continue
-            # executed OK — but an empty result usually means a wrong filter; retry with a hint
-            if len(candidate) == 0 and attempt < max_tries:
+            if len(candidate) == 0 and attempt < max_tries:      # self-heal on empty result
                 hint = ("Query executed but returned 0 rows. Reconsider the filters — e.g. to match "
                         "a clinical name use ILIKE on a *_description column, not equality on a "
                         "*_code column; check the example values in the catalog.")
@@ -146,7 +190,9 @@ def run_analysis(question: str, max_tries: int = MAX_SQL_TRIES) -> AgentResult:
 
         result.sql = sql
         result.dataframe = df
+        result.citations = _citations(sql, retrieved["all_table_names"])
         result.findings = guardrails.analyze(df, question, sql)
+        result.verification = _verify(question, sql, df)
         result.interpretation = _interpret(question, sql, df, result.findings)
     except llm.LLMError as e:
         result.error = str(e)
@@ -157,10 +203,14 @@ if __name__ == "__main__":
     import sys
     q = " ".join(sys.argv[1:]) or "What is the 30-day readmission rate, and does it vary by age group?"
     r = run_analysis(q)
-    if r.error:
+    if r.clarification:
+        print("NEEDS CLARIFICATION:", r.clarification)
+    elif r.error:
         print("ERROR:", r.error)
     else:
         print(f"HYPOTHESIS: {r.hypothesis}\n\nSQL ({len(r.attempts)} attempt/s):\n{r.sql}\n")
         print(r.dataframe.head(15).to_string(index=False), "\n")
-        print("GUARDRAIL:\n" + guardrails.render(r.findings), "\n")
+        print("CITATIONS:", ", ".join(r.citations))
+        print("VERIFY:", r.verification)
+        print("\nGUARDRAIL:\n" + guardrails.render(r.findings), "\n")
         print(r.interpretation)

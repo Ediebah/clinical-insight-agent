@@ -98,6 +98,9 @@ CSS = """
 .gr-msg{ color:var(--text); font-size:.9rem; line-height:1.5; }
 .sev-caution{ --c:var(--caution);} .sev-warn{ --c:var(--warn);} .sev-info{ --c:var(--info);}
 .heal-note{ font-family:var(--font-mono); font-size:.78rem; color:var(--warn); margin:.2rem 0 .5rem; }
+.cite{ font-family:var(--font-mono); font-size:.72rem; color:var(--faint); margin:.5rem 0 0;
+  display:flex; gap:.4rem; align-items:center; flex-wrap:wrap; }
+.cite .pill{ font-size:.68rem; }
 
 /* buttons — chips + primary CTA */
 .stButton > button{ font-family:var(--font-mono); font-size:.78rem; font-weight:400;
@@ -194,6 +197,12 @@ if go and question:
     with st.spinner("Retrieving context → planning → writing SQL → executing → interpreting…"):
         result = run_analysis(question)
 
+    if result.clarification:
+        eyebrow("Clarification needed")
+        st.markdown(f"<div class='card' style='border-left:3px solid var(--accent-2)'>🤔 "
+                    f"{html.escape(result.clarification)}</div>", unsafe_allow_html=True)
+        st.stop()
+
     if result.error and result.dataframe is None and not result.attempts:
         st.error(result.error)
         st.stop()
@@ -212,6 +221,9 @@ if go and question:
             with st.expander(f"Attempt {i} — {a['error'][:80]}"):
                 st.code(a["sql"], language="sql")
     st.code(result.sql, language="sql")
+    if result.citations:
+        chips = "".join(f"<span class='pill'>{html.escape(t)}</span>" for t in result.citations)
+        st.markdown(f"<div class='cite'>tables used: {chips}</div>", unsafe_allow_html=True)
 
     if result.error:
         st.error(result.error)
@@ -219,6 +231,17 @@ if go and question:
 
     eyebrow(f"Result <span class='n'>· {result.n_rows} row(s)</span>")
     st.dataframe(result.dataframe, use_container_width=True, height=min(360, 80 + 28 * result.n_rows))
+
+    if result.verification:
+        v = result.verification
+        sev = {"high": "info", "medium": "warn", "low": "caution"}.get(v.get("confidence", "medium"), "warn")
+        ans = "answers the question" if v.get("answers_question", True) else "may not fully answer the question"
+        msg = f"critic confidence <b>{html.escape(str(v.get('confidence', 'medium')))}</b> — {ans}."
+        if v.get("issues"):
+            msg += " issues: " + "; ".join(html.escape(str(i)) for i in v["issues"])
+        eyebrow("Self-verification")
+        st.markdown(f"<div class='gr-badge sev-{sev}'><span class='gr-tag'>VERIFY</span>"
+                    f"<span class='gr-msg'>{msg}</span></div>", unsafe_allow_html=True)
 
     eyebrow("Statistical guardrail")
     if result.findings:
