@@ -1,0 +1,8 @@
+# Full dev environment: app runtime (pinned in requirements.txt) + dbt for building the warehouse,
+# running the self-healing pipeline demo, and CI.
+#
+#   uv venv --python 3.12
+#   uv pip install -r requirements-dev.txt
+-r requirements.txt
+dbt-core==1.11.11
+dbt-duckdb==1.10.1

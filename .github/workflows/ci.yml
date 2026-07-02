@@ -21,7 +21,7 @@ jobs:
           java-version: "17"        # Synthea's build target
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install -r requirements-dev.txt   # app runtime + dbt
 
       - name: Generate a small, reproducible Synthea dataset
         run: |

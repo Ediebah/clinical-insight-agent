@@ -77,8 +77,8 @@ Sample: asked "prevalence of hypertension by age group," the agent returns the c
 Prereqs: `git`, [`uv`](https://docs.astral.sh/uv/), a **JDK 17+** (only for regenerating data), and an OpenAI API key.
 
 ```bash
-# 1. Environment
-uv venv --python 3.12 && uv pip install -r requirements.txt
+# 1. Environment (dev = app + dbt; the deployed app itself installs only requirements.txt)
+uv venv --python 3.12 && uv pip install -r requirements-dev.txt
 
 # 2. (Weekend 1) generate data → load → build+test the warehouse
 cd synthea && java -jar synthea-with-dependencies.jar \

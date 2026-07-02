@@ -1,17 +1,12 @@
-# Python 3.12 recommended (dbt's ecosystem is best-tested there).
-# Setup:
-#   uv venv --python 3.12
-#   uv pip install -r requirements.txt
+# App / agent RUNTIME dependencies only — this is what Streamlit Community Cloud installs.
+# Pinned to the exact versions the app is verified working on (no dbt: the app never needs it
+# at runtime, and dbt's pins were colliding with pandas/numpy/altair on the cloud resolver).
 #
-# Pinned to what this project was built and tested against.
-dbt-core==1.11.11
-dbt-duckdb==1.10.1
+# To also build the dbt warehouse (Weekend 1, pipeline_healer, CI), use requirements-dev.txt.
+streamlit==1.58.0
+openai==2.44.0
+python-dotenv==1.2.2
+pandas==3.0.3
+numpy==2.5.0
+altair==6.2.2
 duckdb==1.5.4
-
-# --- Weekend 2: the agent ---
-openai>=1.40
-python-dotenv>=1.0
-streamlit>=1.38
-altair>=5.0
-pandas>=2.0
-numpy>=1.26
