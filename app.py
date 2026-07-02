@@ -7,10 +7,15 @@ IBM Plex Sans/Mono, custom guardrail badges. Refined, recruiter-facing.
 """
 from __future__ import annotations
 
+import datetime as _dt
 import html
+import json
 import os
+from pathlib import Path
 
 import streamlit as st
+
+_FEEDBACK_LOG = Path(__file__).resolve().parent / "logs" / "feedback.jsonl"
 
 # Bridge Streamlit Cloud secrets -> env vars BEFORE importing the agent (llm.py reads env at import).
 try:
@@ -153,6 +158,10 @@ code, pre, kbd{ font-family:var(--font-mono) !important; }
 .footer a{ color:var(--muted); text-decoration:none; }
 .footer a:hover{ color:var(--accent); }
 .footer .dot{ color:var(--border); }
+.review-gate{ background:rgba(248,113,113,.10); border:1px solid rgba(248,113,113,.4);
+  border-left:3px solid var(--caution); border-radius:11px; padding:.7rem 1rem; margin:.6rem 0 1rem;
+  color:var(--text); font-size:.92rem; }
+.hitl-note{ font-family:var(--font-mono); font-size:.72rem; color:var(--faint); margin-top:.4rem; }
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
@@ -205,11 +214,29 @@ def eyebrow(text: str):
     st.markdown(f"<div class='eyebrow'>{text}</div>", unsafe_allow_html=True)
 
 
+def _log_feedback(result, question: str, thumbs: str, correction: str) -> None:
+    """Append the human's verdict/correction to logs/feedback.jsonl (the human-in-the-loop signal)."""
+    try:
+        _FEEDBACK_LOG.parent.mkdir(parents=True, exist_ok=True)
+        rec = {"ts": _dt.datetime.now().isoformat(timespec="seconds"), "question": question,
+               "thumbs": thumbs, "correction": correction or "", "sql": result.sql,
+               "confidence": (result.verification or {}).get("confidence")}
+        with _FEEDBACK_LOG.open("a") as f:
+            f.write(json.dumps(rec) + "\n")
+    except Exception:
+        pass
+
+
 # ───────────────────────────── run ─────────────────────────────
 if go and question:
     with st.spinner("Retrieving context → planning → writing SQL → executing → interpreting…"):
-        result = run_analysis(question)
+        st.session_state.result = run_analysis(question)
+        st.session_state.result_q = question
 
+result = st.session_state.get("result")
+result_q = st.session_state.get("result_q", "")
+
+if result is not None:
     if result.clarification:
         eyebrow("Clarification needed")
         st.markdown(f"<div class='card' style='border-left:3px solid var(--accent-2)'>🤔 "
@@ -219,6 +246,17 @@ if go and question:
     if result.error and result.dataframe is None and not result.attempts:
         st.error(result.error)
         st.stop()
+
+    # HITL review gate — flag low-confidence / caution answers for human review before acting
+    needs_review = bool(
+        (result.verification and (result.verification.get("confidence") == "low"
+         or not result.verification.get("answers_question", True)))
+        or any(f.severity == "caution" for f in result.findings)
+    )
+    if needs_review:
+        st.markdown("<div class='review-gate'>⚠ <b>Human review recommended</b> before acting on this "
+                    "— the critic flagged low confidence or the guardrail raised a statistical caution "
+                    "(see below).</div>", unsafe_allow_html=True)
 
     if result.hypothesis:
         eyebrow("Hypothesis")
@@ -244,7 +282,7 @@ if go and question:
 
     eyebrow(f"Result <span class='n'>· {result.n_rows} row(s)</span>")
 
-    cards = kpi_cards(result.dataframe, question)
+    cards = kpi_cards(result.dataframe, result_q)
     if cards:
         chtml = "".join(
             f"<div class='kpi-card'><div class='kpi-label'>{html.escape(c['label'])}</div>"
@@ -253,7 +291,7 @@ if go and question:
             for c in cards)
         st.markdown(f"<div class='kpi-row'>{chtml}</div>", unsafe_allow_html=True)
 
-    _chart = build_chart(result.dataframe, question)
+    _chart = build_chart(result.dataframe, result_q)
     if _chart is not None:
         st.altair_chart(_chart, use_container_width=True)
 
@@ -289,6 +327,19 @@ if go and question:
         st.markdown(f"<div class='trace'>⏱ {t.get('latency_ms', 0)} ms · {t.get('calls', 0)} LLM calls · "
                     f"{toks:,} tokens · est. ${t.get('est_cost_usd', 0):.4f}</div>",
                     unsafe_allow_html=True)
+
+    # HITL feedback loop — capture the human verdict/correction for improvement
+    eyebrow("Was this useful?")
+    fc = st.columns([1, 1, 8])
+    up = fc[0].button("👍", key="fb_up")
+    down = fc[1].button("👎", key="fb_down")
+    correction = st.text_input("correction", key="fb_text", label_visibility="collapsed",
+                               placeholder="Optional: what should it have done differently?")
+    if up or down:
+        _log_feedback(result, result_q, "up" if up else "down", correction)
+        st.success("Thanks — logged as the human-in-the-loop signal.")
+    st.markdown("<div class='hitl-note'>Read-only agent · shows its SQL + guardrail · a human stays on "
+                "the loop. Feedback → logs/feedback.jsonl.</div>", unsafe_allow_html=True)
 
 # ───────────────────────────── footer ─────────────────────────────
 st.markdown("""
