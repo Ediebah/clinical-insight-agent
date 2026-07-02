@@ -225,11 +225,22 @@ def _route(question: str, context: str) -> dict:
         "If it does, pick a model and write a read-only DuckDB SELECT returning ONE ROW PER UNIT (per "
         "patient or encounter) with the outcome + predictor columns, each aliased to a simple snake_case "
         "name (cast booleans to int).\n"
-        "model_type: 'logistic' (binary outcome e.g. readmission/deceased), 'ols' (continuous outcome "
-        "e.g. cost/age), 'cox' (time-to-event; needs duration + event columns), 'association' (two vars).\n"
+        "model_type: 'logistic' (binary outcome), 'ols' (continuous outcome e.g. cost), 'survival' "
+        "(time-to-event — death, time-to-readmission, time-until-X; needs a `duration` and a binary "
+        "`event`, plus optional `predictors` for Cox hazard ratios and a categorical `group` to stratify "
+        "the Kaplan-Meier curves), or 'association' (two variables).\n"
+        "Choose 'logistic' for a binary yes/no outcome measured within a FIXED window (e.g. "
+        "is_30d_readmission, in-hospital death) — report odds ratios. Choose 'survival' only when each "
+        "subject has a genuine follow-up duration and the event TIMING varies (e.g. mortality: "
+        "duration=age, event=is_deceased, group=sex) — report Kaplan-Meier curves + Cox hazard ratios. "
+        "When a time-to-event question could fit either, PREFER survival.\n"
+        "CRITICAL: every column name you put in outcome / predictors / duration / event / group / var_a / "
+        "var_b MUST exactly match an alias in analytic_sql. Use simple snake_case aliases and NEVER a SQL "
+        "reserved word (alias sex, not 'group'; e.g. `gender AS sex`, then set \"group\":\"sex\").\n"
         'Return JSON: {"mode":"model"|"aggregate", "model_type":"...", "outcome":"col", '
-        '"predictors":["col"], "duration":"col", "event":"col", "var_a":"col", "var_b":"col", '
-        '"analytic_sql":"SELECT ...", "hypothesis":"one sentence"}. Plain aggregation → {"mode":"aggregate"}.',
+        '"predictors":["col"], "duration":"col", "event":"col", "group":"col", "var_a":"col", '
+        '"var_b":"col", "analytic_sql":"SELECT ...", "hypothesis":"one sentence"}. '
+        'Plain aggregation → {"mode":"aggregate"}.',
     )
 
 
@@ -239,6 +250,9 @@ def _fit_model(spec: dict, df) -> modeling.ModelResult:
         return modeling.fit_logistic(df, spec["outcome"], spec.get("predictors", []))
     if mt == "ols":
         return modeling.fit_ols(df, spec["outcome"], spec.get("predictors", []))
+    if mt == "survival":
+        return modeling.fit_survival(df, spec["duration"], spec["event"],
+                                     spec.get("predictors", []), spec.get("group"))
     if mt == "cox":
         return modeling.fit_cox(df, spec["duration"], spec["event"], spec.get("predictors", []))
     if mt == "association":

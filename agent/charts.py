@@ -196,6 +196,26 @@ def forest_plot(model: dict):
     return _finish(chart, min(460, 140 + 70 * len(d)), f"Forest plot — {label} (dashed line = no effect)")
 
 
+def survival_plot(km: list):
+    """Kaplan-Meier survival curves (step lines + optional 95% CI bands), by group."""
+    if not km:
+        return None
+    d = pd.DataFrame(km)
+    colors = alt.Scale(range=[TEAL, "#8ab4f8", "#f5c451", "#f87171", "#a78bfa"])
+    base = alt.Chart(d)
+    line = base.mark_line(interpolate="step-after", strokeWidth=2).encode(
+        x=alt.X("time:Q", title="time"),
+        y=alt.Y("survival:Q", title="survival probability", scale=alt.Scale(domain=[0, 1])),
+        color=alt.Color("group:N", scale=colors,
+                        legend=alt.Legend(title=None, orient="top", labelColor=MUTED)))
+    layers = [line]
+    if "ci_low" in d and d["ci_low"].notna().any():
+        band = base.mark_area(opacity=0.12, interpolate="step-after").encode(
+            x="time:Q", y="ci_low:Q", y2="ci_high:Q", color=alt.Color("group:N", scale=colors, legend=None))
+        layers = [band, line]
+    return _finish(alt.layer(*layers), 340, "Kaplan-Meier survival curve")
+
+
 def radar_chart(df: pd.DataFrame, question: str = ""):
     """Radar/spider chart comparing a few entities across several metrics (each axis min-max
     normalized so scales are comparable). Appropriate ONLY for 2-6 entities × ≥3 numeric measures."""

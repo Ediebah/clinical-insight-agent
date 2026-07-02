@@ -30,6 +30,7 @@ class ModelResult:
     n: int
     effect_label: str        # "odds ratio" | "hazard ratio" | "coefficient" | test name
     terms: list = field(default_factory=list)
+    km: list = field(default_factory=list)   # Kaplan-Meier curve points [{group,time,survival,ci_low,ci_high}]
     fit_stat: str = ""
     note: str = ""
     error: str | None = None
@@ -109,6 +110,10 @@ def fit_cox(df: pd.DataFrame, duration: str, event: str, predictors: list[str]) 
         from statsmodels.duration.hazard_regression import PHReg
         d = _clean(df, [duration, event, *predictors])
         d[event] = _to_binary(d[event])
+        d = d[pd.to_numeric(d[duration], errors="coerce") > 0]   # survival durations must be positive
+        if len(d) < 2:
+            return ModelResult("cox", duration, len(d), "hazard ratio",
+                               error="No positive follow-up durations to fit a Cox model.")
         mod = PHReg.from_formula(_formula(duration, predictors, d), data=d, status=d[event])
         r = mod.fit()
         ci = r.conf_int()
@@ -120,6 +125,44 @@ def fit_cox(df: pd.DataFrame, duration: str, event: str, predictors: list[str]) 
                            note="Hazard ratio > 1 = faster time-to-event (higher risk), others fixed.")
     except Exception as e:  # noqa: BLE001
         return ModelResult("cox", duration, 0, "hazard ratio", error=str(e))
+
+
+def fit_km(df: pd.DataFrame, duration: str, event: str, group: str | None = None) -> list[dict]:
+    """Kaplan-Meier survival curve points, optionally stratified by a categorical group."""
+    from statsmodels.duration.survfunc import SurvfuncRight
+    d = _clean(df, [duration, event, *([group] if group else [])])
+    d[event] = _to_binary(d[event])
+    d = d[pd.to_numeric(d[duration], errors="coerce") > 0]   # survival durations must be positive
+    groups = list(d.groupby(group)) if (group and group in d.columns) else [("all", d)]
+    curves = []
+    for gname, gd in groups:
+        if len(gd) < 2:
+            continue
+        sf = SurvfuncRight(gd[duration].to_numpy(float), gd[event].to_numpy(int))
+        se = getattr(sf, "surv_prob_se", None)
+        for i, (t, s) in enumerate(zip(sf.surv_times, sf.surv_prob)):
+            lo = hi = float("nan")
+            if se is not None:
+                lo, hi = max(0.0, float(s) - 1.96 * float(se[i])), min(1.0, float(s) + 1.96 * float(se[i]))
+            curves.append({"group": str(gname), "time": float(t), "survival": float(s),
+                           "ci_low": lo, "ci_high": hi})
+    return curves
+
+
+def fit_survival(df: pd.DataFrame, duration: str, event: str,
+                 predictors: list[str] | None = None, group: str | None = None) -> ModelResult:
+    """Survival analysis — Cox hazard ratios (if predictors given) + Kaplan-Meier curves (grouped)."""
+    predictors = list(predictors or [])
+    if not predictors and group and group in df.columns:
+        predictors = [group]          # also quantify the group difference with a Cox hazard ratio
+    mr = (fit_cox(df, duration, event, predictors) if predictors
+          else ModelResult("cox", duration, len(df), "hazard ratio", note="Kaplan-Meier only."))
+    try:
+        mr.km = fit_km(df, duration, event, group)
+    except Exception:
+        mr.km = []
+    mr.model_type = "survival"
+    return mr
 
 
 def test_association(df: pd.DataFrame, a: str, b: str) -> ModelResult:

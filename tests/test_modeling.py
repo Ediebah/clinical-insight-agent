@@ -58,6 +58,17 @@ def test_association_chi2_and_ttest():
     assert r2.error is None and r2.terms[0].p < 0.05
 
 
+def test_survival_km_and_cox():
+    rng = np.random.default_rng(4)
+    n = 500
+    g = rng.choice(["A", "B"], n)
+    df = pd.DataFrame({"time": rng.exponential(np.where(g == "B", 5.0, 10.0)), "event": 1, "g": g})
+    mr = modeling.fit_survival(df, "time", "event", predictors=["g"], group="g")
+    assert mr.error is None and mr.model_type == "survival"
+    assert mr.terms and mr.km                                   # Cox HR + KM curve points
+    assert {c["group"] for c in mr.km} == {"A", "B"}
+
+
 def test_to_binary():
     assert list(modeling._to_binary(pd.Series([True, False, True]))) == [1, 0, 1]
     assert list(modeling._to_binary(pd.Series([0, 1, 0]))) == [0, 1, 0]

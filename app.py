@@ -26,7 +26,7 @@ except Exception:
     pass  # no secrets.toml locally — falls back to agent/.env
 
 from agent.agent import run_analysis
-from agent.charts import build_chart, forest_plot, kpi_cards, radar_chart
+from agent.charts import build_chart, forest_plot, kpi_cards, radar_chart, survival_plot
 from agent.llm import MODEL
 from agent.retrieval import load_catalog
 
@@ -39,6 +39,7 @@ EXAMPLES = [
     "What is the prevalence of hypertension by age group?",
     "How does average encounter cost differ by encounter class?",
     "What predicts 30-day readmission, adjusting for age and sex?",
+    "How does patient survival differ by sex?",
 ]
 
 # ───────────────────────────── design system ─────────────────────────────
@@ -302,6 +303,9 @@ if result is not None:
             chips = "".join(f"<span class='pill'>{html.escape(t)}</span>" for t in result.citations)
             st.markdown(f"<div class='cite'>tables used: {chips}</div>", unsafe_allow_html=True)
         eyebrow("Statistical model")
+        _km = result.model.get("km")
+        if _km:
+            st.altair_chart(survival_plot(_km), use_container_width=True)
         _fp = forest_plot(result.model)
         if _fp is not None:
             st.altair_chart(_fp, use_container_width=True)
