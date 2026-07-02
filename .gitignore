@@ -34,6 +34,11 @@ warehouse/.user.yml
 /clinical-agent-*.png
 agent/eval_history.jsonl
 
+# --- personal learning notes (local only, kept out of the public repo) ---
+/RUNBOOK.md
+/CONCEPTS.md
+/GOVERNANCE.md
+
 # --- OS / editor ---
 .DS_Store
 .vscode/

@@ -67,7 +67,7 @@ Built on synthetic EHR data (zero PHI), so the whole thing is public and reprodu
 - **B · Trustworthiness:** a **clarify-gate** (asks instead of guessing on vague questions), a **verifier/critic** pass (does the SQL answer *this* question? confidence + issues), and **citations** (which tables were used).
 - **C · Evaluation suite:** one labeled `GOLD` dataset (33 cases) drives every metric — **accuracy 33/33**, **guardrail precision/recall 100/100**, **retrieval recall 97% / MRR 0.88**, and an **LLM-as-a-judge** for **factual consistency (0% hallucination) + relevance 5.0/5**, plus caveat-faithfulness and a regression log.
 - **D · Real warehouse:** a Snowflake `prod` target (identical models via `dbt build --target prod`) + **GitHub Actions CI** that rebuilds the warehouse, runs `dbt build` (90 tests), and runs the guardrail eval on every push.
-- **E · Ops & trust:** read-only + validated + row-capped SQL, a **query audit log**, **prompt-injection** blocking, and **cost/latency tracing** — see [GOVERNANCE.md](GOVERNANCE.md).
+- **E · Ops & trust:** read-only + validated + row-capped SQL, a **query audit log**, **prompt-injection** blocking, and **cost/latency tracing**.
 - **Plus:** an **industry-grade dashboard** per answer (KPI cards + annotated chart with value labels and **Wilson 95% CI whiskers** — uncertainty shown, not hidden) and a **self-healing pipeline demo** (`agent/pipeline_healer.py`) — a dbt test fails → the agent diagnoses the root cause and proposes a fix → rebuild → green again.
 
 ### Production hardening
@@ -123,7 +123,7 @@ new app → this repo → `app.py` → add `OPENAI_API_KEY` under **Secrets**.
 ## Repo layout
 
 ```
-├── README.md · CONCEPTS.md · RUNBOOK.md · GOVERNANCE.md   docs: pitch / WHY / HOW / trust
+├── README.md                                 project overview, architecture, quickstart
 ├── requirements.txt
 ├── app.py                                    Streamlit demo UI
 ├── .github/workflows/ci.yml                  dbt build + 90 tests + guardrail eval, every push
