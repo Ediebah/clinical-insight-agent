@@ -7,7 +7,8 @@ Each case carries whatever the different evals need:
 One dataset, many metrics — so labels never drift between evals.
 """
 from __future__ import annotations
-from dataclasses import dataclass, field
+
+from dataclasses import dataclass
 
 
 @dataclass(frozen=True)

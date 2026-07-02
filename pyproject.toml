@@ -1,0 +1,16 @@
+# Tooling config only (not a build target) — ruff (lint/format) + pytest.
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = [".venv", "warehouse", "synthea", "data"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+# keep the valuable checks (F = pyflakes bugs, I = import order); drop style-only noise we hit
+# intentionally: E402 (imports after a lazy/secrets setup), E501 (long regexes/prompts), E701.
+ignore = ["E402", "E501", "E701", "E702"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+pythonpath = ["."]

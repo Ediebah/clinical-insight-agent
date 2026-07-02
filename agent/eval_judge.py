@@ -10,6 +10,7 @@ Reporting both means the judge is cross-checked, not trusted blindly.
 hallucination_rate = 1 − factual_consistency.  Run: .venv/bin/python -m agent.eval_judge
 """
 from __future__ import annotations
+
 import re
 
 import pandas as pd

@@ -14,13 +14,14 @@
 Returns an AgentResult carrying the full trace so the UI can show its work.
 """
 from __future__ import annotations
+
 import re
 from dataclasses import dataclass, field
 
 import pandas as pd
 
 from . import guardrails, llm, retrieval
-from .warehouse import run_query, QueryError
+from .warehouse import QueryError, run_query
 
 MAX_SQL_TRIES = 4
 

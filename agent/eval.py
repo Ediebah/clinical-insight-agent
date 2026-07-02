@@ -10,15 +10,15 @@ Run:  .venv/bin/python -m agent.eval        (needs OPENAI_API_KEY in agent/.env)
 Companion: agent.guardrail_eval (guardrail precision/recall, no key needed).
 """
 from __future__ import annotations
+
 import datetime as _dt
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 import pandas as pd
 
 from .agent import run_analysis
-from .guardrails import render
 from .warehouse import run_query
 
 HISTORY = Path(__file__).resolve().parent / "eval_history.jsonl"

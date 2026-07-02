@@ -6,3 +6,5 @@
 -r requirements.txt
 dbt-core==1.11.11
 dbt-duckdb==1.10.1
+pytest>=8.0
+ruff>=0.6

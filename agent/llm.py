@@ -4,6 +4,7 @@ The client is created lazily so this imports cleanly with no API key. Every call
 latency, and an estimated cost into a per-run trace the agent can attach to its result.
 """
 from __future__ import annotations
+
 import json
 import os
 import time

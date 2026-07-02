@@ -15,6 +15,7 @@ intermediate and intentionally omitted so the agent is steered to the clean star
 Usage:  .venv/bin/python agent/build_catalog.py   (after `dbt docs generate`)
 """
 from __future__ import annotations
+
 import json
 import re
 from pathlib import Path

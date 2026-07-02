@@ -9,6 +9,7 @@ Deterministic (no LLM) so the visualization is reliable. From the result's shape
 Themed to the clinical-teal palette.
 """
 from __future__ import annotations
+
 import re
 
 import altair as alt

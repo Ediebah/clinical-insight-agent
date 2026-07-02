@@ -20,9 +20,10 @@ What it does (v2 — inference, not just fragility flags):
 Pure Python + numpy (no scipy): normal CDF via math.erf, Wilson/Newcombe/BH implemented inline.
 """
 from __future__ import annotations
+
 import math
 import re
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 
 import numpy as np
 import pandas as pd

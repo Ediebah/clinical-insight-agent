@@ -6,8 +6,10 @@ Design: "clinical data terminal" — deep-ink dark, clinical-teal accent, Fraunc
 IBM Plex Sans/Mono, custom guardrail badges. Refined, recruiter-facing.
 """
 from __future__ import annotations
+
 import html
 import os
+
 import streamlit as st
 
 # Bridge Streamlit Cloud secrets -> env vars BEFORE importing the agent (llm.py reads env at import).

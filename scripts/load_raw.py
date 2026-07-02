@@ -9,8 +9,9 @@ Design choices (see CONCEPTS.md):
 
 Usage:  .venv/bin/python scripts/load_raw.py
 """
-from pathlib import Path
 import sys
+from pathlib import Path
+
 import duckdb
 
 ROOT = Path(__file__).resolve().parent.parent

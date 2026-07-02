@@ -23,6 +23,11 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements-dev.txt   # app runtime + dbt
 
+      - name: Lint (ruff) + unit tests (pytest) — fast, no API key
+        run: |
+          ruff check .
+          pytest
+
       - name: Generate a small, reproducible Synthea dataset
         run: |
           mkdir -p synthea data          # these dirs are git-ignored (empty) → recreate on checkout

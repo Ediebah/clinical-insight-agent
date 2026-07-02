@@ -6,6 +6,7 @@ return the most relevant tables (with full column detail) plus any relevant name
 render them into a compact context block the LLM can ground its SQL on.
 """
 from __future__ import annotations
+
 import json
 import re
 from pathlib import Path
