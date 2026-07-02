@@ -66,6 +66,7 @@ Built on synthetic EHR data (zero PHI), so the whole thing is public and reprodu
 - **C · Eval at grade:** 19 categorized known-answer questions + clarify cases + a **caveat-faithfulness** metric + regression logging → **19/19 accuracy, faithfulness 100%**.
 - **D · Real warehouse:** a Snowflake `prod` target (identical models via `dbt build --target prod`) + **GitHub Actions CI** that rebuilds the warehouse, runs `dbt build` (90 tests), and runs the guardrail eval on every push.
 - **E · Ops & trust:** read-only + validated + row-capped SQL, a **query audit log**, **prompt-injection** blocking, and **cost/latency tracing** — see [GOVERNANCE.md](GOVERNANCE.md).
+- **Plus:** auto-generated **charts** per answer (Altair, themed) and a **self-healing pipeline demo** (`agent/pipeline_healer.py`) — a dbt test fails → the agent diagnoses the root cause and proposes a fix → rebuild → green again.
 
 Sample: asked "prevalence of hypertension by age group," the agent returns the correct age gradient, computes that **5/6 pairwise contrasts survive FDR** (largest 65–74 vs 18–39, risk difference +47.8pp, 95% CI [38.5, 56.7]), and warns the comparison is **unadjusted for confounders** — inference a plain text-to-SQL bot can't do.
 
@@ -93,6 +94,7 @@ cp agent/.env.example agent/.env      # then put your OPENAI_API_KEY in agent/.e
 .venv/bin/python -m agent.agent "Which conditions are most prevalent in patients 75 and older?"
 .venv/bin/python -m agent.eval             # accuracy eval           -> 19/19
 .venv/bin/python -m agent.guardrail_eval   # guardrail precision/recall (no key) -> 100/100
+.venv/bin/python -m agent.pipeline_healer  # self-healing demo: dbt test fails → agent fixes → green
 
 # 5. Run the demo UI
 .venv/bin/streamlit run app.py
@@ -119,6 +121,8 @@ new app → this repo → `app.py` → add `OPENAI_API_KEY` under **Secrets**.
 │   ├── warehouse.py                          read-only, validated, audited SQL execution
 │   ├── guardrails.py                         statistical guardrail (Wilson/Newcombe CIs, FDR, …)
 │   ├── llm.py · agent.py                      OpenAI wrapper (traced) · the self-healing loop
+│   ├── charts.py                             auto-generate a themed Altair chart per answer
+│   ├── pipeline_healer.py                    self-healing pipeline demo (dbt test → diagnose → repair)
 │   ├── eval.py                               19-question accuracy eval
 │   └── guardrail_eval.py                     guardrail precision/recall eval
 ├── warehouse/                                the dbt project (staging + marts + tests + docs)
@@ -138,7 +142,7 @@ new app → this repo → `app.py` → add `OPENAI_API_KEY` under **Secrets**.
 | Streamlit app, read-only guardrails, deployable | "ship a working tool in Python, production" |
 | **Statistical guardrail → inference (Newcombe CIs + FDR, confounding, Simpson's, skew)** | "interpret results, flag statistical issues" — the biostatistics moat |
 | Verifier/critic pass + clarify-gate + citations | trustworthy agents, human-in-the-loop |
-| CI (dbt build + 90 tests + guardrail eval) + Snowflake target | "self-healing pipelines," warehouse breadth |
+| **Self-healing pipeline** (dbt test fails → agent diagnoses → repairs → verifies) + CI + Snowflake target | "self-healing pipelines that detect and fix data issues" |
 | Audit log, prompt-injection guard, cost tracing, governance doc | production ops + security posture |
 
 ---
