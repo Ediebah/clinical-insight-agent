@@ -213,7 +213,8 @@ _MODEL_HINT = re.compile(
     r"\b(predict|risk factor|feature importance|most (important|predictive)|driver|associat|correlat|"
     r"adjust|controlling for|confound|odds|hazard|survival|time.to|effect of|impact of|independent of|"
     r"regression|proportion of variance|forecast|projection|trend|over time|seasonal|"
-    r"causal|treatment effect|uplift)", re.I)
+    r"causal|treatment effect|uplift|a/b|ab test|experiment|variant|conversion|"
+    r"should we ship|ship it|ship the|roll ?out)", re.I)
 
 
 def _route(question: str, context: str) -> dict:
@@ -241,6 +242,11 @@ def _route(question: str, context: str) -> dict:
         "(e.g. date_trunc('month', encounter_date) AS period, count(*) AS encounters), keep only COMPLETE "
         "recent periods (roughly the last 120 months, and EXCLUDE the current partial period), ORDER BY "
         "the period ascending.\n"
+        "  'experiment'  an A/B test / experiment — 'analyze the X test', 'should we ship variant B', "
+        "'did the treatment lift conversion'. Set `group` = the variant/arm column and `outcome` = the "
+        "metric (binary converted, or continuous revenue). analytic_sql returns ONE ROW PER ASSIGNMENT "
+        "from mart_experiments, filtered to a SINGLE experiment, e.g. `SELECT variant, converted FROM "
+        "mart_experiments WHERE experiment = 'checkout_redesign'`.\n"
         "  'causal'      the EFFECT / IMPACT of a specific binary intervention or exposure (on a drug vs "
         "not, insured vs not, had-procedure vs not) on an outcome, adjusting for confounders → T-learner "
         "uplift. Needs `outcome`, a binary `treatment`, and `predictors` (the confounders). Binarize the "
@@ -280,6 +286,8 @@ def _fit_model(spec: dict, df) -> modeling.ModelResult:
                                        int(spec.get("seasonal_periods") or 12))
     if mt == "causal":
         return modeling.fit_uplift(df, spec["outcome"], spec["treatment"], spec.get("predictors", []))
+    if mt == "experiment":
+        return modeling.fit_experiment(df, spec["group"], spec["outcome"])
     return modeling.ModelResult(mt or "?", spec.get("outcome", ""), 0, "", error=f"unknown model_type: {mt}")
 
 
@@ -297,6 +305,9 @@ def _interpret_model(question: str, mr: modeling.ModelResult) -> str:
         "do not over-read a synthetic forecast.\n"
         "- causal: report the average uplift with its 95% CI; note it is observational and residual "
         "confounding may remain.\n"
+        "- experiment: LEAD with the ship / no-ship / inconclusive verdict, then the lift with its 95% CI "
+        "and p (or FDR q if multiple variants), then any flagged issues (imbalance, multiple comparisons, "
+        "underpowered). Be decisive but honest about uncertainty.\n"
         "Use markdown headers:\n"
         "**Findings** — what the model shows.\n"
         "**Recommendation** — one actionable point (optional).\n"

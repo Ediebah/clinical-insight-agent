@@ -112,6 +112,30 @@ def test_uplift_recovers_positive_effect():
     assert ate.estimate > 0 and ate.ci_low <= ate.estimate <= ate.ci_high
 
 
+def test_experiment_ship_and_noship():
+    rng = np.random.default_rng(8)
+    # treatment clearly better → SHIP
+    ctrl = pd.DataFrame({"variant": "control", "converted": (rng.random(3000) < 0.10).astype(int)})
+    trt = pd.DataFrame({"variant": "treatment", "converted": (rng.random(3000) < 0.14).astype(int)})
+    r = modeling.fit_experiment(pd.concat([ctrl, trt]), "variant", "converted")
+    assert r.error is None and r.model_type == "experiment"
+    assert r.verdict["call"] == "SHIP" and len(r.arms) == 2
+    assert r.terms[0].ci_low > 0                                   # lift CI clears zero
+
+    # treatment worse → DO NOT SHIP
+    trt2 = pd.DataFrame({"variant": "treatment", "converted": (rng.random(3000) < 0.06).astype(int)})
+    r2 = modeling.fit_experiment(pd.concat([ctrl, trt2]), "variant", "converted")
+    assert r2.verdict["call"] == "DO NOT SHIP"
+
+
+def test_experiment_inconclusive():
+    rng = np.random.default_rng(9)
+    a = pd.DataFrame({"variant": "control", "converted": (rng.random(2000) < 0.10).astype(int)})
+    b = pd.DataFrame({"variant": "treatment", "converted": (rng.random(2000) < 0.105).astype(int)})
+    r = modeling.fit_experiment(pd.concat([a, b]), "variant", "converted")
+    assert r.error is None and r.verdict["call"] == "INCONCLUSIVE"
+
+
 def test_to_binary():
     assert list(modeling._to_binary(pd.Series([True, False, True]))) == [1, 0, 1]
     assert list(modeling._to_binary(pd.Series([0, 1, 0]))) == [0, 1, 0]

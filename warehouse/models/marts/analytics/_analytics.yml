@@ -36,6 +36,32 @@ models:
         description: "Distinct patients who have this condition."
         data_tests: [not_null]
 
+  - name: mart_experiments
+    description: >
+      Synthetic product A/B experiment assignments (conversion + revenue by variant), so the agent can
+      draft ship / no-ship calls. One row per user assignment; outcomes are deterministic hash-based
+      pseudo-random (reproducible). Illustrative, not clinical data.
+    columns:
+      - name: assignment_id
+        description: "PK — one user's assignment to an experiment variant."
+        data_tests: [not_null, unique]
+      - name: experiment
+        description: "Experiment name (e.g. checkout_redesign)."
+        data_tests: [not_null]
+      - name: variant
+        description: "The arm the user was assigned to (control / treatment / variant_b …)."
+        data_tests: [not_null]
+      - name: converted
+        description: "1 if the user converted, else 0 (the primary binary metric)."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [0, 1]
+      - name: revenue
+        description: "Revenue for converted users, else 0 (a continuous secondary metric)."
+        data_tests: [not_null]
+
   - name: mart_condition_prevalence
     description: >
       Condition prevalence by patient age band. One row per (condition_code, age_group).

@@ -263,6 +263,34 @@ def forecast_chart(series: list):
                    "Forecast — history (solid) + projection (dashed) with 95% band")
 
 
+def experiment_chart(model: dict):
+    """A/B outcome by variant — bars with 95% CI whiskers; winner highlighted, control dimmed."""
+    if not model or model.get("error") or not model.get("arms"):
+        return None
+    binm = "conversion" in model.get("effect_label", "")
+    d = pd.DataFrame(model["arms"])
+
+    def _role(r):
+        return "winner" if r["is_winner"] else ("control" if r["is_baseline"] else "variant")
+
+    d["role"] = d.apply(_role, axis=1)
+    fmt = ".0%" if binm else ".2f"
+    y_title = "conversion rate" if binm else f"mean {model.get('outcome', 'value')}"
+    order = list(d["arm"])
+    base = alt.Chart(d).encode(x=alt.X("arm:N", sort=order, title=None))
+    bars = base.mark_bar(cornerRadiusEnd=3).encode(
+        y=alt.Y("value:Q", title=y_title, axis=alt.Axis(format=fmt)),
+        color=alt.Color("role:N",
+                        scale=alt.Scale(domain=["winner", "variant", "control"],
+                                        range=[TEAL, "#6b7c8c", "#3a4a5a"]),
+                        legend=alt.Legend(title=None, orient="top", labelColor=MUTED)),
+        tooltip=["arm", alt.Tooltip("value:Q", format=fmt), "n:Q"])
+    err = base.mark_rule(color=INK, strokeWidth=1.5).encode(y="ci_low:Q", y2="ci_high:Q")
+    labels = base.mark_text(dy=-8, color=INK, fontSize=12).encode(
+        y="ci_high:Q", text=alt.Text("value:Q", format=fmt))
+    return _finish(alt.layer(bars, err, labels), 340, "Outcome by variant (95% CI)")
+
+
 def radar_chart(df: pd.DataFrame, question: str = ""):
     """Radar/spider chart comparing a few entities across several metrics (each axis min-max
     normalized so scales are comparable). Appropriate ONLY for 2-6 entities × ≥3 numeric measures."""

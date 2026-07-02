@@ -9,7 +9,7 @@ traps).
 
 Built on synthetic EHR data (zero PHI), so the whole thing is public and reproducible.
 
-**🔗 Live demo:** [healthcare-warehouse-agent.streamlit.app](https://healthcare-warehouse-agent.streamlit.app) · **Repo CI:** dbt build + 90 tests + 33 unit tests + guardrail eval on every push.
+**🔗 Live demo:** [healthcare-warehouse-agent.streamlit.app](https://healthcare-warehouse-agent.streamlit.app) · **Repo CI:** dbt build + 97 tests + 47 unit tests + guardrail eval on every push.
 
 ![Clinical Insight Agent — a natural-language answer rendered as KPI cards, a bar chart with Wilson 95% confidence-interval whiskers, self-verification, and the statistical guardrail (contrasts + FDR, confounding).](assets/dashboard.png)
 
@@ -24,7 +24,7 @@ Built on synthetic EHR data (zero PHI), so the whole thing is public and reprodu
 └──────────┘             └───────────┘         └──────────────────┘                                         ▼
                                                                           ┌───────────────────────────────────────────┐
    dbt docs generate → manifest.json + catalog.json ──────────┐          │ 10 stg_ views · 6 dim_ · 5 fct_ · 3 mart_   │
-                                                               │          │ 90 tests · docs on every model              │
+                                                               │          │ 97 tests · docs on every model              │
                                                                ▼          └───────────────────────────────────────────┘
                                               ┌──────────────────────────┐
                                               │ semantic_catalog.json     │  tables · grain · keys · types ·
@@ -48,13 +48,13 @@ Built on synthetic EHR data (zero PHI), so the whole thing is public and reprodu
 ### Weekend 1 — the warehouse (data-engineering substrate)
 - **Data:** [Synthea](https://github.com/synthetichealth/synthea) → 1,139 synthetic patients, reproducible (seed 12345).
 - **Warehouse:** [DuckDB](https://duckdb.org); raw CSVs loaded as a faithful all-`VARCHAR` copy.
-- **Modeling:** [dbt-core](https://docs.getdbt.com) 1.11 + `dbt-duckdb` + `dbt_utils` — **24 models, 90 passing tests.**
+- **Modeling:** [dbt-core](https://docs.getdbt.com) 1.11 + `dbt-duckdb` + `dbt_utils` — **25 models, 97 passing tests.**
 
 | layer | models | role |
 |---|---|---|
 | staging (views) | 10 × `stg_*` | clean, rename, cast; one per source |
 | marts/core (tables) | 6 × `dim_*`, 5 × `fct_*` | star schema — dims + facts (surrogate keys, measures) |
-| marts/analytics (tables) | `mart_readmissions`, `mart_cost_by_condition`, `mart_condition_prevalence` | question-shaped models |
+| marts/analytics (tables) | `mart_readmissions`, `mart_cost_by_condition`, `mart_condition_prevalence`, `mart_experiments` | question-shaped models |
 
 ### Weekend 2 — the agent
 - **Semantic catalog** auto-generated from dbt artifacts: tables, grain, keys, types, **example values**, and metric SQL **with statistical caveats**.
@@ -64,17 +64,21 @@ Built on synthetic EHR data (zero PHI), so the whole thing is public and reprodu
 
 ### Weekend 3 — rigor & production hardening (A–E)
 - **A · Guardrail → real inference:** Wilson CIs, **Newcombe CIs on group differences + Benjamini-Hochberg FDR**, **confounding** + **Simpson's-paradox** detection, and **skew-aware** summaries (median/IQR + bootstrap mean CI). Measured: **precision/recall 100/100** on labeled cases (`agent/guardrail_eval.py`).
-- **A+ · Inferential-modeling layer** (`agent/modeling.py`): the agent auto-routes each question to the most appropriate model — **logistic / OLS regression, Cox + Kaplan-Meier survival, random-forest feature importance, Holt-Winters time-series forecasting, causal T-learner uplift, or an association test** — builds the patient-level (or per-period) analytic dataset via SQL, fits it with `statsmodels` / `scikit-learn`, and returns **adjusted odds/hazard ratios, coefficients, feature importances, forecasts, or treatment uplift with 95% CIs** — each rendered as the right visual (**forest plot, Kaplan-Meier curve, importance bars, or a forecast band**). This is the covariate-adjusted model the guardrail keeps recommending — now the agent *does* it, not just flags the need.
+- **A+ · Inferential-modeling layer** (`agent/modeling.py`): the agent auto-routes each question to the most appropriate model — **logistic / OLS regression, Cox + Kaplan-Meier survival, random-forest feature importance, Holt-Winters time-series forecasting, causal T-learner uplift, an association test, or an A/B experiment ship-call** — builds the patient-level (or per-period / per-assignment) analytic dataset via SQL, fits it with `statsmodels` / `scikit-learn`, and returns **adjusted odds/hazard ratios, coefficients, feature importances, forecasts, treatment uplift, or a ship / no-ship verdict with 95% CIs** — each rendered as the right visual (**forest plot, Kaplan-Meier curve, importance bars, forecast band, or a verdict badge + variant chart**). This is the covariate-adjusted model the guardrail keeps recommending — now the agent *does* it, not just flags the need.
+- **A+ · Experiment analysis** (`mart_experiments` + `fit_experiment`): "should we ship variant B?" → per-arm conversion/revenue with Wilson CIs, lift with a **Newcombe difference CI + two-proportion z-test**, **BH-FDR across multiple variants**, flagged issues (imbalance, underpowered, multiple comparisons), and a decisive **SHIP / DO NOT SHIP / INCONCLUSIVE** call — the exact "interpret A/B results, flag statistical issues, draft a ship/no-ship recommendation" workflow product teams need.
+- **A+ · Automated dbt model generation** (`agent/model_builder.py`): a plain-English data need → the agent drafts a dbt model (`{{ ref() }}` over the star schema) **plus schema tests**, writes the `.sql` + `schema.yml`, runs `dbt build`, and **self-heals** (reads the compile/test failure → rewrites → rebuilds) until it's green — model creation *and* validation, autonomously.
 - **B · Trustworthiness:** a **clarify-gate** (asks instead of guessing on vague questions), a **verifier/critic** pass (does the SQL answer *this* question? confidence + issues), and **citations** (which tables were used).
 - **C · Evaluation suite:** one labeled `GOLD` dataset (33 cases) drives every metric — **accuracy 33/33**, **guardrail precision/recall 100/100**, **retrieval recall 97% / MRR 0.88**, and an **LLM-as-a-judge** for **factual consistency (0% hallucination) + relevance 5.0/5**, plus caveat-faithfulness and a regression log.
-- **D · Real warehouse:** a Snowflake `prod` target (identical models via `dbt build --target prod`) + **GitHub Actions CI** that rebuilds the warehouse, runs `dbt build` (90 tests), and runs the guardrail eval on every push.
+- **D · Real warehouse:** a Snowflake `prod` target (identical models via `dbt build --target prod`) + **GitHub Actions CI** that rebuilds the warehouse, runs `dbt build` (97 tests), and runs the guardrail eval on every push.
 - **E · Ops & trust:** read-only + validated + row-capped SQL, a **query audit log**, **prompt-injection** blocking, and **cost/latency tracing**.
 - **Plus:** an **industry-grade dashboard** per answer (KPI cards + annotated chart with value labels and **Wilson 95% CI whiskers** — uncertainty shown, not hidden) and a **self-healing pipeline demo** (`agent/pipeline_healer.py`) — a dbt test fails → the agent diagnoses the root cause and proposes a fix → rebuild → green again.
 
 ![Survival analysis — "How does patient survival differ by sex?" returns Kaplan-Meier survival curves by group with 95% CI bands and a Cox hazard-ratio forest plot.](assets/survival.png)
 
+![Experiment analysis — "Analyze the checkout redesign A/B test — should we ship it?" returns a SHIP / NO-SHIP verdict, per-variant conversion with 95% CIs, and a lift forest plot (Newcombe CI + two-proportion z-test, BH-FDR across variants).](assets/ab-experiment.png)
+
 ### Production hardening
-- **Tests + lint in CI:** 33 keyless `pytest` unit tests (guardrail stats, SQL validation, retrieval, charts, agent helpers) + `ruff`, run on every push.
+- **Tests + lint in CI:** 47 keyless `pytest` unit tests (guardrail stats, SQL validation, retrieval, charts, agent helpers) + `ruff`, run on every push.
 - **Resilience:** OpenAI client with retries + backoff + timeout; API errors degrade gracefully.
 - **Security:** prompt-injection guard (patterns + length cap) on top of the read-only/validated SQL guarantee.
 - **Observability:** every run's tokens/latency/cost persisted; `agent/observe.py` reports run count, error rate, **latency p50/p95**, spend.
@@ -104,12 +108,13 @@ cp agent/.env.example agent/.env      # then put your OPENAI_API_KEY in agent/.e
 
 # 4. Run the agent (CLI) + the evals
 .venv/bin/python -m agent.agent "Which conditions are most prevalent in patients 75 and older?"
-.venv/bin/pytest                           # 33 keyless unit tests   (ruff check . to lint)
+.venv/bin/pytest                           # 47 keyless unit tests   (ruff check . to lint)
 .venv/bin/python -m agent.eval             # accuracy eval               -> 33/33
 .venv/bin/python -m agent.guardrail_eval   # guardrail precision/recall (no key) -> 100/100
 .venv/bin/python -m agent.eval_retrieval   # retrieval precision/recall/MRR (no key) -> recall 97%
 .venv/bin/python -m agent.eval_judge       # LLM-as-judge: factual consistency + relevance
 .venv/bin/python -m agent.pipeline_healer  # self-healing demo: dbt test fails → agent fixes → green
+.venv/bin/python -m agent.model_builder    # autogen a dbt model + tests from plain English → build → self-heal
 .venv/bin/python -m agent.observe          # observability: run count, error rate, latency p50/p95, spend
 
 # 5. Run the demo UI
@@ -129,7 +134,7 @@ new app → this repo → `app.py` → add `OPENAI_API_KEY` under **Secrets**.
 ├── README.md                                 project overview, architecture, quickstart
 ├── requirements.txt
 ├── app.py                                    Streamlit demo UI
-├── .github/workflows/ci.yml                  dbt build + 90 tests + guardrail eval, every push
+├── .github/workflows/ci.yml                  dbt build + 97 tests + guardrail eval, every push
 ├── scripts/load_raw.py                       Synthea CSV → DuckDB raw
 ├── agent/
 │   ├── build_catalog.py                      dbt artifacts → semantic_catalog.{json,md}
@@ -139,10 +144,11 @@ new app → this repo → `app.py` → add `OPENAI_API_KEY` under **Secrets**.
 │   ├── llm.py · agent.py                      OpenAI wrapper (traced, retry) · the self-healing loop
 │   ├── charts.py                             dashboard: KPI cards + annotated chart (Wilson CI whiskers)
 │   ├── pipeline_healer.py · observe.py        self-healing pipeline demo · observability summary
+│   ├── model_builder.py                       autogen + validate a dbt model from plain English
 │   ├── eval_dataset.py                       GOLD: one labeled ground-truth dataset for every eval
 │   ├── eval.py · guardrail_eval.py           accuracy (33/33) · guardrail precision/recall (100/100)
 │   └── eval_retrieval.py · eval_judge.py     retrieval precision/recall/MRR · LLM-as-judge (factual consistency)
-├── tests/                                    33 keyless pytest unit tests (guardrail stats, SQL, retrieval, charts)
+├── tests/                                    47 keyless pytest unit tests (guardrail stats, SQL, retrieval, charts)
 ├── warehouse/                                the dbt project (staging + marts + tests + docs)
 └── data/healthcare_demo.duckdb               slim marts DB for the deployed demo (committed)
 ```
@@ -161,6 +167,9 @@ new app → this repo → `app.py` → add `OPENAI_API_KEY` under **Secrets**.
 | **Statistical guardrail → inference (Newcombe CIs + FDR, confounding, Simpson's, skew)** | "interpret results, flag statistical issues" — the biostatistics moat |
 | Verifier/critic pass + clarify-gate + citations | trustworthy agents, human-in-the-loop |
 | **Self-healing pipeline** (dbt test fails → agent diagnoses → repairs → verifies) + CI + Snowflake target | "self-healing pipelines that detect and fix data issues" |
+| **A/B experiment analyzer** (per-arm CIs, Newcombe lift + FDR, SHIP / NO-SHIP / INCONCLUSIVE verdict) | "ship AI-powered experiment analysis — interpret A/B results, flag statistical issues, draft ship/no-ship recommendations" |
+| **Automated dbt model generation + validation** (draft model + schema tests → `dbt build` → self-heal until green) | "automate the data lifecycle — automated dbt model generation and validation" |
+| **Self-serve interface** (plain English → the right method + visual, replacing ad-hoc SQL requests) | "turn the data team into a product team — self-serve AI interfaces stakeholders use" |
 | Audit log, prompt-injection guard, cost tracing, governance doc | production ops + security posture |
 | Eval suite: retrieval precision, **hallucination rate, factual consistency, LLM-as-a-judge**, ground-truth dataset | "evaluation metrics + ground-truth datasets; LLM-as-judge setups" |
 | Dashboard: KPI cards + annotated chart with confidence-interval whiskers | data storytelling / visualization |

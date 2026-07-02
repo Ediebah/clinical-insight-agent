@@ -28,6 +28,7 @@ except Exception:
 from agent.agent import run_analysis
 from agent.charts import (
     build_chart,
+    experiment_chart,
     forecast_chart,
     forest_plot,
     importance_chart,
@@ -41,17 +42,26 @@ from agent.retrieval import load_catalog
 st.set_page_config(page_title="Clinical Insight Agent", page_icon="🩺",
                    layout="wide", initial_sidebar_state="collapsed")
 
-EXAMPLES = [
-    "Which chronic conditions drive the highest total encounter cost?",
-    "What is the 30-day readmission rate, and does it vary by age group?",
-    "What is the prevalence of hypertension by age group?",
-    "How does average encounter cost differ by encounter class?",
-    "What predicts 30-day readmission, adjusting for age and sex?",
-    "How does patient survival differ by sex?",
-    "What are the strongest risk factors for patient mortality?",
-    "Forecast monthly encounter volume for the next 12 months.",
-    "What is the effect of insurance coverage on mortality, adjusting for age and income?",
-]
+EXAMPLE_GROUPS = {
+    "Explore & aggregate": [
+        "Which chronic conditions drive the highest total encounter cost?",
+        "What is the 30-day readmission rate, and does it vary by age group?",
+        "What is the prevalence of hypertension by age group?",
+        "How does average encounter cost differ by encounter class?",
+    ],
+    "Statistical models": [
+        "What predicts 30-day readmission, adjusting for age and sex?",
+        "How does patient survival differ by sex?",
+        "What are the strongest risk factors for patient mortality?",
+        "Forecast monthly encounter volume for the next 12 months.",
+        "What is the effect of insurance coverage on mortality, adjusting for age and income?",
+    ],
+    "Experiments (A/B)": [
+        "Analyze the checkout redesign A/B test — should we ship it?",
+        "Should we ship the aggressive upsell experiment?",
+    ],
+}
+EXAMPLES = [q for qs in EXAMPLE_GROUPS.values() for q in qs]
 
 # ───────────────────────────── design system ─────────────────────────────
 CSS = """
@@ -205,15 +215,17 @@ st.markdown(f"""
 <div class="hero">
   <div class="hero-eyebrow">Healthcare analytics · agentic AI</div>
   <h1 class="hero-title">Clinical Insight <span class="accent">Agent</span></h1>
-  <p class="hero-sub">Ask in plain English. The agent retrieves schema &amp; metric context, writes
-  and self-corrects SQL over a dbt-modeled warehouse, interprets the result — then flags the
-  statistical caveats a text-to-SQL bot misses.</p>
+  <p class="hero-sub">A self-serve data product. Ask in plain English — the agent retrieves schema
+  &amp; metric context, writes and self-corrects SQL over a dbt-modeled warehouse, then picks the right
+  method: aggregation, regression, survival, forecasting, causal inference, or an A/B ship-call — each
+  with the statistical caveats a text-to-SQL bot misses.</p>
   <div class="pill-row">
     <span class="pill">dbt star schema</span>
     <span class="pill">RAG semantic catalog</span>
     <span class="pill">self-healing SQL</span>
+    <span class="pill">regression · survival · forecast</span>
+    <span class="pill">A/B ship-calls</span>
     <span class="pill">Wilson CIs · small-N</span>
-    <span class="pill">read-only</span>
   </div>
   <div class="meta">model {html.escape(MODEL)} <span class="dot">·</span> DuckDB (Synthea, synthetic)
     <span class="dot">·</span> read-only, row-capped</div>
@@ -227,12 +239,16 @@ if "question" not in st.session_state:
 with st.expander("📋 What data can I ask about?"):
     st.markdown(_data_dictionary())
 
-st.markdown("<div class='eyebrow'>Try one</div>", unsafe_allow_html=True)
-for start in range(0, len(EXAMPLES), 3):
-    cols = st.columns(3)
-    for c, ex in zip(cols, EXAMPLES[start:start + 3]):
-        if c.button(ex, key=f"ex_{ex}", use_container_width=True):
-            st.session_state.question = ex
+st.markdown("<div class='eyebrow'>Try one — the agent auto-selects the method</div>",
+            unsafe_allow_html=True)
+for _group, _qs in EXAMPLE_GROUPS.items():
+    st.markdown(f"<div style='color:#8ea0b0;font-size:.78rem;font-weight:600;letter-spacing:.02em;"
+                f"margin:.55rem 0 .25rem'>{_group}</div>", unsafe_allow_html=True)
+    for start in range(0, len(_qs), 3):
+        cols = st.columns(3)
+        for c, ex in zip(cols, _qs[start:start + 3]):
+            if c.button(ex, key=f"ex_{ex}", use_container_width=True):
+                st.session_state.question = ex
 
 st.markdown("<div class='eyebrow'>Your question</div>", unsafe_allow_html=True)
 question = st.text_input("q", value=st.session_state.question, label_visibility="collapsed")
@@ -271,6 +287,22 @@ def _render_model(m: dict) -> str:
     head = f"**{m['model_type'].upper()}** · outcome `{m['outcome']}` · n={m['n']:,}"
     if m.get("fit_stat"):
         head += f" · {m['fit_stat']}"
+    if m.get("model_type") == "experiment":                          # arms + lifts + flagged issues
+        binm = "conversion" in m.get("effect_label", "")
+        metric = "conversion" if binm else "mean"
+        lines = [head, "", f"| variant | {metric} | 95% CI | n |", "|---|---|---|---|"]
+        for a in m.get("arms", []):
+            val = f"{a['value'] * 100:.1f}%" if binm else f"{a['value']:.2f}"
+            ci = (f"[{a['ci_low'] * 100:.1f}%, {a['ci_high'] * 100:.1f}%]" if binm
+                  else f"[{a['ci_low']:.2f}, {a['ci_high']:.2f}]")
+            tag = " · control" if a["is_baseline"] else (" · ✅ winner" if a["is_winner"] else "")
+            lines.append(f"| `{a['arm']}`{tag} | {val} | {ci} | {a['n']:,} |")
+        if m.get("issues"):
+            lines.append("")
+            lines += [f"- ⚠️ {iss}" for iss in m["issues"]]
+        if m.get("note"):
+            lines.append(f"\n_{m['note']}_")
+        return "\n".join(lines)
     if m.get("model_type") == "timeseries":                          # forecast periods, not effect terms
         fc = [p for p in m.get("series", []) if p["kind"] == "forecast"]
         lines = [head, "", "| period | forecast | 95% band |", "|---|---|---|"]
@@ -331,6 +363,20 @@ if result is not None:
             st.markdown(f"<div class='cite'>tables used: {chips}</div>", unsafe_allow_html=True)
         eyebrow("Statistical model")
         _mt = result.model.get("model_type")
+        if _mt == "experiment":                          # A/B → ship/no-ship verdict badge first
+            _v = result.model.get("verdict", {})
+            _call = _v.get("call", "")
+            _color = {"SHIP": "#4fd1c5", "DO NOT SHIP": "#f87171",
+                      "INCONCLUSIVE": "#f5c451"}.get(_call, "#8ea0b0")
+            st.markdown(
+                f"<div style='display:inline-block;border:2px solid {_color};color:{_color};"
+                f"padding:.45rem 1.1rem;border-radius:9px;font-weight:700;font-size:1.15rem;"
+                f"letter-spacing:.06em;margin:.2rem 0 .5rem'>{html.escape(_call)}</div>"
+                f"<div style='color:#cfe0ec;margin-bottom:.5rem;max-width:60ch'>"
+                f"{html.escape(_v.get('reason', ''))}</div>", unsafe_allow_html=True)
+            _ec = experiment_chart(result.model)
+            if _ec is not None:
+                st.altair_chart(_ec, use_container_width=True)
         if result.model.get("km"):                       # survival → Kaplan-Meier curves
             st.altair_chart(survival_plot(result.model["km"]), use_container_width=True)
         if result.model.get("series"):                   # time-series → history + forecast

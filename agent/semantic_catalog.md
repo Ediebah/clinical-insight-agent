@@ -1,6 +1,6 @@
 # Semantic Catalog
 
-Generated from dbt artifacts. 14 tables, 6 named metrics.
+Generated from dbt artifacts. 15 tables, 6 named metrics.
 
 ## Named metrics
 
@@ -304,3 +304,18 @@ Cost of the diagnosing encounter aggregated by condition (NOT lifetime cost of c
 | `days_to_next_admission` | BIGINT |  |  |
 | `is_30d_readmission` | BOOLEAN | True if a subsequent inpatient admission occurred within 30 days of discharge. |  |
 | `total_claim_cost` | DOUBLE |  |  |
+
+### `mart_experiments`  (analytics)
+Product A/B experiment / test assignments — conversion and revenue by variant, for analyzing experiments and drafting ship / no-ship recommendations. One row per user assignment. Synthetic, deterministic.
+
+- **Relation:** `healthcare.main.mart_experiments`
+- **Primary key:** assignment_id
+- **Experiments available:** `checkout_redesign`, `pricing_page`, `aggressive_upsell`, `onboarding_email`
+
+| column | type | description | examples |
+|---|---|---|---|
+| `experiment` | VARCHAR | Experiment name — filter to ONE per analysis. | checkout_redesign, pricing_page |
+| `variant` | VARCHAR | The arm/variant the user was assigned to. | control, treatment, variant_b |
+| `assignment_id` | VARCHAR | PK — one user's assignment. |  |
+| `converted` | INTEGER | 1 if the user converted, else 0 (primary A/B metric). | 0, 1 |
+| `revenue` | DOUBLE | Revenue for converted users, else 0 (continuous metric). |  |

@@ -32,6 +32,9 @@ class ModelResult:
     terms: list = field(default_factory=list)
     km: list = field(default_factory=list)   # Kaplan-Meier curve points [{group,time,survival,ci_low,ci_high}]
     series: list = field(default_factory=list)  # time-series points [{time,value,lower,upper,kind}]
+    arms: list = field(default_factory=list)    # A/B arms [{arm,n,value,ci_low,ci_high,is_baseline,is_winner}]
+    verdict: dict = field(default_factory=dict)  # experiment call {call, reason}
+    issues: list = field(default_factory=list)   # flagged statistical issues (strings)
     fit_stat: str = ""
     note: str = ""
     error: str | None = None
@@ -334,6 +337,131 @@ def fit_uplift(df: pd.DataFrame, outcome: str, treatment: str,
         return ModelResult("causal", outcome, 0, "uplift", error=str(e))
 
 
+_BASELINE_NAMES = {"control", "baseline", "ctrl", "a", "off", "holdout", "0", "original", "default"}
+
+
+def fit_experiment(df: pd.DataFrame, group: str, outcome: str, baseline: str | None = None) -> ModelResult:
+    """A/B experiment analysis → per-arm rates/means with CIs, lift vs the control arm (Newcombe CI +
+    two-proportion z or Welch t), BH-FDR across variants, flagged issues, and a ship / no-ship verdict."""
+    try:
+        from . import guardrails as gr
+        d = _clean(df, [group, outcome])
+        d[group] = d[group].astype(str)
+        arms = list(d[group].unique())
+        if len(arms) < 2:
+            return ModelResult("experiment", outcome, len(d), "lift",
+                               error="Need at least two variants (an A and a B) to analyze.")
+        binary = _is_binary_outcome(d[outcome])
+        y = _to_binary(d[outcome]) if binary else d[outcome].astype(float)
+        d = d.assign(_y=y.values)
+
+        # pick the control/baseline arm: an obvious name, else the largest arm
+        base = baseline if baseline in arms else next(
+            (a for a in arms if a.lower() in _BASELINE_NAMES),
+            d[group].value_counts().idxmax())
+        others = [a for a in arms if a != base]
+
+        stat = {a: d.loc[d[group] == a, "_y"] for a in arms}
+        arm_rows, terms, raw_ps, comps = [], [], [], []
+
+        def arm_summary(a):
+            v = stat[a]
+            if binary:
+                k, n = int(v.sum()), int(len(v))
+                lo, hi = gr.wilson_ci(k, n)
+                return {"arm": a, "n": n, "value": (k / n if n else 0.0), "ci_low": lo, "ci_high": hi}
+            n = int(len(v))
+            m, sd = float(v.mean()), float(v.std(ddof=1)) if n > 1 else 0.0
+            se = sd / (n ** 0.5) if n else 0.0
+            return {"arm": a, "n": n, "value": m, "ci_low": m - 1.96 * se, "ci_high": m + 1.96 * se}
+
+        base_s = arm_summary(base)
+        for a in others:
+            a_s = arm_summary(a)
+            if binary:
+                ka, na = int(stat[a].sum()), int(len(stat[a]))
+                kb, nb = int(stat[base].sum()), int(len(stat[base]))
+                diff, lo, hi = gr.newcombe_diff_ci(ka, na, kb, nb)
+                p = gr.two_proportion_p(ka, na, kb, nb)
+            else:
+                from scipy import stats
+                va, vb = stat[a].to_numpy(), stat[base].to_numpy()
+                diff = float(va.mean() - vb.mean())
+                se = (va.var(ddof=1) / len(va) + vb.var(ddof=1) / len(vb)) ** 0.5
+                lo, hi = diff - 1.96 * se, diff + 1.96 * se
+                p = float(stats.ttest_ind(va, vb, equal_var=False).pvalue)
+            raw_ps.append(p)
+            comps.append({"arm": a, "diff": diff, "lo": lo, "hi": hi})
+            arm_rows.append(a_s)
+
+        # multiple variants → BH-FDR adjust the comparison p-values
+        multi = len(comps) > 1
+        sig_ps = gr.benjamini_hochberg(raw_ps) if multi else raw_ps
+        for c, sp in zip(comps, sig_ps):
+            terms.append(Term(f"{c['arm']} vs {base}", c["diff"], c["lo"], c["hi"], sp))
+
+        pos = [(c, sp) for c, sp in zip(comps, sig_ps) if c["lo"] > 0 and sp < 0.05]
+        neg = [(c, sp) for c, sp in zip(comps, sig_ps) if c["hi"] < 0 and sp < 0.05]
+
+        def rate(x):
+            return f"{x * 100:.1f}%" if binary else f"{x:.2f}"
+
+        if pos:
+            cw, spw = max(pos, key=lambda x: x[0]["diff"])
+            winner = cw["arm"]
+            call = "SHIP"
+            reason = (f"{winner} beats {base} by {rate(cw['diff'])} "
+                      f"(95% CI {rate(cw['lo'])}–{rate(cw['hi'])}, "
+                      f"{'q' if multi else 'p'}={spw:.3g}). Ship {winner}.")
+        elif neg:
+            cw = min(neg, key=lambda x: x[0]["diff"])[0]
+            winner = None
+            call = "DO NOT SHIP"
+            reason = (f"{cw['arm']} is worse than {base} by {rate(abs(cw['diff']))} "
+                      f"(95% CI {rate(cw['lo'])}–{rate(cw['hi'])}). Keep {base}.")
+        else:
+            winner = None
+            call = "INCONCLUSIVE"
+            promising = [(c, sp) for c, sp in zip(comps, sig_ps) if c["lo"] > 0]
+            if promising and multi:                        # raw CI clears 0 but fails FDR
+                cp, spp = max(promising, key=lambda x: x[0]["diff"])
+                reason = (f"{cp['arm']} looks promising (+{rate(cp['diff'])}, 95% CI "
+                          f"{rate(cp['lo'])}–{rate(cp['hi'])}) but does not survive multiple-comparison "
+                          f"correction (q={spp:.3g}). Confirm in a powered follow-up before shipping.")
+            else:
+                reason = (f"No variant beats {base} at 95% confidence — the interval spans zero. "
+                          f"Likely underpowered for the observed effect; keep {base} or extend the test.")
+
+        # flag statistical issues
+        issues = []
+        sizes = [r["n"] for r in [base_s, *arm_rows]]
+        if min(sizes) < 200:
+            issues.append(f"Small arm (n={min(sizes)}) — the estimate is imprecise.")
+        if max(sizes) / max(1, min(sizes)) > 1.5:
+            issues.append(f"Imbalanced arms ({min(sizes)}–{max(sizes)}) — check the assignment/SRM.")
+        if multi:
+            issues.append(f"{len(comps)} variants compared — p-values are BH-FDR adjusted for "
+                          "multiple comparisons.")
+        if not winner and not neg:
+            issues.append("No detectable effect — report the minimum detectable effect before calling it flat.")
+
+        base_s["is_baseline"], base_s["is_winner"] = True, False
+        for r in arm_rows:
+            r["is_baseline"], r["is_winner"] = False, (r["arm"] == winner)
+        all_arms = sorted([base_s, *arm_rows], key=lambda r: r["value"], reverse=True)
+
+        mr = ModelResult("experiment", outcome, len(d),
+                         "lift (Δ conversion)" if binary else "lift (Δ mean)", terms,
+                         fit_stat=("two-proportion z-test" if binary else "Welch t-test")
+                         + f"; baseline = {base}" + ("; BH-FDR" if multi else ""),
+                         note="Ship/no-ship uses whether the lift's 95% CI clears zero. Observational "
+                              "guardrails apply; data is synthetic.")
+        mr.arms, mr.verdict, mr.issues = all_arms, {"call": call, "reason": reason}, issues
+        return mr
+    except Exception as e:  # noqa: BLE001
+        return ModelResult("experiment", outcome, 0, "lift", error=str(e))
+
+
 def render(r: ModelResult) -> str:
     if r.error:
         return f"model ({r.model_type}) could not be fit: {r.error}"
@@ -346,6 +474,16 @@ def render(r: ModelResult) -> str:
             lines.append(f"  last observed {hist[-1]['time'][:10]}: {hist[-1]['value']:.1f}")
         for p in fc[:3] + ([fc[-1]] if len(fc) > 3 else []):
             lines.append(f"  forecast {p['time'][:10]}: {p['value']:.1f}  [{p['lower']:.1f}, {p['upper']:.1f}]")
+    if r.model_type == "experiment":
+        binm = "conversion" in r.effect_label
+        if r.verdict:
+            lines.append(f"  VERDICT: {r.verdict.get('call')} — {r.verdict.get('reason')}")
+        for a in r.arms:
+            tag = " (control)" if a.get("is_baseline") else (" ← winner" if a.get("is_winner") else "")
+            val = f"{a['value'] * 100:.1f}%" if binm else f"{a['value']:.2f}"
+            lines.append(f"  {a['arm']:16} n={a['n']:,}  {val}{tag}")
+        for iss in r.issues:
+            lines.append(f"  ! {iss}")
     for t in r.terms:
         ci = "" if np.isnan(t.ci_low) else f"  95% CI [{t.ci_low:.3f}, {t.ci_high:.3f}]"
         p = "" if np.isnan(t.p) else f"  p={t.p:.4f}" + (" *" if t.p < 0.05 else "")
