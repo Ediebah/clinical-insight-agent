@@ -19,7 +19,7 @@ except Exception:
     pass  # no secrets.toml locally — falls back to agent/.env
 
 from agent.agent import run_analysis
-from agent.charts import build_chart
+from agent.charts import build_chart, kpi_cards
 from agent.llm import MODEL
 
 st.set_page_config(page_title="Clinical Insight Agent", page_icon="🩺",
@@ -104,6 +104,14 @@ CSS = """
 .cite .pill{ font-size:.68rem; }
 .trace{ font-family:var(--font-mono); font-size:.72rem; color:var(--faint); margin-top:1.4rem;
   padding-top:.8rem; border-top:1px solid var(--border-soft); }
+.kpi-row{ display:flex; gap:.7rem; flex-wrap:wrap; margin:.3rem 0 1.1rem; }
+.kpi-card{ flex:1 1 140px; background:var(--surface); border:1px solid var(--border-soft);
+  border-radius:14px; padding:.85rem 1rem; border-top:2px solid var(--accent); }
+.kpi-label{ font-family:var(--font-mono); font-size:.66rem; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--muted); }
+.kpi-value{ font-family:var(--font-display); font-size:1.85rem; font-weight:600; color:var(--text);
+  line-height:1.08; margin-top:.2rem; }
+.kpi-sub{ font-family:var(--font-mono); font-size:.74rem; color:var(--accent); margin-top:.15rem; }
 
 /* buttons — chips + primary CTA */
 .stButton > button{ font-family:var(--font-mono); font-size:.78rem; font-weight:400;
@@ -233,12 +241,22 @@ if go and question:
         st.stop()
 
     eyebrow(f"Result <span class='n'>· {result.n_rows} row(s)</span>")
-    st.dataframe(result.dataframe, use_container_width=True, height=min(360, 80 + 28 * result.n_rows))
+
+    cards = kpi_cards(result.dataframe, question)
+    if cards:
+        chtml = "".join(
+            f"<div class='kpi-card'><div class='kpi-label'>{html.escape(c['label'])}</div>"
+            f"<div class='kpi-value'>{html.escape(str(c['value']))}</div>"
+            f"<div class='kpi-sub'>{html.escape(str(c.get('sub', '')))}</div></div>"
+            for c in cards)
+        st.markdown(f"<div class='kpi-row'>{chtml}</div>", unsafe_allow_html=True)
 
     _chart = build_chart(result.dataframe, question)
     if _chart is not None:
-        eyebrow("Visualization")
         st.altair_chart(_chart, use_container_width=True)
+
+    with st.expander(f"data table · {result.n_rows} rows"):
+        st.dataframe(result.dataframe, use_container_width=True)
 
     if result.verification:
         v = result.verification
