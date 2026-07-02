@@ -13,12 +13,12 @@ from __future__ import annotations
 
 import datetime as _dt
 import json
-from dataclasses import dataclass
 from pathlib import Path
 
 import pandas as pd
 
 from .agent import run_analysis
+from .eval_dataset import GOLD as CASES
 from .warehouse import run_query
 
 HISTORY = Path(__file__).resolve().parent / "eval_history.jsonl"
@@ -35,65 +35,7 @@ _FAITHFUL_KEYS = {
 }
 
 
-@dataclass
-class Case:
-    id: str
-    question: str
-    category: str
-    reference_sql: str = ""          # ground-truth scalar (row 0, col 0)
-    is_rate: bool = False
-    expect_clarification: bool = False
-
-
-CASES: list[Case] = [
-    # ---- counts ----
-    Case("n_patients", "How many patients are in the warehouse?", "count",
-         "select count(*) from dim_patient"),
-    Case("n_deceased", "How many patients are deceased?", "count",
-         "select count(*) from dim_patient where is_deceased"),
-    Case("n_inpatient", "How many inpatient encounters are there?", "count",
-         "select count(*) from fct_encounters where encounter_class = 'inpatient'"),
-    Case("n_conditions", "How many distinct conditions are recorded?", "count",
-         "select count(*) from dim_condition"),
-    Case("n_med_orders", "What is the total number of medication orders?", "count",
-         "select count(*) from fct_medications"),
-    Case("n_encounters", "How many encounters are there in total?", "count",
-         "select count(*) from fct_encounters"),
-    Case("n_providers", "How many providers are in the warehouse?", "count",
-         "select count(*) from dim_provider"),
-    Case("n_female", "How many female patients are there?", "count",
-         "select count(*) from dim_patient where gender = 'F'"),
-    # ---- cost ----
-    Case("avg_cost", "What is the average total claim cost per encounter?", "cost",
-         "select round(avg(total_claim_cost), 2) from fct_encounters"),
-    Case("max_cost", "What is the most expensive encounter's total claim cost?", "cost",
-         "select round(max(total_claim_cost), 2) from fct_encounters"),
-    Case("avg_inpatient_cost", "What is the average claim cost of an inpatient encounter?", "cost",
-         "select round(avg(total_claim_cost), 2) from fct_encounters where encounter_class = 'inpatient'"),
-    Case("total_med_cost", "What is the total cost of all medication orders?", "cost",
-         "select round(sum(total_cost), 0) from fct_medications"),
-    # ---- rates ----
-    Case("readmit_rate", "What is the overall 30-day readmission rate as a percent?", "rate",
-         "select round(100 * avg(is_30d_readmission::int), 1) from mart_readmissions", is_rate=True),
-    Case("htn_65_74", "What is the prevalence of hypertension in the 65-74 age group, as a percent?", "rate",
-         "select round(prevalence_pct, 1) from mart_condition_prevalence "
-         "where condition_description ilike '%hypertension%' and age_group = '65-74'", is_rate=True),
-    Case("pct_deceased", "What percent of patients are deceased?", "rate",
-         "select round(100.0 * avg(is_deceased::int), 1) from dim_patient", is_rate=True),
-    # ---- filter by clinical name (grounding) ----
-    Case("n_diabetes_pts", "How many patients have a diabetes diagnosis?", "filter_name",
-         "select count(distinct c.patient_id) from fct_conditions c join dim_condition d "
-         "using (condition_code) where d.condition_description ilike '%diabetes%'"),
-    # ---- descriptive stat ----
-    Case("avg_age", "What is the average patient age?", "stat",
-         "select round(avg(age), 1) from dim_patient"),
-    # ---- clarify gate (should NOT guess) ----
-    Case("ambiguous_trends", "show me the trends", "clarify", expect_clarification=True),
-    Case("out_of_scope", "which treatment is clinically best?", "clarify", expect_clarification=True),
-]
-
-
-def _reference(case: Case) -> float:
+def _reference(case) -> float:
     return float(run_query(case.reference_sql).iloc[0, 0])
 
 
