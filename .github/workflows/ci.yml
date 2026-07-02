@@ -1,0 +1,53 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  warehouse-and-guardrails:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"        # Synthea's build target
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate a small, reproducible Synthea dataset
+        run: |
+          curl -L --fail -o synthea/synthea-with-dependencies.jar \
+            https://github.com/synthetichealth/synthea/releases/download/master-branch-latest/synthea-with-dependencies.jar
+          cd synthea
+          java -jar synthea-with-dependencies.jar \
+            --exporter.csv.export true --exporter.fhir.export false \
+            -p 60 -s 12345 -cs 12345 Massachusetts
+
+      - name: Load raw CSVs into DuckDB
+        run: python scripts/load_raw.py
+
+      - name: dbt build (models + 90 data tests)
+        working-directory: warehouse
+        run: |
+          dbt deps
+          dbt build --profiles-dir .
+
+      - name: Regenerate semantic catalog from dbt artifacts
+        run: |
+          cd warehouse && dbt docs generate --profiles-dir . && cd ..
+          python agent/build_catalog.py
+
+      - name: Guardrail precision / recall (deterministic, no API key)
+        run: python -m agent.guardrail_eval
+
+      - name: Agent modules import cleanly
+        run: python -c "import agent.agent, agent.retrieval, agent.warehouse, agent.guardrails"
