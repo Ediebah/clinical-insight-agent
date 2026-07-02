@@ -11,6 +11,8 @@ Built on synthetic EHR data (zero PHI), so the whole thing is public and reprodu
 
 **🔗 Live demo:** [healthcare-warehouse-agent.streamlit.app](https://healthcare-warehouse-agent.streamlit.app) · **Repo CI:** dbt build + 90 tests + 33 unit tests + guardrail eval on every push.
 
+![Clinical Insight Agent — a natural-language answer rendered as KPI cards, a bar chart with Wilson 95% confidence-interval whiskers, self-verification, and the statistical guardrail (contrasts + FDR, confounding).](assets/dashboard.png)
+
 ---
 
 ## Architecture
