@@ -167,6 +167,69 @@ def build_chart(df: pd.DataFrame, question: str = ""):
     return None
 
 
+def forest_plot(model: dict):
+    """Forest plot of a model's effect estimates: point + 95% CI whiskers, null reference line.
+    Log x-axis for ratios (OR/HR), linear for coefficients. Colored by significance."""
+    if not model or model.get("error"):
+        return None
+    terms = [t for t in model.get("terms", []) if t["ci_low"] == t["ci_low"]]   # drop NaN-CI (tests)
+    if not terms:
+        return None
+    label = model.get("effect_label", "estimate")
+    is_ratio = "ratio" in label
+    null = 1.0 if is_ratio else 0.0
+    d = pd.DataFrame([{"term": t["name"], "est": t["estimate"], "lo": t["ci_low"], "hi": t["ci_high"],
+                       "sig": "significant" if t["p"] < 0.05 else "n.s."} for t in terms])
+    xscale = alt.Scale(type="log") if is_ratio else alt.Scale(zero=False)
+    base = alt.Chart(d).encode(y=alt.Y("term:N", sort=list(d["term"]), title=None))
+    ci = base.mark_rule(color=MUTED, strokeWidth=2).encode(
+        x=alt.X("lo:Q", scale=xscale, title=f"{label}  (95% CI)"), x2="hi:Q")
+    cap_lo = base.mark_tick(color=MUTED, thickness=2, size=9).encode(x=alt.X("lo:Q", scale=xscale))
+    cap_hi = base.mark_tick(color=MUTED, thickness=2, size=9).encode(x=alt.X("hi:Q", scale=xscale))
+    pts = base.mark_point(filled=True, size=150).encode(
+        x=alt.X("est:Q", scale=xscale),
+        color=alt.Color("sig:N", scale=alt.Scale(domain=["significant", "n.s."], range=[TEAL, "#6b7c8c"]),
+                        legend=alt.Legend(title=None, orient="top", labelColor=MUTED)),
+        tooltip=["term", "est", "lo", "hi"])
+    ref = alt.Chart(pd.DataFrame({"x": [null]})).mark_rule(color="#f5c451", strokeDash=[5, 4]).encode(x="x:Q")
+    chart = alt.layer(ref, ci, cap_lo, cap_hi, pts).resolve_scale(x="shared")
+    return _finish(chart, min(460, 140 + 70 * len(d)), f"Forest plot — {label} (dashed line = no effect)")
+
+
+def radar_chart(df: pd.DataFrame, question: str = ""):
+    """Radar/spider chart comparing a few entities across several metrics (each axis min-max
+    normalized so scales are comparable). Appropriate ONLY for 2-6 entities × ≥3 numeric measures."""
+    if df is None:
+        return None
+    cats = [c for c in _cats(df) if not _ID.search(str(c))]
+    measures = [c for c in _numeric(df) if not _ID.search(str(c))]
+    if not cats or len(measures) < 3 or not (2 <= len(df) <= 6):
+        return None
+    import plotly.graph_objects as go
+    cat = cats[0]
+    d = df.head(6).reset_index(drop=True)
+    measures = measures[:7]
+    norm = d[measures].astype(float).copy()
+    for m in measures:
+        lo, hi = norm[m].min(), norm[m].max()
+        norm[m] = 0.5 if hi == lo else (norm[m] - lo) / (hi - lo)
+    axes = [m.replace("_", " ") for m in measures]
+    palette = [TEAL, "#8ab4f8", "#f5c451", "#f87171", "#a78bfa", "#5eead4"]
+    fig = go.Figure()
+    for i in range(len(d)):
+        vals = [float(norm.iloc[i][m]) for m in measures]
+        fig.add_trace(go.Scatterpolar(
+            r=vals + [vals[0]], theta=axes + [axes[0]], fill="toself",
+            name=str(d.iloc[i][cat]), line={"color": palette[i % len(palette)]}, opacity=0.7))
+    fig.update_layout(
+        polar={"bgcolor": "#131c27",
+               "radialaxis": {"visible": True, "range": [0, 1], "showticklabels": False, "gridcolor": DOMAIN},
+               "angularaxis": {"gridcolor": DOMAIN, "tickfont": {"color": MUTED, "size": 11}}},
+        paper_bgcolor="rgba(0,0,0,0)", font={"color": MUTED},
+        legend={"font": {"color": INK}}, margin={"l": 60, "r": 60, "t": 20, "b": 20}, height=380)
+    return fig
+
+
 def _finish(chart, height: int, title: str = ""):
     c = chart.properties(height=height, background="transparent")
     if title:

@@ -26,7 +26,7 @@ except Exception:
     pass  # no secrets.toml locally — falls back to agent/.env
 
 from agent.agent import run_analysis
-from agent.charts import build_chart, kpi_cards
+from agent.charts import build_chart, forest_plot, kpi_cards, radar_chart
 from agent.llm import MODEL
 from agent.retrieval import load_catalog
 
@@ -302,6 +302,9 @@ if result is not None:
             chips = "".join(f"<span class='pill'>{html.escape(t)}</span>" for t in result.citations)
             st.markdown(f"<div class='cite'>tables used: {chips}</div>", unsafe_allow_html=True)
         eyebrow("Statistical model")
+        _fp = forest_plot(result.model)
+        if _fp is not None:
+            st.altair_chart(_fp, use_container_width=True)
         st.markdown(_render_model(result.model))
         eyebrow("Interpretation & recommendation")
         st.markdown(result.interpretation)
@@ -368,6 +371,11 @@ if result is not None:
     _chart = build_chart(result.dataframe, result_q)
     if _chart is not None:
         st.altair_chart(_chart, use_container_width=True)
+
+    _radar = radar_chart(result.dataframe, result_q)
+    if _radar is not None:
+        eyebrow("Radar — entities across metrics (normalized)")
+        st.plotly_chart(_radar, use_container_width=True)
 
     with st.expander(f"data table · {result.n_rows} rows"):
         st.dataframe(result.dataframe, use_container_width=True)
