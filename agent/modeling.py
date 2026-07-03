@@ -105,22 +105,123 @@ def _reduce_collinearity(d: pd.DataFrame, predictors: list[str], vif_max: float 
     return keep + other, dropped
 
 
-def _prepare(df: pd.DataFrame, outcome_cols: list[str], predictors: list[str], vif_max: float = 10.0):
-    """Pre-modeling data engineering: complete-case handling + multicollinearity removal, with a
-    transparent record of what was dropped. Returns (clean_df, kept_predictors, issues)."""
-    n0 = len(df)
-    d = _clean(df, [*outcome_cols, *predictors])
-    issues = []
+def _prepare(df: pd.DataFrame, outcome_cols: list[str], predictors: list[str], vif_max: float = 10.0,
+             max_missing: float = 0.10, dominance: float = 0.99):
+    """Comprehensive pre-modeling data engineering, with a transparent record of every step:
+      1. drop rows with a missing OUTCOME (a supervised target can't be imputed);
+      2. drop predictors with > max_missing missing (default 10%);
+      3. drop quasi-constant / zero-variance predictors (no information);
+      4. impute the remaining missingness (numeric → median, categorical → mode);
+      5. remove multicollinearity (VIF > vif_max).
+    Returns (engineered_df, kept_predictors, steps)."""
+    d = df.copy()
+    steps: list[str] = []
+
+    n0 = len(d)                                        # 1. missing outcome
+    d = d.dropna(subset=[c for c in outcome_cols if c in d.columns])
     if n0 - len(d) > 0:
-        issues.append(f"Complete-case analysis: dropped {n0 - len(d):,} of {n0:,} rows with missing "
-                      "values in the modeled columns (no imputation).")
-    kept, dropped = _reduce_collinearity(d, predictors, vif_max)
+        steps.append(f"Dropped {n0 - len(d):,} of {n0:,} rows with a missing outcome.")
+    preds = [p for p in predictors if p in d.columns]
+
+    hi_missing = [p for p in preds if d[p].isna().mean() > max_missing]   # 2. high missingness
+    if hi_missing:
+        steps.append(f"Dropped {len(hi_missing)} predictor(s) with >{max_missing:.0%} missing: "
+                     + ", ".join(f"{p} ({d[p].isna().mean():.0%})" for p in hi_missing[:6])
+                     + ("…" if len(hi_missing) > 6 else "") + ".")
+        preds = [p for p in preds if p not in hi_missing]
+
+    quasi = []                                         # 3. quasi-constant / zero variance
+    for p in preds:
+        s = d[p].dropna()
+        if len(s) == 0 or s.nunique() <= 1 or s.value_counts(normalize=True).iloc[0] > dominance:
+            quasi.append(p)
+    if quasi:
+        steps.append(f"Dropped {len(quasi)} quasi-constant predictor(s) (one value >"
+                     f"{dominance:.0%} or zero variance): " + ", ".join(quasi[:6])
+                     + ("…" if len(quasi) > 6 else "") + ".")
+        preds = [p for p in preds if p not in quasi]
+
+    imputed = []                                       # 4. impute remaining missingness
+    for p in preds:
+        miss = int(d[p].isna().sum())
+        if miss > 0:
+            if pd.api.types.is_numeric_dtype(d[p]):
+                d[p] = d[p].fillna(d[p].median()); how = "median"
+            else:
+                mode = d[p].mode(dropna=True)
+                d[p] = d[p].fillna(mode.iloc[0] if len(mode) else "missing"); how = "mode"
+            imputed.append(f"{p} ({miss} by {how})")
+    if imputed:
+        steps.append("Imputed missing values (single imputation): " + ", ".join(imputed[:6])
+                     + (f", +{len(imputed) - 6} more" if len(imputed) > 6 else "")
+                     + " — for confirmatory analysis prefer multiple imputation with pooling.")
+
+    kept, dropped = _reduce_collinearity(d, preds, vif_max)   # 5. multicollinearity
     if dropped:
         parts = ", ".join(f"{n} (VIF {'∞' if not np.isfinite(v) else f'{v:.0f}'})" for n, v in dropped)
-        issues.append(f"Removed {len(dropped)} collinear predictor(s) before fitting (VIF>{vif_max:.0f}): "
-                      f"{parts}. Each is redundant with a retained predictor; the retained set is "
-                      "non-redundant so the estimates are identifiable.")
-    return d, kept, issues
+        steps.append(f"Removed {len(dropped)} collinear predictor(s) (VIF>{vif_max:.0f}): {parts}. "
+                     "Each is redundant with a retained predictor; the retained set is identifiable.")
+
+    d = d.dropna(subset=[c for c in [*outcome_cols, *kept] if c in d.columns])
+    return d, kept, steps
+
+
+def _separation_flag(params, bses) -> str | None:
+    """Complete / quasi-complete separation → the logistic MLE diverges (huge |coef| or SE)."""
+    bad = [n for n in params.index if n != "Intercept" and (abs(params[n]) > 10 or bses[n] > 10)]
+    if bad:
+        return ("Possible complete/quasi-complete separation (" + ", ".join(bad[:3]) + "): a predictor "
+                "near-perfectly predicts the outcome, so the odds ratios and CIs diverge and are "
+                "unreliable — use penalized (Firth) logistic regression or drop the term.")
+    return None
+
+
+def _nonlinearity_flags(refit_pval, d: pd.DataFrame, preds: list[str]) -> list[tuple]:
+    """For each continuous predictor, add a quadratic term and flag if it's significant (linearity of
+    the log-odds / log-hazard is assumed for continuous covariates)."""
+    flags = []
+    for p in preds:
+        if p in d.columns and pd.api.types.is_numeric_dtype(d[p]) and d[p].nunique() >= 6:
+            try:
+                pv = refit_pval(p)
+                if pv is not None and pv == pv and pv < 0.05:
+                    flags.append((p, pv))
+            except Exception:  # noqa: BLE001
+                continue
+    return flags
+
+
+def _ph_flags(result, durations) -> list[tuple]:
+    """Proportional-hazards check: correlate each covariate's Schoenfeld residuals with event time
+    (Grambsch–Therneau idea). A significant correlation → the hazard ratio changes over time."""
+    from scipy import stats
+    sr = np.asarray(result.schoenfeld_residuals)
+    mask = ~np.isnan(sr).any(axis=1)
+    if mask.sum() < 8:
+        return []
+    t = np.asarray(durations, dtype=float)[mask]
+    flags = []
+    for j, name in enumerate(result.model.exog_names):
+        rj = sr[mask, j]
+        if np.std(rj) == 0:
+            continue
+        rho, p = stats.spearmanr(t, rj)
+        if p == p and p < 0.05:
+            flags.append((name, p))
+    return flags
+
+
+def _het_flag(m) -> str | None:
+    """Breusch–Pagan heteroskedasticity test for OLS (non-constant residual variance)."""
+    try:
+        from statsmodels.stats.diagnostic import het_breuschpagan
+        p = het_breuschpagan(m.resid, m.model.exog)[1]
+        if p == p and p < 0.05:
+            return (f"Heteroskedasticity (Breusch–Pagan p={p:.3g}): residual variance isn't constant — "
+                    "use robust (HC) standard errors; coefficients stay unbiased but CIs/p-values may be off.")
+    except Exception:  # noqa: BLE001
+        pass
+    return None
 
 
 def fit_logistic(df: pd.DataFrame, outcome: str, predictors: list[str]) -> ModelResult:
@@ -142,6 +243,18 @@ def fit_logistic(df: pd.DataFrame, outcome: str, predictors: list[str]) -> Model
             issues.append(f"Low events-per-variable (EPV≈{events / len(terms):.1f}): {events} events for "
                           f"{len(terms)} term(s). Under ~10 EPV, odds ratios can be overfit/unstable — "
                           "reduce predictors or use penalized (e.g. Firth) logistic regression.")
+        sep = _separation_flag(m.params, m.bse)      # complete/quasi-complete separation
+        if sep:
+            issues.append(sep)
+
+        def _refit(p):                               # linearity of the log-odds
+            f = _formula(outcome, preds, d) + f" + I({p} ** 2)"
+            mm = smf.logit(f, data=d).fit(disp=0)
+            key = next((k for k in mm.pvalues.index if k.startswith(f"I({p}")), None)
+            return float(mm.pvalues[key]) if key else None
+        for p, pv in _nonlinearity_flags(_refit, d, preds):
+            issues.append(f"Non-linearity ({p}, quadratic term p={pv:.3g}): {p} isn't linear in the "
+                          "log-odds — model it with splines or a polynomial, or categorize it.")
         mr = ModelResult("logistic", outcome, int(m.nobs), "odds ratio", terms,
                          fit_stat=f"pseudo-R²={m.prsquared:.3f}",
                          note="Odds ratio > 1 = higher odds of the outcome, holding the others fixed.")
@@ -161,6 +274,17 @@ def fit_ols(df: pd.DataFrame, outcome: str, predictors: list[str]) -> ModelResul
         terms = [Term(name, float(m.params[name]), float(ci.loc[name, 0]),
                       float(ci.loc[name, 1]), float(m.pvalues[name]))
                  for name in m.params.index if name != "Intercept"]
+        het = _het_flag(m)                           # non-constant residual variance
+        if het:
+            issues.append(het)
+
+        def _refit(p):                               # linearity of the mean
+            mm = smf.ols(_formula(outcome, preds, d) + f" + I({p} ** 2)", data=d).fit()
+            key = next((k for k in mm.pvalues.index if k.startswith(f"I({p}")), None)
+            return float(mm.pvalues[key]) if key else None
+        for p, pv in _nonlinearity_flags(_refit, d, preds):
+            issues.append(f"Non-linearity ({p}, quadratic term p={pv:.3g}): the mean response isn't "
+                          "linear in {p} — add a polynomial/spline term.".replace("{p}", p))
         mr = ModelResult("ols", outcome, int(m.nobs), "coefficient", terms,
                          fit_stat=f"R²={m.rsquared:.3f}",
                          note="Coefficient = change in the outcome per 1-unit change, others fixed.")
@@ -191,6 +315,19 @@ def fit_cox(df: pd.DataFrame, duration: str, event: str, predictors: list[str]) 
             issues.append(f"Low events-per-variable (EPV≈{events / len(terms):.1f}): {events} events for "
                           f"{len(terms)} term(s). Under ~10 EPV, hazard ratios can be overfit/unstable — "
                           "reduce predictors.")
+        for name, pv in _ph_flags(r, d[duration].to_numpy()):    # proportional-hazards check
+            issues.append(f"Proportional-hazards violation ({name}, Schoenfeld–time p={pv:.3g}): its hazard "
+                          "ratio changes over follow-up — stratify on it or add a time interaction.")
+
+        def _refit(p):                               # linearity of the log-hazard
+            mm = PHReg.from_formula(_formula(duration, preds, d) + f" + I({p} ** 2)",
+                                    data=d, status=d[event]).fit()
+            names = list(mm.model.exog_names)
+            key = next((k for k in names if k.startswith(f"I({p}")), None)
+            return float(mm.pvalues[names.index(key)]) if key else None
+        for p, pv in _nonlinearity_flags(_refit, d, preds):
+            issues.append(f"Non-linearity ({p}, quadratic term p={pv:.3g}): {p} isn't linear in the "
+                          "log-hazard — model it with splines or a polynomial.")
         mr = ModelResult("cox", duration, int(r.model.surv.n_obs), "hazard ratio", terms,
                          fit_stat=f"events={int(d[event].sum())}",
                          note="Hazard ratio > 1 = faster time-to-event (higher risk), others fixed.")

@@ -306,6 +306,18 @@ def eyebrow(text: str):
     st.markdown(f"<div class='eyebrow'>{text}</div>", unsafe_allow_html=True)
 
 
+def _report_button(result, key: str):
+    """Offer the analysis as a regulated-style .docx report."""
+    try:
+        from agent.report import build_docx
+        st.download_button(
+            "⬇  Export report (.docx)", data=build_docx(result, model_label=MODEL),
+            file_name="statistical_analysis_report.docx", key=f"dl_{key}",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+    except Exception as _e:  # noqa: BLE001
+        st.caption(f"Report export unavailable: {_e}")
+
+
 def _log_feedback(result, question: str, thumbs: str, correction: str) -> None:
     """Append the human's verdict/correction to logs/feedback.jsonl (the human-in-the-loop signal)."""
     try:
@@ -450,6 +462,7 @@ if result is not None:
         st.markdown(_render_model(result.model))
         eyebrow("Interpretation & recommendation")
         st.markdown(result.interpretation)
+        _report_button(result, "model")
         if result.dataframe is not None:
             with st.expander(f"analytic data · {result.n_rows} rows"):
                 st.dataframe(result.dataframe, use_container_width=True)
@@ -544,6 +557,7 @@ if result is not None:
 
     eyebrow("Interpretation & recommendation")
     st.markdown(result.interpretation)
+    _report_button(result, "agg")
 
     if result.trace:
         t = result.trace

@@ -183,6 +183,47 @@ def test_sample_size_matches_textbook():
     assert ns == sorted(ns)
 
 
+def test_prepare_removes_collinearity_before_fitting():
+    rng = np.random.default_rng(20)
+    n = 500
+    x = rng.normal(0, 1, n)
+    df = pd.DataFrame({"y": (rng.random(n) < 1 / (1 + np.exp(-x))).astype(int),
+                       "x": x, "x_twin": 2 * x + 3, "z": rng.normal(0, 1, n)})  # x_twin ≡ x
+    r = modeling.fit_logistic(df, "y", ["x", "x_twin", "z"])
+    kept = {t.name for t in r.terms}
+    assert not ({"x", "x_twin"} <= kept)              # both perfect-collinear twins cannot remain
+    assert any("collinear" in i.lower() for i in r.issues)
+
+
+def test_logistic_flags_separation_and_nonlinearity():
+    rng = np.random.default_rng(21)
+    n = 1200
+    x = rng.normal(0, 1, n)
+    r = modeling.fit_logistic(pd.DataFrame({"y": (x > 0).astype(int), "x": x}), "y", ["x"])
+    assert any("separation" in i.lower() for i in r.issues)
+    x = rng.normal(0, 1, n)                            # log-odds quadratic in x → non-linear
+    y = (rng.random(n) < 1 / (1 + np.exp(-(-1 + 1.5 * x ** 2)))).astype(int)
+    r2 = modeling.fit_logistic(pd.DataFrame({"y": y, "x": x}), "y", ["x"])
+    assert any("linear" in i.lower() for i in r2.issues)
+
+
+def test_ols_flags_heteroskedasticity():
+    rng = np.random.default_rng(22)
+    n = 1000
+    x = rng.uniform(1, 10, n)
+    r = modeling.fit_ols(pd.DataFrame({"y": 2 * x + rng.normal(0, x, n), "x": x}), "y", ["x"])
+    assert any("hetero" in i.lower() for i in r.issues)
+
+
+def test_cox_flags_ph_violation():
+    rng = np.random.default_rng(23)
+    n = 1000
+    g = rng.integers(0, 2, n)
+    t = np.where(g == 0, rng.uniform(0.1, 5, n), rng.uniform(5, 10, n))   # HR changes over time
+    r = modeling.fit_cox(pd.DataFrame({"t": t, "e": 1, "g": g.astype(float)}), "t", "e", ["g"])
+    assert any("proportional-hazards" in i.lower() for i in r.issues)
+
+
 def test_to_binary():
     assert list(modeling._to_binary(pd.Series([True, False, True]))) == [1, 0, 1]
     assert list(modeling._to_binary(pd.Series([0, 1, 0]))) == [0, 1, 0]
