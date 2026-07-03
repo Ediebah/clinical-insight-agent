@@ -223,7 +223,7 @@ st.markdown("""
   <p class="hero-sub">An AI agent that modernizes clinical data analysis. Ask in plain English — it
   engineers the data (missingness, collinearity), fits the right model (survival, regression,
   non-inferiority, causal, or ML), checks the assumptions (proportional hazards, separation, VIF), and
-  reports the result with the caveats a text-to-SQL bot skips — exportable as a regulated-style report.</p>
+  reports the result with the caveats a text-to-SQL bot skips.</p>
   <div class="pill-row">
     <span class="pill">dbt star schema</span>
     <span class="pill">RAG semantic catalog</span>
