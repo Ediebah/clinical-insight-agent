@@ -39,7 +39,6 @@ from agent.charts import (
     radar_chart,
     survival_plot,
 )
-from agent.llm import MODEL
 from agent.retrieval import load_catalog
 
 st.set_page_config(page_title="Clinical Insight Agent", page_icon="🩺",
@@ -217,7 +216,7 @@ def _data_dictionary() -> str:
 
 
 # ───────────────────────────── hero ─────────────────────────────
-st.markdown(f"""
+st.markdown("""
 <div class="hero">
   <div class="hero-eyebrow">Healthcare analytics · agentic AI</div>
   <h1 class="hero-title">Clinical Insight <span class="accent">Agent</span></h1>
@@ -233,7 +232,7 @@ st.markdown(f"""
     <span class="pill">self-healing SQL</span>
     <span class="pill">regulated .docx report</span>
   </div>
-  <div class="meta">model {html.escape(MODEL)} <span class="dot">·</span> DuckDB (Synthea, synthetic)
+  <div class="meta">OpenAI <span class="dot">·</span> DuckDB (Synthea, synthetic)
     <span class="dot">·</span> read-only, row-capped</div>
 </div>
 """, unsafe_allow_html=True)
@@ -304,16 +303,23 @@ def eyebrow(text: str):
     st.markdown(f"<div class='eyebrow'>{text}</div>", unsafe_allow_html=True)
 
 
-def _report_button(result, key: str):
-    """Offer the analysis as a regulated-style .docx report."""
+@st.cache_data(show_spinner=False, max_entries=8)
+def _cached_report(_result, cache_key: str):
+    from agent.report import build_docx
+    return build_docx(_result)
+
+
+def _report_button(result, result_q: str, view: str):
+    """Offer the analysis as a regulated-style .docx report (cached so charts render once)."""
     try:
-        from agent.report import build_docx
-        st.download_button(
-            "⬇  Export report (.docx)", data=build_docx(result, model_label=MODEL),
-            file_name="statistical_analysis_report.docx", key=f"dl_{key}",
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        data = _cached_report(result, result_q)
     except Exception as _e:  # noqa: BLE001
         st.caption(f"Report export unavailable: {_e}")
+        return
+    st.download_button(
+        "⬇  Export report (.docx)", data=data, key=f"dl_{view}",
+        file_name="statistical_analysis_report.docx",
+        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
 
 
 def _log_feedback(result, question: str, thumbs: str, correction: str) -> None:
@@ -460,7 +466,7 @@ if result is not None:
         st.markdown(_render_model(result.model))
         eyebrow("Interpretation & recommendation")
         st.markdown(result.interpretation)
-        _report_button(result, "model")
+        _report_button(result, result_q, "model")
         if result.dataframe is not None:
             with st.expander(f"analytic data · {result.n_rows} rows"):
                 st.dataframe(result.dataframe, use_container_width=True)
@@ -555,7 +561,7 @@ if result is not None:
 
     eyebrow("Interpretation & recommendation")
     st.markdown(result.interpretation)
-    _report_button(result, "agg")
+    _report_button(result, result_q, "agg")
 
     if result.trace:
         t = result.trace
