@@ -70,23 +70,83 @@ def _clean(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
     return df.dropna(subset=[c for c in cols if c in df.columns]).copy()
 
 
+def _reduce_collinearity(d: pd.DataFrame, predictors: list[str], vif_max: float = 10.0):
+    """Remove multicollinear NUMERIC predictors BEFORE fitting: iteratively drop the highest-VIF
+    feature until every VIF ≤ vif_max (the standard multicollinearity screen). Two perfectly/near-
+    perfectly correlated predictors can't both stay in a model — one is redundant. Returns
+    (kept_predictors, dropped) where dropped = [(name, vif)]. Categoricals are left to the model."""
+    num = [p for p in predictors if p in d.columns and pd.api.types.is_numeric_dtype(d[p])]
+    other = [p for p in predictors if p not in num]
+    if len(num) < 2:
+        return list(predictors), []
+    keep, dropped = list(num), []
+    try:
+        from statsmodels.stats.outliers_influence import variance_inflation_factor
+        from statsmodels.tools.tools import add_constant
+        while len(keep) > 1:
+            x = add_constant(d[keep].astype(float), has_constant="add").to_numpy()
+            vifs = [(keep[i], variance_inflation_factor(x, i + 1)) for i in range(len(keep))]
+            name, v = max(vifs, key=lambda kv: kv[1] if np.isfinite(kv[1]) else float("inf"))
+            if np.isfinite(v) and v <= vif_max:
+                break
+            keep.remove(name)
+            dropped.append((name, v))
+    except Exception:  # noqa: BLE001 — fall back to greedy pairwise-correlation pruning
+        cm = d[num].corr().abs()
+        changed = True
+        while changed and len(keep) > 1:
+            changed = False
+            sub = cm.loc[keep, keep]
+            pairs = sub.where(np.triu(np.ones(sub.shape, dtype=bool), k=1)).stack()
+            if len(pairs) and pairs.max() > 0.95:
+                keep.remove(pairs.idxmax()[1])
+                dropped.append((pairs.idxmax()[1], float("nan")))
+                changed = True
+    return keep + other, dropped
+
+
+def _prepare(df: pd.DataFrame, outcome_cols: list[str], predictors: list[str], vif_max: float = 10.0):
+    """Pre-modeling data engineering: complete-case handling + multicollinearity removal, with a
+    transparent record of what was dropped. Returns (clean_df, kept_predictors, issues)."""
+    n0 = len(df)
+    d = _clean(df, [*outcome_cols, *predictors])
+    issues = []
+    if n0 - len(d) > 0:
+        issues.append(f"Complete-case analysis: dropped {n0 - len(d):,} of {n0:,} rows with missing "
+                      "values in the modeled columns (no imputation).")
+    kept, dropped = _reduce_collinearity(d, predictors, vif_max)
+    if dropped:
+        parts = ", ".join(f"{n} (VIF {'∞' if not np.isfinite(v) else f'{v:.0f}'})" for n, v in dropped)
+        issues.append(f"Removed {len(dropped)} collinear predictor(s) before fitting (VIF>{vif_max:.0f}): "
+                      f"{parts}. Each is redundant with a retained predictor; the retained set is "
+                      "non-redundant so the estimates are identifiable.")
+    return d, kept, issues
+
+
 def fit_logistic(df: pd.DataFrame, outcome: str, predictors: list[str]) -> ModelResult:
     """Logistic regression → adjusted odds ratios with 95% CIs (the classic confounding fix)."""
     try:
         import statsmodels.formula.api as smf
-        d = _clean(df, [outcome, *predictors])
+        d, preds, issues = _prepare(df, [outcome], predictors)
         d[outcome] = _to_binary(d[outcome])
         if d[outcome].nunique() < 2:
             return ModelResult("logistic", outcome, len(d), "odds ratio",
                                error="Outcome has no variation (all one class).")
-        m = smf.logit(_formula(outcome, predictors, d), data=d).fit(disp=0)
+        m = smf.logit(_formula(outcome, preds, d), data=d).fit(disp=0)
         ci = m.conf_int()
         terms = [Term(name, float(np.exp(m.params[name])), float(np.exp(ci.loc[name, 0])),
                       float(np.exp(ci.loc[name, 1])), float(m.pvalues[name]))
                  for name in m.params.index if name != "Intercept"]
-        return ModelResult("logistic", outcome, int(m.nobs), "odds ratio", terms,
-                           fit_stat=f"pseudo-R²={m.prsquared:.3f}",
-                           note="Odds ratio > 1 = higher odds of the outcome, holding the others fixed.")
+        events = int(min((d[outcome] == 0).sum(), (d[outcome] == 1).sum()))
+        if terms and events / len(terms) < 10:       # events-per-variable rule of thumb
+            issues.append(f"Low events-per-variable (EPV≈{events / len(terms):.1f}): {events} events for "
+                          f"{len(terms)} term(s). Under ~10 EPV, odds ratios can be overfit/unstable — "
+                          "reduce predictors or use penalized (e.g. Firth) logistic regression.")
+        mr = ModelResult("logistic", outcome, int(m.nobs), "odds ratio", terms,
+                         fit_stat=f"pseudo-R²={m.prsquared:.3f}",
+                         note="Odds ratio > 1 = higher odds of the outcome, holding the others fixed.")
+        mr.issues = issues
+        return mr
     except Exception as e:  # noqa: BLE001
         return ModelResult("logistic", outcome, 0, "odds ratio", error=str(e))
 
@@ -95,15 +155,17 @@ def fit_ols(df: pd.DataFrame, outcome: str, predictors: list[str]) -> ModelResul
     """Linear regression → adjusted coefficients with 95% CIs for a continuous outcome."""
     try:
         import statsmodels.formula.api as smf
-        d = _clean(df, [outcome, *predictors])
-        m = smf.ols(_formula(outcome, predictors, d), data=d).fit()
+        d, preds, issues = _prepare(df, [outcome], predictors)
+        m = smf.ols(_formula(outcome, preds, d), data=d).fit()
         ci = m.conf_int()
         terms = [Term(name, float(m.params[name]), float(ci.loc[name, 0]),
                       float(ci.loc[name, 1]), float(m.pvalues[name]))
                  for name in m.params.index if name != "Intercept"]
-        return ModelResult("ols", outcome, int(m.nobs), "coefficient", terms,
-                           fit_stat=f"R²={m.rsquared:.3f}",
-                           note="Coefficient = change in the outcome per 1-unit change, others fixed.")
+        mr = ModelResult("ols", outcome, int(m.nobs), "coefficient", terms,
+                         fit_stat=f"R²={m.rsquared:.3f}",
+                         note="Coefficient = change in the outcome per 1-unit change, others fixed.")
+        mr.issues = issues
+        return mr
     except Exception as e:  # noqa: BLE001
         return ModelResult("ols", outcome, 0, "coefficient", error=str(e))
 
@@ -112,21 +174,28 @@ def fit_cox(df: pd.DataFrame, duration: str, event: str, predictors: list[str]) 
     """Cox proportional-hazards → adjusted hazard ratios (time-to-event / survival)."""
     try:
         from statsmodels.duration.hazard_regression import PHReg
-        d = _clean(df, [duration, event, *predictors])
+        d, preds, issues = _prepare(df, [duration, event], predictors)
         d[event] = _to_binary(d[event])
         d = d[pd.to_numeric(d[duration], errors="coerce") > 0]   # survival durations must be positive
         if len(d) < 2:
             return ModelResult("cox", duration, len(d), "hazard ratio",
                                error="No positive follow-up durations to fit a Cox model.")
-        mod = PHReg.from_formula(_formula(duration, predictors, d), data=d, status=d[event])
+        mod = PHReg.from_formula(_formula(duration, preds, d), data=d, status=d[event])
         r = mod.fit()
         ci = r.conf_int()
         terms = [Term(name, float(np.exp(r.params[i])), float(np.exp(ci[i, 0])),
                       float(np.exp(ci[i, 1])), float(r.pvalues[i]))
                  for i, name in enumerate(r.model.exog_names)]
-        return ModelResult("cox", duration, int(r.model.surv.n_obs), "hazard ratio", terms,
-                           fit_stat=f"events={int(d[event].sum())}",
-                           note="Hazard ratio > 1 = faster time-to-event (higher risk), others fixed.")
+        events = int(d[event].sum())
+        if terms and events / len(terms) < 10:       # events-per-variable rule of thumb
+            issues.append(f"Low events-per-variable (EPV≈{events / len(terms):.1f}): {events} events for "
+                          f"{len(terms)} term(s). Under ~10 EPV, hazard ratios can be overfit/unstable — "
+                          "reduce predictors.")
+        mr = ModelResult("cox", duration, int(r.model.surv.n_obs), "hazard ratio", terms,
+                         fit_stat=f"events={int(d[event].sum())}",
+                         note="Hazard ratio > 1 = faster time-to-event (higher risk), others fixed.")
+        mr.issues = issues
+        return mr
     except Exception as e:  # noqa: BLE001
         return ModelResult("cox", duration, 0, "hazard ratio", error=str(e))
 
@@ -213,11 +282,11 @@ def fit_forest(df: pd.DataFrame, outcome: str, predictors: list[str]) -> ModelRe
         from sklearn.inspection import permutation_importance
         from sklearn.metrics import r2_score, roc_auc_score
         from sklearn.model_selection import train_test_split
-        preds = [p for p in predictors if p in df.columns and p != outcome]
-        d = _clean(df, [outcome, *preds])
+        preds0 = [p for p in predictors if p in df.columns and p != outcome]
+        d, preds, issues = _prepare(df, [outcome], preds0)   # complete-case + drop collinear predictors
         if len(d) < 40 or len(preds) < 2:
             return ModelResult("forest", outcome, len(d), "importance",
-                               error="Need ≥40 rows and ≥2 candidate predictors for a random forest.")
+                               error="Need ≥40 rows and ≥2 non-collinear predictors for a random forest.")
         X = pd.get_dummies(d[preds], drop_first=True)
         is_class = _is_binary_outcome(d[outcome])
         common = dict(n_estimators=300, random_state=0, n_jobs=-1, min_samples_leaf=5)
@@ -246,21 +315,10 @@ def fit_forest(df: pd.DataFrame, outcome: str, predictors: list[str]) -> ModelRe
                               float("nan"), float("nan"), float("nan")))
         terms.sort(key=lambda t: t.estimate, reverse=True)
         mr = ModelResult("forest", outcome, len(d), "importance", terms, fit_stat=fit_stat,
-                         note="Permutation importance = how much model skill drops when a feature is "
-                              "shuffled (bigger = more predictive). Predictive, not causal.")
-        num = d[preds].select_dtypes(include="number")     # collinearity self-flag
-        if num.shape[1] >= 2:
-            cm = num.corr().abs()
-            pairs = cm.where(np.triu(np.ones(cm.shape, dtype=bool), k=1)).stack()
-            if len(pairs) and pairs.max() > 0.9:
-                (a, b), rmax = pairs.idxmax(), pairs.max()
-                redundant = int((pairs > 0.9).sum())
-                mr.issues = [f"Redundant predictors: {a} and {b} are near-perfectly correlated "
-                             f"(r={rmax:.3f}) — they carry essentially the same information, so either "
-                             f"could be dropped with no loss of predictive skill ({redundant} pair"
-                             f"{'s' if redundant != 1 else ''} exceed r=0.9). The forest splits importance "
-                             "between such twins, understating both — interpret it at the group level, or "
-                             "keep one feature per correlated cluster."]
+                         note="Permutation importance on a collinearity-screened predictor set = how much "
+                              "model skill drops when a feature is shuffled (bigger = more predictive). "
+                              "Predictive, not causal.")
+        mr.issues = issues
         return mr
     except Exception as e:  # noqa: BLE001
         return ModelResult("forest", outcome, 0, "importance", error=str(e))
