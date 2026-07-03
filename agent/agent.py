@@ -214,7 +214,8 @@ _MODEL_HINT = re.compile(
     r"adjust|controlling for|confound|odds|hazard|survival|time.to|effect of|impact of|independent of|"
     r"regression|proportion of variance|forecast|projection|trend|over time|seasonal|"
     r"causal|treatment effect|uplift|a/b|ab test|experiment|variant|conversion|"
-    r"should we ship|ship it|ship the|roll ?out|non.?inferior|noninferior|margin)", re.I)
+    r"should we ship|ship it|ship the|roll ?out|non.?inferior|noninferior|margin|"
+    r"sample size|power to detect|how many (patient|subject|participant|per arm)|enroll|powered)", re.I)
 
 
 def _route(question: str, context: str) -> dict:
@@ -252,15 +253,25 @@ def _route(question: str, context: str) -> dict:
         "on the outcome's scale (a rate/proportion → a proportion, e.g. 10% → 0.10; 3-point → 0.03), and "
         "`higher_is_better`=true when a HIGHER outcome is better (efficacy/response) or false when LOWER "
         "is better (e.g. adverse-event or mortality rate). analytic_sql returns one row per subject with "
-        "the arm column + outcome, FILTERED to a SINGLE experiment so the arm column has EXACTLY TWO "
-        "values (treatment vs control), e.g. `SELECT variant, converted FROM mart_experiments WHERE "
-        "experiment = 'pricing_page'` with \"group\":\"variant\", \"outcome\":\"converted\".\n"
+        "the arm column + outcome, FILTERED to a SINGLE experiment/trial so the arm column has EXACTLY "
+        "TWO values (treatment vs control). For a clinical trial use mart_trials, e.g. `SELECT arm, cured "
+        "FROM mart_trials WHERE trial = 'antibiotic_ni'` with \"group\":\"arm\", \"outcome\":\"cured\", "
+        "\"margin\":0.1, \"higher_is_better\":true.\n"
+        "  'sample_size' a DESIGN-STAGE power / sample-size calculation — 'how many patients per arm to "
+        "detect …'. NO data, NO analytic_sql. Extract: `kind` ('superiority' or 'noninferiority'), "
+        "`outcome_type` ('proportion' or 'mean'), and for a proportion `p_control` + (`p_treatment` or "
+        "`effect`) [+ `margin` for NI]; for a mean `mean_control`,`mean_treatment` (or `effect`),`sd` "
+        "[+ `margin`]. Optional `alpha` (default 0.05), `power` (default 0.8), `ratio` (default 1), "
+        "`higher_is_better`. Express rates as proportions (80% → 0.8).\n"
         "  'causal'      the EFFECT / IMPACT of a specific binary intervention or exposure (on a drug vs "
         "not, insured vs not, had-procedure vs not) on an outcome, adjusting for confounders → T-learner "
         "uplift. Needs `outcome`, a binary `treatment`, and `predictors` (the confounders). Binarize the "
         "treatment in SQL (e.g. `CASE WHEN healthcare_coverage > 0 THEN 1 ELSE 0 END AS insured`). Prefer "
         "'causal' over 'survival'/'logistic' when the question NAMES an intervention and asks its effect "
         "adjusting for confounders — even if the outcome is mortality.\n"
+        "CRITICAL: any WHERE-filter value (experiment / trial name, category) MUST be copied EXACTLY from "
+        "the catalog's example values / 'available' list — never invent or paraphrase one (e.g. write "
+        "trial = 'device_ni', not 'device_vs_standard_care').\n"
         "CRITICAL: every column name you put in outcome / predictors / duration / event / group / var_a / "
         "var_b / time_col / value_col / treatment MUST exactly match an alias in analytic_sql. Use simple "
         "snake_case aliases and NEVER a SQL reserved word (alias sex, not 'group'; e.g. `gender AS sex`, "
@@ -269,6 +280,8 @@ def _route(question: str, context: str) -> dict:
         '"predictors":["col"], "duration":"col", "event":"col", "group":"col", "var_a":"col", '
         '"var_b":"col", "time_col":"col", "value_col":"col", "periods":12, "seasonal_periods":12, '
         '"treatment":"col", "margin":0.1, "higher_is_better":true, '
+        '"kind":"superiority", "outcome_type":"proportion", "p_control":0.7, "p_treatment":0.8, '
+        '"effect":0.1, "mean_control":0, "mean_treatment":0, "sd":1, "alpha":0.05, "power":0.8, "ratio":1, '
         '"analytic_sql":"SELECT ...", "hypothesis":"one sentence"}. '
         'Plain aggregation → {"mode":"aggregate"}.',
     )
@@ -323,6 +336,9 @@ def _interpret_model(question: str, mr: modeling.ModelResult) -> str:
         "- noninferiority: LEAD with the non-inferior / not-non-inferior verdict, state the effect and its "
         "95% CI relative to the margin, note if superiority also holds, and flag that NI depends on the "
         "pre-specified margin and analysis population (per-protocol).\n"
+        "- sample_size: LEAD with the required n per arm and total, then the assumptions (rates/effect, α, "
+        "power, allocation); note it's a design-stage calculation on assumptions (not an analysis of "
+        "data) and that you should inflate for expected dropout.\n"
         "Use markdown headers:\n"
         "**Findings** — what the model shows.\n"
         "**Recommendation** — one actionable point (optional).\n"
@@ -359,6 +375,21 @@ def _run_model(question: str, context: str, spec: dict, result: AgentResult, tab
     return result
 
 
+_SS_KEYS = ("kind", "outcome_type", "p_control", "p_treatment", "effect", "margin", "mean_control",
+            "mean_treatment", "sd", "alpha", "power", "ratio", "higher_is_better")
+
+
+def _run_sample_size(question: str, spec: dict, result: AgentResult) -> AgentResult:
+    """Design-stage power/sample-size calculation — computes from the question, queries no data."""
+    result.hypothesis = spec.get("hypothesis", "")
+    params = {k: spec[k] for k in _SS_KEYS if spec.get(k) is not None}
+    mr = modeling.calc_sample_size(**params)
+    result.model = mr.as_dict()
+    result.interpretation = (f"**Findings**\nCould not compute the sample size: {mr.error}"
+                             if mr.error else _interpret_model(question, mr))
+    return result
+
+
 def run_analysis(question: str, max_tries: int = MAX_SQL_TRIES,
                  catalog: dict | None = None, db_path=None) -> AgentResult:
     result = AgentResult(question=question)
@@ -375,6 +406,8 @@ def run_analysis(question: str, max_tries: int = MAX_SQL_TRIES,
         # question ("what predicts X adjusting for Y") isn't clarified away as vague.
         if _MODEL_HINT.search(question):
             spec = _route(question, context)
+            if spec.get("model_type") == "sample_size":       # design-stage calc — no data/SQL
+                return _run_sample_size(question, spec, result)
             if spec.get("mode") == "model" and spec.get("analytic_sql"):
                 return _run_model(question, context, spec, result, retrieved["all_table_names"], db_path)
 

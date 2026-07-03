@@ -163,6 +163,26 @@ def test_noninferiority_lower_is_better():
     assert r.error is None and r.verdict["call"] == "NON-INFERIOR"
 
 
+def test_sample_size_matches_textbook():
+    # superiority, two proportions 0.70 vs 0.80 → ~291 per arm (textbook ~293)
+    r = modeling.calc_sample_size(kind="superiority", outcome_type="proportion",
+                                  p_control=0.70, p_treatment=0.80)
+    assert r.error is None and r.model_type == "sample_size"
+    per_arm = r.arms[0]["n"]
+    assert 285 <= per_arm <= 300
+    # non-inferiority, equal cure 0.85, margin 0.10 → ~201 per arm
+    r2 = modeling.calc_sample_size(kind="noninferiority", outcome_type="proportion",
+                                   p_control=0.85, margin=0.10)
+    assert 190 <= r2.arms[0]["n"] <= 215
+    # means, effect size d=0.5 → ~63-64 per arm
+    r3 = modeling.calc_sample_size(kind="superiority", outcome_type="mean",
+                                   mean_control=0.0, mean_treatment=0.5, sd=1.0)
+    assert 60 <= r3.arms[0]["n"] <= 66
+    # power curve is monotonically non-decreasing in power
+    ns = [p["n"] for p in r.series]
+    assert ns == sorted(ns)
+
+
 def test_to_binary():
     assert list(modeling._to_binary(pd.Series([True, False, True]))) == [1, 0, 1]
     assert list(modeling._to_binary(pd.Series([0, 1, 0]))) == [0, 1, 0]

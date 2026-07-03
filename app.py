@@ -35,6 +35,7 @@ from agent.charts import (
     importance_chart,
     kpi_cards,
     ni_plot,
+    power_curve_chart,
     radar_chart,
     survival_plot,
 )
@@ -60,8 +61,12 @@ EXAMPLE_GROUPS = {
     ],
     "Experiments & trials": [
         "Analyze the checkout redesign A/B test — should we ship it?",
-        "Should we ship the aggressive upsell experiment?",
-        "Is the pricing-page variant non-inferior to control on conversion (3-point margin)?",
+        "Is the new antibiotic non-inferior to standard of care on cure rate (10-point margin)?",
+        "Is the new device non-inferior to standard of care on cure rate (10-point margin)?",
+    ],
+    "Trial design (no data — power / sample size)": [
+        "How many patients per arm to detect a 10-point rise in cure rate from 70%, at 80% power?",
+        "Sample size for a non-inferiority trial: 85% control cure rate, 10-point margin, 90% power?",
     ],
 }
 EXAMPLES = [q for qs in EXAMPLE_GROUPS.values() for q in qs]
@@ -321,6 +326,15 @@ def _render_model(m: dict) -> str:
     head = f"**{m['model_type'].upper()}** · outcome `{m['outcome']}` · n={m['n']:,}"
     if m.get("fit_stat"):
         head += f" · {m['fit_stat']}"
+    if m.get("model_type") == "sample_size":
+        lines = [f"**Required sample size** · {m.get('fit_stat', '')}", ""]
+        for a in m.get("arms", []):
+            tag = " (control)" if a.get("is_baseline") else ""
+            lines.append(f"- **{a['arm']}**{tag}: {a['n']:,} subjects")
+        lines.append(f"- **total**: {m['n']:,} subjects")
+        if m.get("note"):
+            lines.append(f"\n_{m['note']}_")
+        return "\n".join(lines)
     if m.get("model_type") in ("experiment", "noninferiority") and m.get("arms"):   # arms + issues
         binm = all(0 <= a["value"] <= 1 for a in m["arms"])
         metric = "conversion" if binm else "mean"
@@ -359,6 +373,9 @@ def _render_model(m: dict) -> str:
             pv = t["p"]
             row.append("—" if pv != pv else f"{pv:.4f}" + (" ✳️" if pv < 0.05 else ""))
         lines.append("| " + " | ".join(row) + " |")
+    if m.get("issues"):
+        lines.append("")
+        lines += [f"- ⚠️ {iss}" for iss in m["issues"]]
     if m.get("note"):
         lines.append(f"\n_{m['note']}_")
     return "\n".join(lines)
@@ -401,24 +418,26 @@ if result is not None:
             st.markdown(f"<div class='cite'>tables used: {chips}</div>", unsafe_allow_html=True)
         eyebrow("Statistical model")
         _mt = result.model.get("model_type")
-        if _mt in ("experiment", "noninferiority"):      # decision models → verdict badge first
+        if _mt in ("experiment", "noninferiority", "sample_size"):   # decision/design → verdict badge
             _v = result.model.get("verdict", {})
             _call = _v.get("call", "")
-            _color = {"SHIP": "#4fd1c5", "NON-INFERIOR": "#4fd1c5",
-                      "DO NOT SHIP": "#f87171", "NOT NON-INFERIOR": "#f87171",
-                      "INCONCLUSIVE": "#f5c451"}.get(_call, "#8ea0b0")
+            _color = ("#4fd1c5" if _mt == "sample_size" else
+                      {"SHIP": "#4fd1c5", "NON-INFERIOR": "#4fd1c5", "DO NOT SHIP": "#f87171",
+                       "NOT NON-INFERIOR": "#f87171", "INCONCLUSIVE": "#f5c451"}.get(_call, "#8ea0b0"))
             st.markdown(
                 f"<div style='display:inline-block;border:2px solid {_color};color:{_color};"
                 f"padding:.45rem 1.1rem;border-radius:9px;font-weight:700;font-size:1.15rem;"
                 f"letter-spacing:.06em;margin:.2rem 0 .5rem'>{html.escape(_call)}</div>"
                 f"<div style='color:#cfe0ec;margin-bottom:.5rem;max-width:60ch'>"
                 f"{html.escape(_v.get('reason', ''))}</div>", unsafe_allow_html=True)
-            _dc = experiment_chart(result.model) if _mt == "experiment" else ni_plot(result.model)
+            _dc = (experiment_chart(result.model) if _mt == "experiment"
+                   else ni_plot(result.model) if _mt == "noninferiority"
+                   else power_curve_chart(result.model))
             if _dc is not None:
                 st.altair_chart(_dc, use_container_width=True)
         if result.model.get("km"):                       # survival → Kaplan-Meier curves
             st.altair_chart(survival_plot(result.model["km"]), use_container_width=True)
-        if result.model.get("series"):                   # time-series → history + forecast
+        if _mt == "timeseries" and result.model.get("series"):   # time-series → history + forecast
             st.altair_chart(forecast_chart(result.model["series"]), use_container_width=True)
         if _mt == "forest":                              # ML → feature-importance bars
             _imp = importance_chart(result.model)

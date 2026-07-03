@@ -1,6 +1,6 @@
 # Semantic Catalog
 
-Generated from dbt artifacts. 15 tables, 6 named metrics.
+Generated from dbt artifacts. 16 tables, 6 named metrics.
 
 ## Named metrics
 
@@ -319,3 +319,18 @@ Product A/B experiment / test assignments — conversion and revenue by variant,
 | `assignment_id` | VARCHAR | PK — one user's assignment. |  |
 | `converted` | INTEGER | 1 if the user converted, else 0 (primary A/B metric). | 0, 1 |
 | `revenue` | DOUBLE | Revenue for converted users, else 0 (continuous metric). |  |
+
+### `mart_trials`  (analytics)
+Synthetic clinical-trial outcomes for non-inferiority analysis — a treatment arm vs standard of care, with a binary cure endpoint and an adverse-event flag. One row per randomized subject. Synthetic, deterministic — NOT real data.
+
+- **Relation:** `healthcare.main.mart_trials`
+- **Primary key:** subject_id
+- **Trials available:** `antibiotic_ni` (new_drug vs standard_of_care), `device_ni` (new_device vs standard_of_care)
+
+| column | type | description | examples |
+|---|---|---|---|
+| `trial` | VARCHAR | Trial name — filter to ONE per analysis. | antibiotic_ni, device_trial |
+| `arm` | VARCHAR | Randomized arm; standard_of_care is the control. | standard_of_care, new_drug, new_device |
+| `subject_id` | VARCHAR | PK — one randomized subject. |  |
+| `cured` | INTEGER | 1 if the cure endpoint was met, else 0 (higher is better). | 0, 1 |
+| `adverse_event` | INTEGER | 1 if an adverse event occurred, else 0 (lower is better). | 0, 1 |

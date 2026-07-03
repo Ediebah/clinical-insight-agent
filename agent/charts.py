@@ -291,6 +291,26 @@ def experiment_chart(model: dict):
     return _finish(alt.layer(bars, err, labels), 340, "Outcome by variant (95% CI)")
 
 
+def power_curve_chart(model: dict):
+    """Sample size (per arm) vs statistical power, with the chosen power/n marked."""
+    if not model or model.get("error") or not model.get("series"):
+        return None
+    d = pd.DataFrame(model["series"])
+    if "power" not in d or "n" not in d:
+        return None
+    chosen = (model.get("verdict") or {}).get("power")
+    line = alt.Chart(d).mark_line(color=TEAL, strokeWidth=2, point=alt.OverlayMarkDef(color=TEAL)).encode(
+        x=alt.X("power:Q", title="statistical power", axis=alt.Axis(format="%")),
+        y=alt.Y("n:Q", title="n per arm"),
+        tooltip=[alt.Tooltip("power:Q", format=".0%"), "n:Q"])
+    layers = [line]
+    if chosen is not None:
+        rule = alt.Chart(pd.DataFrame({"power": [chosen]})).mark_rule(
+            color="#f5c451", strokeDash=[5, 4]).encode(x="power:Q")
+        layers.append(rule)
+    return _finish(alt.layer(*layers), 300, "Sample size vs power")
+
+
 def ni_plot(model: dict):
     """Non-inferiority plot: the treatment−control effect with 95% CI, against the NI margin and zero.
     Green point if non-inferior, red if not; gold dashed line = the margin, grey dotted = no difference."""

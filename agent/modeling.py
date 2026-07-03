@@ -245,9 +245,20 @@ def fit_forest(df: pd.DataFrame, outcome: str, predictors: list[str]) -> ModelRe
             terms.append(Term(p, float(means[cols].sum()) if cols else 0.0,
                               float("nan"), float("nan"), float("nan")))
         terms.sort(key=lambda t: t.estimate, reverse=True)
-        return ModelResult("forest", outcome, len(d), "importance", terms, fit_stat=fit_stat,
-                           note="Permutation importance = how much model skill drops when a feature is "
-                                "shuffled (bigger = more predictive). Predictive, not causal.")
+        mr = ModelResult("forest", outcome, len(d), "importance", terms, fit_stat=fit_stat,
+                         note="Permutation importance = how much model skill drops when a feature is "
+                              "shuffled (bigger = more predictive). Predictive, not causal.")
+        num = d[preds].select_dtypes(include="number")     # collinearity self-flag
+        if num.shape[1] >= 2:
+            cm = num.corr().abs()
+            pairs = cm.where(np.triu(np.ones(cm.shape, dtype=bool), k=1)).stack()
+            if len(pairs) and pairs.max() > 0.9:
+                (a, b), rmax = pairs.idxmax(), pairs.max()
+                mr.issues = [f"High collinearity ({a}–{b}, r={rmax:.2f}): permutation importance is split "
+                             "among correlated predictors, so the magnitudes understate individual "
+                             "features and the ranking among them is unstable — read the top *set*, not "
+                             "the exact order."]
+        return mr
     except Exception as e:  # noqa: BLE001
         return ModelResult("forest", outcome, 0, "importance", error=str(e))
 
@@ -337,7 +348,14 @@ def fit_uplift(df: pd.DataFrame, outcome: str, treatment: str,
         return ModelResult("causal", outcome, 0, "uplift", error=str(e))
 
 
-_BASELINE_NAMES = {"control", "baseline", "ctrl", "a", "off", "holdout", "0", "original", "default"}
+_CONTROL_WORDS = ("control", "baseline", "ctrl", "placebo", "standard", "soc", "usual", "sham",
+                  "reference", "default", "original", "holdout", "comparator")
+
+
+def _is_control(arm: str) -> bool:
+    """Recognize the reference arm — product ('control') or clinical ('standard_of_care', 'placebo')."""
+    a = str(arm).lower()
+    return a in ("a", "0", "off") or any(w in a for w in _CONTROL_WORDS)
 
 
 def fit_experiment(df: pd.DataFrame, group: str, outcome: str, baseline: str | None = None) -> ModelResult:
@@ -357,7 +375,7 @@ def fit_experiment(df: pd.DataFrame, group: str, outcome: str, baseline: str | N
 
         # pick the control/baseline arm: an obvious name, else the largest arm
         base = baseline if baseline in arms else next(
-            (a for a in arms if a.lower() in _BASELINE_NAMES),
+            (a for a in arms if _is_control(a)),
             d[group].value_counts().idxmax())
         others = [a for a in arms if a != base]
 
@@ -483,7 +501,7 @@ def fit_noninferiority(df: pd.DataFrame, group: str, outcome: str, margin: float
         binary = _is_binary_outcome(d[outcome])
         d = d.assign(_y=(_to_binary(d[outcome]) if binary else d[outcome].astype(float)).values)
         base = control if control in arms else next(
-            (a for a in arms if a.lower() in _BASELINE_NAMES), d[group].value_counts().idxmax())
+            (a for a in arms if _is_control(a)), d[group].value_counts().idxmax())
         trt = next(a for a in arms if a != base)
         st = {a: d.loc[d[group] == a, "_y"] for a in arms}
 
@@ -562,6 +580,68 @@ def fit_noninferiority(df: pd.DataFrame, group: str, outcome: str, margin: float
         return ModelResult("noninferiority", outcome, 0, "difference", error=str(e))
 
 
+def calc_sample_size(kind: str = "superiority", outcome_type: str = "proportion",
+                     p_control=None, p_treatment=None, effect=None, margin=None,
+                     mean_control=None, mean_treatment=None, sd=None,
+                     alpha: float = 0.05, power: float = 0.80, ratio: float = 1.0,
+                     higher_is_better: bool = True) -> ModelResult:
+    """Design-stage sample-size / power calculation (no data). Two-group superiority or
+    non-inferiority, for a proportion or a mean endpoint. Proportions use the closed-form normal
+    (Blackwelder) approximation; means use statsmodels' t-test power."""
+    try:
+        import math
+
+        from scipy import stats
+        alpha, power, ratio = float(alpha or 0.05), float(power or 0.80), float(ratio or 1.0)
+        ni = kind == "noninferiority"
+        za = stats.norm.ppf(1 - alpha / 2)          # two-sided superiority OR one-sided NI at α/2
+
+        if outcome_type == "mean":
+            m_c = float(mean_control)
+            m_t = float(mean_treatment) if mean_treatment is not None else m_c + float(effect or 0)
+            s = float(sd)
+            dist = (abs(m_t - m_c) + abs(float(margin))) if ni else abs(m_t - m_c)
+            d = dist / s
+            unit = (1 + 1 / ratio) / d ** 2                       # (za+zb)² × unit = control-arm n
+            detail = (f"means: control {m_c:g}, treatment {m_t:g}, SD {s:g}"
+                      + (f", NI margin {margin:g}" if ni else "") + f" (effect size d={d:.2f})")
+        else:                                        # proportion — Blackwelder normal approximation
+            p_c = float(p_control)
+            p_t = float(p_treatment) if p_treatment is not None else p_c + float(effect or 0)
+            null = (-abs(float(margin)) if higher_is_better else abs(float(margin))) if ni else 0.0
+            dist = abs((p_t - p_c) - null)
+            var = p_c * (1 - p_c) + p_t * (1 - p_t) / ratio
+            unit = var / dist ** 2
+            detail = (f"proportions: control {p_c:.0%}, treatment {p_t:.0%}"
+                      + (f", NI margin {abs(float(margin)):.0%}" if ni else "") + f" (Δ {p_t - p_c:+.0%})")
+
+        def _n_ctrl(pw):
+            return (za + stats.norm.ppf(pw)) ** 2 * unit
+
+        n_c = int(math.ceil(_n_ctrl(power)))
+        n_t = int(math.ceil(n_c * ratio))
+        total = n_c + n_t
+        curve = [{"power": pw, "n": int(math.ceil(max(_n_ctrl(pw), _n_ctrl(pw) * ratio)))}
+                 for pw in (0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.95, 0.99)]
+        side = "one-sided α/2" if ni else "two-sided α"
+        mr = ModelResult("sample_size", "sample size", total, "n per arm",
+                         fit_stat=f"{kind}; {side}={alpha}; power={power:.0%}"
+                         + (f"; {ratio:g}:1 allocation" if ratio != 1 else ""),
+                         note="Analytic power (normal approximation for proportions, t-test power for "
+                              "means). Assumes the stated effect/rates hold; for rare events or small n, "
+                              "confirm with simulation. Inflate for expected dropout.")
+        arms = [{"arm": "treatment", "n": n_t}, {"arm": "control", "n": n_c}]
+        mr.arms = [dict(a, value=float(a["n"]), ci_low=float("nan"), ci_high=float("nan"),
+                        is_baseline=(a["arm"] == "control"), is_winner=False) for a in arms]
+        mr.verdict = {"call": f"{max(n_c, n_t):,} per arm  ·  total {total:,}",
+                      "reason": f"To detect {detail} at {power:.0%} power ({side}={alpha}).",
+                      "power": power}
+        mr.series = curve
+        return mr
+    except Exception as e:  # noqa: BLE001
+        return ModelResult("sample_size", "sample size", 0, "n per arm", error=str(e))
+
+
 def render(r: ModelResult) -> str:
     if r.error:
         return f"model ({r.model_type}) could not be fit: {r.error}"
@@ -582,12 +662,12 @@ def render(r: ModelResult) -> str:
             tag = " (control)" if a.get("is_baseline") else (" ←" if a.get("is_winner") else "")
             val = f"{a['value'] * 100:.1f}%" if binm else f"{a['value']:.2f}"
             lines.append(f"  {a['arm']:16} n={a['n']:,}  {val}{tag}")
-        for iss in r.issues:
-            lines.append(f"  ! {iss}")
     for t in r.terms:
         ci = "" if np.isnan(t.ci_low) else f"  95% CI [{t.ci_low:.3f}, {t.ci_high:.3f}]"
         p = "" if np.isnan(t.p) else f"  p={t.p:.4f}" + (" *" if t.p < 0.05 else "")
         lines.append(f"  {t.name:22} {r.effect_label}={t.estimate:.3f}{ci}{p}")
+    for iss in r.issues:
+        lines.append(f"  ! {iss}")
     if r.note:
         lines.append(f"  ({r.note})")
     return "\n".join(lines)
