@@ -66,18 +66,28 @@ def _strip_sql_comments(sql: str) -> str:
     return sql
 
 
+def _strip_literals(sql: str) -> str:
+    """Blank out string/identifier literal CONTENTS so keyword/';' scanning ignores them
+    (e.g. ILIKE '%NURSE ON CALL%' must not trip the 'call' keyword). The read-only engine is the
+    real guard against writes; this scan only rejects obvious multi-statement / DDL attempts."""
+    sql = re.sub(r"'(?:[^']|'')*'", "''", sql)   # single-quoted strings (with '' escape)
+    sql = re.sub(r'"(?:[^"]|"")*"', '""', sql)   # double-quoted identifiers
+    return sql
+
+
 def validate(sql: str) -> str:
     """Return a cleaned, validated single-statement SELECT/WITH, or raise QueryError."""
     if not sql or not sql.strip():
         raise QueryError("Empty query.")
     cleaned = sql.strip().rstrip(";").strip()
     body = _strip_sql_comments(cleaned)
-    if ";" in body:
+    scan = _strip_literals(body)                 # scan ignores string-literal contents
+    if ";" in scan:
         raise QueryError("Only a single statement is allowed (found ';').")
     if not re.match(r"^\s*(select|with)\b", body, re.IGNORECASE):
         raise QueryError("Only read-only SELECT/WITH queries are allowed.")
-    if _FORBIDDEN.search(body):
-        bad = _FORBIDDEN.search(body).group(0)
+    if _FORBIDDEN.search(scan):
+        bad = _FORBIDDEN.search(scan).group(0)
         raise QueryError(f"Write/DDL keyword '{bad}' is not permitted.")
     return cleaned
 

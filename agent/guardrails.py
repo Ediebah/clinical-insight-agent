@@ -75,6 +75,8 @@ def wilson_ci(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
 
 def newcombe_diff_ci(k1: int, n1: int, k2: int, n2: int, z: float = 1.96) -> tuple[float, float, float]:
     """Newcombe method-10 CI for the difference p1-p2 (uses the two Wilson intervals)."""
+    if n1 <= 0 or n2 <= 0:                       # an empty arm → no estimable difference
+        return 0.0, -1.0, 1.0
     p1, p2 = k1 / n1, k2 / n2
     l1, u1 = wilson_ci(k1, n1, z)
     l2, u2 = wilson_ci(k2, n2, z)

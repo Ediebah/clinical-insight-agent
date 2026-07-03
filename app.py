@@ -248,6 +248,9 @@ if "byod" not in st.session_state:
 _src = st.radio("Data source", ["Demo warehouse", "Bring your own data"],
                 horizontal=True, label_visibility="collapsed")
 _byod_mode = _src == "Bring your own data"
+if st.session_state.get("_prev_src") != _src:        # source changed → drop the prior result
+    st.session_state.pop("result", None)
+    st.session_state._prev_src = _src
 
 if _byod_mode:
     st.markdown("<div class='eyebrow'>Bring your own data</div>", unsafe_allow_html=True)
@@ -256,23 +259,33 @@ if _byod_mode:
                 "non-sensitive data only (no PHI or confidential data).</div>", unsafe_allow_html=True)
     _up = st.file_uploader("Upload a CSV or Excel file", type=["csv", "xlsx"],
                            label_visibility="collapsed")
-    if _up is not None:
+    _b = st.session_state.byod
+    _fid = getattr(_up, "file_id", None) if _up is not None else None
+    if _up is None:                                  # no file (never uploaded or removed) → clear session
+        st.session_state.byod = None
+        st.info("Upload a table, then ask in plain English — the agent queries it and picks the right "
+                "method (regression, survival, non-inferiority, forecast…).")
+    elif _b and _fid is not None and _b.get("file_id") == _fid:   # same file → don't re-materialize
+        st.success(f"Loaded **{_b['table']}** — {_b['rows']:,} rows × {_b['ncols']} columns.")
+        st.markdown(f"<div style='color:#8ea0b0;font-size:.85rem'>Ask about: {_b['cols']}</div>",
+                    unsafe_allow_html=True)
+    else:
         try:
             _df = pd.read_csv(_up) if _up.name.lower().endswith(".csv") else pd.read_excel(_up)
             from agent import userdata
             _dbp, _cat, _tbl, _clean = userdata.prepare_upload(_df, _up.name)
-            st.session_state.byod = {"db_path": str(_dbp), "catalog": _cat, "table": _tbl}
+            _cols = ", ".join(f"`{c['name']}`" for c in _cat["tables"][0]["columns"])
+            st.session_state.byod = {"db_path": str(_dbp), "catalog": _cat, "table": _tbl,
+                                     "file_id": _fid, "rows": len(_clean),
+                                     "ncols": len(_clean.columns), "cols": _cols}
+            st.session_state.pop("result", None)     # new data → drop the stale prior result
             st.success(f"Loaded **{_tbl}** — {len(_clean):,} rows × {len(_clean.columns)} columns.")
             st.dataframe(_clean.head(8), use_container_width=True)
-            _cols = ", ".join(f"`{c['name']}`" for c in _cat["tables"][0]["columns"])
             st.markdown(f"<div style='color:#8ea0b0;font-size:.85rem'>Ask about: {_cols}</div>",
                         unsafe_allow_html=True)
         except Exception as _e:  # noqa: BLE001
             st.session_state.byod = None
             st.error(f"Could not read that file: {_e}")
-    elif st.session_state.byod is None:
-        st.info("Upload a table, then ask in plain English — the agent queries it and picks the right "
-                "method (A/B ship-call, non-inferiority, regression, survival, forecast…).")
 else:
     st.session_state.byod = None
     with st.expander("📋 What data can I ask about?"):
@@ -289,7 +302,7 @@ else:
                     st.session_state.question = ex
 
 st.markdown("<div class='eyebrow'>Your question</div>", unsafe_allow_html=True)
-question = st.text_input("q", value=st.session_state.question, label_visibility="collapsed")
+question = st.text_input("q", key="question", label_visibility="collapsed")   # persists typed text
 go = st.button("Run analysis  →", type="primary")
 
 
@@ -445,11 +458,12 @@ if result is not None:
             eyebrow("Hypothesis")
             st.markdown(f"<div class='card hypo'>{html.escape(result.hypothesis)}</div>",
                         unsafe_allow_html=True)
-        eyebrow("Analytic query")
-        st.code(result.sql, language="sql")
-        if result.citations:
-            chips = "".join(f"<span class='pill'>{html.escape(t)}</span>" for t in result.citations)
-            st.markdown(f"<div class='cite'>tables used: {chips}</div>", unsafe_allow_html=True)
+        if result.sql:                               # sample-size is a design calc — no analytic query
+            eyebrow("Analytic query")
+            st.code(result.sql, language="sql")
+            if result.citations:
+                chips = "".join(f"<span class='pill'>{html.escape(t)}</span>" for t in result.citations)
+                st.markdown(f"<div class='cite'>tables used: {chips}</div>", unsafe_allow_html=True)
         eyebrow("Statistical model")
         _mt = result.model.get("model_type")
         if _mt in ("experiment", "noninferiority", "sample_size"):   # decision/design → verdict badge

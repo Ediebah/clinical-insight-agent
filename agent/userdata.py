@@ -21,6 +21,16 @@ MAX_ROWS = 200_000
 MAX_COLS = 60
 
 
+_RESERVED = {
+    "select", "from", "where", "table", "order", "group", "by", "join", "on", "and", "or", "not",
+    "insert", "update", "delete", "drop", "create", "alter", "index", "view", "as", "in", "is", "null",
+    "case", "when", "then", "else", "end", "union", "all", "distinct", "having", "limit", "offset",
+    "left", "right", "inner", "outer", "full", "cross", "using", "values", "set", "into", "column",
+    "primary", "key", "foreign", "references", "default", "check", "unique", "desc", "asc", "between",
+    "like", "exists", "any", "some", "cast", "with", "over", "partition", "pivot", "sample", "row",
+}
+
+
 def _sanitize(name: str, fallback: str = "col") -> str:
     s = re.sub(r"[^0-9a-zA-Z]+", "_", str(name)).strip("_").lower()
     if not s:
@@ -31,15 +41,18 @@ def _sanitize(name: str, fallback: str = "col") -> str:
 
 
 def sanitize_columns(df: pd.DataFrame) -> pd.DataFrame:
-    """Rename columns to safe snake_case identifiers (dedup collisions) so generated SQL needs no quoting."""
+    """Rename columns to safe, UNIQUE snake_case identifiers so generated SQL needs no quoting."""
     df = df.iloc[:, :MAX_COLS].copy()
-    seen: dict[str, int] = {}
+    used: set[str] = set()
     out = []
     for c in df.columns:
         base = _sanitize(c)
-        n = seen.get(base, 0)
-        seen[base] = n + 1
-        out.append(base if n == 0 else f"{base}_{n}")
+        name, i = base, 1
+        while name in used:                        # guarantee uniqueness even against suffixed names
+            name = f"{base}_{i}"
+            i += 1
+        used.add(name)
+        out.append(name)
     df.columns = out
     return df
 
@@ -63,13 +76,17 @@ def build_catalog(df: pd.DataFrame, table: str) -> dict:
 
 def prepare_upload(df: pd.DataFrame, filename: str = "user_data") -> tuple[Path, dict, str, pd.DataFrame]:
     """Materialize the DataFrame as a DuckDB table and return (db_path, catalog, table_name, cleaned_df)."""
+    if df is None or df.shape[1] == 0:
+        raise ValueError("The uploaded file has no columns to analyze.")
     df = sanitize_columns(df).head(MAX_ROWS)
     table = _sanitize(Path(str(filename)).stem, fallback="user_data")
+    if table in _RESERVED:                          # a keyword table name would break generated `FROM {table}`
+        table = f"t_{table}"
     db_path = Path(tempfile.mkdtemp(prefix="byod_")) / "data.duckdb"
     con = duckdb.connect(str(db_path))
     try:
         con.register("_uploaded", df)
-        con.execute(f"CREATE TABLE {table} AS SELECT * FROM _uploaded")
+        con.execute(f'CREATE TABLE "{table}" AS SELECT * FROM _uploaded')   # quote → keyword-safe DDL
         con.unregister("_uploaded")
     finally:
         con.close()

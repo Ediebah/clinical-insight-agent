@@ -74,8 +74,9 @@ def kpi_cards(df: pd.DataFrame, question: str = "") -> list[dict]:
     """1-3 headline cards. For a category × measure result: the top, the bottom, and the spread."""
     if df is None or len(df) == 0:
         return []
+    df = df.reset_index(drop=True)                       # guarantee a unique index (idxmax → one row)
     y = _pick_measure(df)
-    if y is None:
+    if y is None or df[y].dropna().empty:                # no measure, or all values missing
         return []
     cats = [c for c in _cats(df) if not _ID.search(str(c))]
     if len(df) == 1:
@@ -85,8 +86,9 @@ def kpi_cards(df: pd.DataFrame, question: str = "") -> list[dict]:
         return [{"label": f"max {y}".replace("_", " "), "value": _fmt(y, col.max()), "sub": ""},
                 {"label": f"median {y}".replace("_", " "), "value": _fmt(y, col.median()), "sub": ""}]
     x = cats[0]
-    top = df.loc[df[y].idxmax()]
-    bot = df.loc[df[y].idxmin()]
+    valid = df.dropna(subset=[y])                        # idxmax/idxmin need non-NA
+    top = valid.loc[valid[y].idxmax()]
+    bot = valid.loc[valid[y].idxmin()]
     return [
         {"label": f"highest {x}".replace("_", " "), "value": str(top[x]), "sub": _fmt(y, top[y])},
         {"label": f"lowest {x}".replace("_", " "), "value": str(bot[x]), "sub": _fmt(y, bot[y])},
@@ -104,8 +106,8 @@ def _add_ci(d: pd.DataFrame, y: str):
     scale = 100.0 if (_PCTISH.search(str(y)) or d[y].max() > 1.5) else 1.0
     los, his = [], []
     for _, row in d.iterrows():
-        n = int(row[ncol]) if pd.notna(row[ncol]) else 0
-        k = int(row[kcol]) if pd.notna(row[kcol]) else 0
+        n = int(row[ncol]) if np.isfinite(row[ncol]) else 0    # finite guard (inf → int() OverflowError)
+        k = int(row[kcol]) if np.isfinite(row[kcol]) else 0
         lo, hi = wilson_ci(k, n) if n > 0 else (np.nan, np.nan)
         los.append(lo * scale)
         his.append(hi * scale)
@@ -180,7 +182,7 @@ def forest_plot(model: dict):
     null = 1.0 if is_ratio else 0.0
 
     def _sig(t):                                   # p<0.05, or (no p, e.g. bootstrap ATE) CI excludes null
-        if t["p"] == t["p"]:
+        if t["p"] is not None and t["p"] == t["p"]:
             return "significant" if t["p"] < 0.05 else "n.s."
         return "significant" if (t["ci_low"] > null or t["ci_high"] < null) else "n.s."
 

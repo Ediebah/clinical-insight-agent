@@ -58,8 +58,14 @@ def _to_binary(s: pd.Series) -> pd.Series:
     if s.dtype == bool:
         return s.astype(int)
     if pd.api.types.is_numeric_dtype(s):
-        vals = set(pd.unique(s.dropna()))
-        return s.astype(int) if vals <= {0, 1} else (s > 0).astype(int)
+        vals = sorted(set(pd.unique(s.dropna())))
+        if set(vals) <= {0, 1}:
+            return s.fillna(0).astype(int)
+        if len(vals) == 2:                          # 2-level numeric (e.g. {1,2}) → higher level = 1
+            return (s == vals[1]).astype(int)
+        # continuous / multi-level numeric must NOT be silently thresholded at >0
+        raise ValueError(f"outcome '{s.name}' is not binary ({len(vals)} numeric levels); "
+                         f"use a regression model or supply a 0/1 outcome")
     cats = list(pd.unique(s.dropna()))
     if len(cats) == 2:
         return (s == cats[1]).astype(int)
@@ -87,7 +93,8 @@ def _reduce_collinearity(d: pd.DataFrame, predictors: list[str], vif_max: float 
         from statsmodels.tools.tools import add_constant
         while len(keep) > 1:
             x = add_constant(dnum[keep], has_constant="add").to_numpy()
-            vifs = [(keep[i], variance_inflation_factor(x, i + 1)) for i in range(len(keep))]
+            with np.errstate(divide="ignore", invalid="ignore"):   # perfect collinearity → 1/0; expected
+                vifs = [(keep[i], variance_inflation_factor(x, i + 1)) for i in range(len(keep))]
             name, v = max(vifs, key=lambda kv: kv[1] if np.isfinite(kv[1]) else float("inf"))
             if np.isfinite(v) and v <= vif_max:
                 break
@@ -142,6 +149,22 @@ def _prepare(df: pd.DataFrame, outcome_cols: list[str], predictors: list[str], v
                      f"{dominance:.0%} or zero variance): " + ", ".join(quasi[:6])
                      + ("…" if len(quasi) > 6 else "") + ".")
         preds = [p for p in preds if p not in quasi]
+
+    # 3b. drop datetime and high-cardinality / ID-like categorical predictors: with one level per row
+    #     a categorical term saturates the design (R²→1, singular fit) and a datetime crashes patsy.
+    card_cap = max(20, int(0.5 * len(d)))
+    unusable = []
+    for p in preds:
+        s = d[p]
+        if pd.api.types.is_datetime64_any_dtype(s):
+            unusable.append(p)
+        elif not pd.api.types.is_numeric_dtype(s) and s.nunique(dropna=True) > card_cap:
+            unusable.append(p)
+    if unusable:
+        steps.append(f"Dropped {len(unusable)} unusable predictor(s) — datetime or high-cardinality / "
+                     f"ID-like (>{card_cap} categories): " + ", ".join(unusable[:6])
+                     + ("…" if len(unusable) > 6 else "") + ".")
+        preds = [p for p in preds if p not in unusable]
 
     if impute:                                         # 4. impute remaining missingness
         imputed = []                                   # (skipped when a downstream pipeline imputes per-fold)
@@ -235,6 +258,10 @@ def fit_logistic(df: pd.DataFrame, outcome: str, predictors: list[str]) -> Model
     try:
         import statsmodels.formula.api as smf
         d, preds, issues = _prepare(df, [outcome], predictors)
+        if not preds:
+            return ModelResult("logistic", outcome, len(d), "odds ratio",
+                               error="No usable predictors remained after data screening (all were "
+                                     "constant, collinear, too missing, or high-cardinality/ID-like).")
         d[outcome] = _to_binary(d[outcome])
         if d[outcome].nunique() < 2:
             return ModelResult("logistic", outcome, len(d), "odds ratio",
@@ -275,6 +302,13 @@ def fit_ols(df: pd.DataFrame, outcome: str, predictors: list[str]) -> ModelResul
     try:
         import statsmodels.formula.api as smf
         d, preds, issues = _prepare(df, [outcome], predictors)
+        if not preds:
+            return ModelResult("ols", outcome, len(d), "coefficient",
+                               error="No usable predictors remained after data screening (all were "
+                                     "constant, collinear, too missing, or high-cardinality/ID-like).")
+        if len(d) < len(preds) + 2:
+            return ModelResult("ols", outcome, len(d), "coefficient",
+                               error=f"Too few rows ({len(d)}) to fit {len(preds)} predictor(s).")
         m = smf.ols(_formula(outcome, preds, d), data=d).fit()
         ci = m.conf_int()
         terms = [Term(name, float(m.params[name]), float(ci.loc[name, 0]),
@@ -305,6 +339,10 @@ def fit_cox(df: pd.DataFrame, duration: str, event: str, predictors: list[str]) 
     try:
         from statsmodels.duration.hazard_regression import PHReg
         d, preds, issues = _prepare(df, [duration, event], predictors)
+        if not preds:
+            return ModelResult("cox", duration, len(d), "hazard ratio",
+                               error="No usable predictors remained after data screening (all were "
+                                     "constant, collinear, too missing, or high-cardinality/ID-like).")
         d[event] = _to_binary(d[event])
         d = d[pd.to_numeric(d[duration], errors="coerce") > 0]   # survival durations must be positive
         if len(d) < 2:
@@ -345,24 +383,27 @@ def fit_cox(df: pd.DataFrame, duration: str, event: str, predictors: list[str]) 
 
 def fit_km(df: pd.DataFrame, duration: str, event: str, group: str | None = None) -> list[dict]:
     """Kaplan-Meier survival curve points, optionally stratified by a categorical group."""
-    from statsmodels.duration.survfunc import SurvfuncRight
-    d = _clean(df, [duration, event, *([group] if group else [])])
-    d[event] = _to_binary(d[event])
-    d = d[pd.to_numeric(d[duration], errors="coerce") > 0]   # survival durations must be positive
-    groups = list(d.groupby(group)) if (group and group in d.columns) else [("all", d)]
-    curves = []
-    for gname, gd in groups:
-        if len(gd) < 2:
-            continue
-        sf = SurvfuncRight(gd[duration].to_numpy(float), gd[event].to_numpy(int))
-        se = getattr(sf, "surv_prob_se", None)
-        for i, (t, s) in enumerate(zip(sf.surv_times, sf.surv_prob)):
-            lo = hi = float("nan")
-            if se is not None:
-                lo, hi = max(0.0, float(s) - 1.96 * float(se[i])), min(1.0, float(s) + 1.96 * float(se[i]))
-            curves.append({"group": str(gname), "time": float(t), "survival": float(s),
-                           "ci_low": lo, "ci_high": hi})
-    return curves
+    try:
+        from statsmodels.duration.survfunc import SurvfuncRight
+        d = _clean(df, [duration, event, *([group] if group else [])])
+        d[event] = _to_binary(d[event])
+        d = d[pd.to_numeric(d[duration], errors="coerce") > 0]   # survival durations must be positive
+        groups = list(d.groupby(group)) if (group and group in d.columns) else [("all", d)]
+        curves = []
+        for gname, gd in groups:
+            if len(gd) < 2:
+                continue
+            sf = SurvfuncRight(gd[duration].to_numpy(float), gd[event].to_numpy(int))
+            se = getattr(sf, "surv_prob_se", None)
+            for i, (t, s) in enumerate(zip(sf.surv_times, sf.surv_prob)):
+                lo = hi = float("nan")
+                if se is not None:
+                    lo, hi = max(0.0, float(s) - 1.96 * float(se[i])), min(1.0, float(s) + 1.96 * float(se[i]))
+                curves.append({"group": str(gname), "time": float(t), "survival": float(s),
+                               "ci_low": lo, "ci_high": hi})
+        return curves
+    except Exception:  # noqa: BLE001 — a malformed event/duration must not crash survival analysis
+        return []
 
 
 def fit_survival(df: pd.DataFrame, duration: str, event: str,
@@ -412,8 +453,7 @@ def test_association(df: pd.DataFrame, a: str, b: str) -> ModelResult:
 def _is_binary_outcome(y: pd.Series) -> bool:
     if y.dtype == bool:
         return True
-    if pd.api.types.is_numeric_dtype(y):
-        return set(pd.unique(y.dropna())) <= {0, 1}
+    # exactly two distinct non-null values is binary — numeric {0,1} or {1,2}, or a 2-level category
     return y.nunique(dropna=True) == 2
 
 
@@ -434,14 +474,24 @@ def fit_forest(df: pd.DataFrame, outcome: str, predictors: list[str]) -> ModelRe
         X = pd.get_dummies(d[preds], drop_first=True)
         is_class = _is_binary_outcome(d[outcome])
         common = dict(n_estimators=300, random_state=0, n_jobs=-1, min_samples_leaf=5)
+        n_splits = 5
         if is_class:
             y = _to_binary(d[outcome])
             if y.nunique() < 2:
                 return ModelResult("forest", outcome, len(d), "importance",
                                    error="Outcome has no variation (all one class).")
+            minority = int(y.value_counts().min())
+            if minority < 5:                          # too few events to cross-validate AUC or split out
+                return ModelResult("forest", outcome, len(d), "importance",
+                                   error=f"Outcome too rare for a random forest — only {minority} in the "
+                                         "smaller class; need ≥5 (≥10 recommended) to score AUC honestly.")
+            n_splits = min(5, minority)
+            if minority < 20:
+                issues.append(f"Rare outcome ({minority} in the smaller class): the AUC and importances are "
+                              f"unstable and cross-validation uses {n_splits} folds — interpret with caution.")
             est = RandomForestClassifier(class_weight="balanced", **common)
             scoring, metric = "roc_auc", "AUC"
-            cv = StratifiedKFold(5, shuffle=True, random_state=0)
+            cv = StratifiedKFold(n_splits, shuffle=True, random_state=0)
         else:
             y = d[outcome].astype(float)
             est = RandomForestRegressor(**common)
@@ -449,7 +499,7 @@ def fit_forest(df: pd.DataFrame, outcome: str, predictors: list[str]) -> ModelRe
             cv = KFold(5, shuffle=True, random_state=0)
         pipe = Pipeline([("impute", SimpleImputer(strategy="median")), ("model", est)])
         cvs = cross_val_score(pipe, X, y, cv=cv, scoring=scoring)      # cross-validated skill
-        fit_stat = f"{metric}={cvs.mean():.3f}±{cvs.std():.3f} (5-fold CV)"
+        fit_stat = f"{metric}={cvs.mean():.3f}±{cvs.std():.3f} ({n_splits}-fold CV)"
         # permutation importance on a held-out split — imputer fit on train only (no leakage)
         Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.3, random_state=0,
                                               stratify=y if is_class else None)
@@ -564,9 +614,14 @@ _CONTROL_WORDS = ("control", "baseline", "ctrl", "placebo", "standard", "soc", "
 
 
 def _is_control(arm: str) -> bool:
-    """Recognize the reference arm — product ('control') or clinical ('standard_of_care', 'placebo')."""
-    a = str(arm).lower()
-    return a in ("a", "0", "off") or any(w in a for w in _CONTROL_WORDS)
+    """Recognize the reference arm — its name should START with a control word ('control',
+    'standard_of_care', 'placebo'), not merely CONTAIN one, so 'new_standard' / 'new_default'
+    (the treatment) is not mistaken for the control."""
+    a = str(arm).lower().strip()
+    if a in ("a", "0", "off"):
+        return True
+    return any(a == w or a.startswith(w + "_") or a.startswith(w + " ") or a.startswith(w + "-")
+               for w in _CONTROL_WORDS)
 
 
 def fit_experiment(df: pd.DataFrame, group: str, outcome: str, baseline: str | None = None) -> ModelResult:
@@ -581,13 +636,22 @@ def fit_experiment(df: pd.DataFrame, group: str, outcome: str, baseline: str | N
             return ModelResult("experiment", outcome, len(d), "lift",
                                error="Need at least two variants (an A and a B) to analyze.")
         binary = _is_binary_outcome(d[outcome])
+        if not binary and not pd.api.types.is_numeric_dtype(d[outcome]):
+            return ModelResult("experiment", outcome, len(d), "lift",
+                               error=f"Outcome must be binary or numeric to compare arms — found "
+                                     f"{d[outcome].nunique()} non-numeric categories.")
+        if not binary and int(d[group].value_counts().min()) < 2:
+            return ModelResult("experiment", outcome, len(d), "lift",
+                               error="Each arm needs ≥2 observations to compare a continuous outcome.")
         y = _to_binary(d[outcome]) if binary else d[outcome].astype(float)
         d = d.assign(_y=y.values)
 
-        # pick the control/baseline arm: an obvious name, else the largest arm
-        base = baseline if baseline in arms else next(
-            (a for a in arms if _is_control(a)),
-            d[group].value_counts().idxmax())
+        # pick the control/baseline arm: an explicit choice, else an obvious name, else — deterministically
+        # — the lowest-rate arm (NOT value_counts().idxmax(), whose ties are row-order dependent).
+        base = baseline if baseline in arms else next((a for a in arms if _is_control(a)), None)
+        auto_base = base is None
+        if auto_base:
+            base = min(sorted(arms), key=lambda a: float(d.loc[d[group] == a, "_y"].mean()))
         others = [a for a in arms if a != base]
 
         stat = {a: d.loc[d[group] == a, "_y"] for a in arms}
@@ -663,6 +727,9 @@ def fit_experiment(df: pd.DataFrame, group: str, outcome: str, baseline: str | N
 
         # flag statistical issues
         issues = []
+        if auto_base:
+            issues.append(f"No control arm recognized by name — '{base}' (the lowest-rate arm) was used as "
+                          "the baseline. Pass an explicit baseline if that's not the intended reference.")
         sizes = [r["n"] for r in [base_s, *arm_rows]]
         if min(sizes) < 200:
             issues.append(f"Small arm (n={min(sizes)}) — the estimate is imprecise.")
@@ -710,9 +777,18 @@ def fit_noninferiority(df: pd.DataFrame, group: str, outcome: str, margin: float
             return ModelResult("noninferiority", outcome, len(d), "difference",
                                error="Non-inferiority needs exactly two arms (treatment vs control).")
         binary = _is_binary_outcome(d[outcome])
+        if not binary and not pd.api.types.is_numeric_dtype(d[outcome]):
+            return ModelResult("noninferiority", outcome, len(d), "difference",
+                               error=f"Outcome must be binary or numeric — found "
+                                     f"{d[outcome].nunique()} non-numeric categories.")
+        if not binary and int(d[group].value_counts().min()) < 2:
+            return ModelResult("noninferiority", outcome, len(d), "difference",
+                               error="Each arm needs ≥2 observations to compare a continuous outcome.")
         d = d.assign(_y=(_to_binary(d[outcome]) if binary else d[outcome].astype(float)).values)
-        base = control if control in arms else next(
-            (a for a in arms if _is_control(a)), d[group].value_counts().idxmax())
+        base = control if control in arms else next((a for a in arms if _is_control(a)), None)
+        auto_base = base is None
+        if auto_base:                                # deterministic reference (not row-order dependent)
+            base = min(sorted(arms), key=lambda a: float(d.loc[d[group] == a, "_y"].mean()))
         trt = next(a for a in arms if a != base)
         st = {a: d.loc[d[group] == a, "_y"] for a in arms}
 
@@ -755,24 +831,33 @@ def fit_noninferiority(df: pd.DataFrame, group: str, outcome: str, margin: float
             return f"{x * 100:.1f}%" if binary else f"{x:.2f}"
 
         edge = "lower" if higher_is_better else "upper"
-        psuf = f"; Farrington–Manning p={fm_p:.3g} (one-sided)" if fm_p is not None else ""
+        # narrate the SAME test that made the decision — Farrington–Manning for binary, CI-vs-margin for
+        # continuous — so the wording can never contradict the call (the Newcombe CI is reported alongside).
+        if fm_p is not None:
+            basis = f"the Farrington–Manning score test (p={fm_p:.3g}, one-sided α=0.025)"
+        else:
+            basis = f"the {edge} 95%-CI bound {fmt(bound)} relative to the {fmt(margin)} margin"
         if ni and superior:
             call = "NON-INFERIOR"
-            reason = (f"{trt} is non-inferior to {base} — and superior: effect {fmt(diff)} "
-                      f"(95% CI {fmt(lo)} to {fmt(hi)}), inside the {fmt(margin)} margin and excludes 0{psuf}.")
+            reason = (f"{trt} is non-inferior to {base}, and superior: effect {fmt(diff)} "
+                      f"(95% CI {fmt(lo)} to {fmt(hi)}); non-inferiority is met by {basis}, and the CI "
+                      "excludes 0 in the favorable direction.")
         elif ni:
             call = "NON-INFERIOR"
             reason = (f"{trt} is non-inferior to {base}: effect {fmt(diff)} (95% CI {fmt(lo)} to {fmt(hi)}); "
-                      f"the {edge} bound {fmt(bound)} stays inside the {fmt(margin)} margin{psuf}.")
+                      f"non-inferiority is met by {basis}.")
         else:
             call = "NOT NON-INFERIOR"
-            reason = (f"Non-inferiority not shown: effect {fmt(diff)} (95% CI {fmt(lo)} to {fmt(hi)}) "
-                      f"crosses the {fmt(margin)} margin{psuf}.")
+            reason = (f"Non-inferiority not shown: effect {fmt(diff)} (95% CI {fmt(lo)} to {fmt(hi)}); "
+                      f"the {fmt(margin)} margin is not excluded by {basis}.")
 
         rows = [summ(base), summ(trt)]
         rows[0]["is_baseline"], rows[0]["is_winner"] = True, False
         rows[1]["is_baseline"], rows[1]["is_winner"] = False, False   # NI ≠ "winner"; verdict says it all
         issues = []
+        if auto_base:
+            issues.append(f"No control arm recognized by name — '{base}' (the lower-rate arm) was used as the "
+                          "reference. Pass an explicit control if that's not the intended comparator.")
         if binary and min(nt, nc) < 100:
             issues.append(f"Small arm (n={min(nt, nc)}) — the CI is wide; the NI call is fragile.")
         issues.append("NI is sensitive to the margin and analysis population — pre-specify the margin and "
@@ -803,24 +888,57 @@ def calc_sample_size(kind: str = "superiority", outcome_type: str = "proportion"
         import math
 
         from scipy import stats
-        alpha, power, ratio = float(alpha or 0.05), float(power or 0.80), float(ratio or 1.0)
+        # note: `x if x is not None else default` (NOT `x or default`) so an explicit 0 isn't swallowed
+        alpha = float(alpha) if alpha is not None else 0.05
+        power = float(power) if power is not None else 0.80
+        ratio = float(ratio) if ratio is not None else 1.0
         ni = kind == "noninferiority"
+
+        def _err(msg):
+            return ModelResult("sample_size", "sample size", 0, "n per arm", error=msg)
+
+        if not (0 < alpha < 1):
+            return _err("alpha must be between 0 and 1 (e.g. 0.05).")
+        if not (0 < power < 1):
+            return _err("power must be between 0 and 1 (e.g. 0.80 or 0.90).")
+        if ratio <= 0:
+            return _err("allocation ratio must be positive (1 for equal arms, 2 for 2:1, …).")
+        if ni and margin is None:
+            return _err("a non-inferiority margin is required for an NI sample-size calculation.")
         za = stats.norm.ppf(1 - alpha / 2)          # two-sided superiority OR one-sided NI at α/2
 
         if outcome_type == "mean":
+            if mean_control is None or sd is None:
+                return _err("for a mean endpoint, provide mean_control and sd (plus mean_treatment or effect).")
+            if not ni and mean_treatment is None and effect is None:
+                return _err("for a superiority mean test, provide mean_treatment (or an effect).")
             m_c = float(mean_control)
-            m_t = float(mean_treatment) if mean_treatment is not None else m_c + float(effect or 0)
+            m_t = (float(mean_treatment) if mean_treatment is not None
+                   else m_c + float(effect) if effect is not None else m_c)   # NI defaults to equal means
             s = float(sd)
+            if s <= 0:
+                return _err("the standard deviation (sd) must be positive.")
             dist = (abs(m_t - m_c) + abs(float(margin))) if ni else abs(m_t - m_c)
+            if dist <= 0:
+                return _err("the effect is zero — no finite sample size can detect a null difference.")
             d = dist / s
             unit = (1 + 1 / ratio) / d ** 2                       # (za+zb)² × unit = control-arm n
             detail = (f"means: control {m_c:g}, treatment {m_t:g}, SD {s:g}"
-                      + (f", NI margin {margin:g}" if ni else "") + f" (effect size d={d:.2f})")
+                      + (f", NI margin {abs(float(margin)):g}" if ni else "") + f" (effect size d={d:.2f})")
         else:                                        # proportion — Blackwelder normal approximation
+            if p_control is None:
+                return _err("for a proportion endpoint, provide p_control (plus p_treatment or effect).")
+            if not ni and p_treatment is None and effect is None:
+                return _err("for a superiority proportion test, provide p_treatment (or an effect).")
             p_c = float(p_control)
-            p_t = float(p_treatment) if p_treatment is not None else p_c + float(effect or 0)
+            p_t = (float(p_treatment) if p_treatment is not None
+                   else p_c + float(effect) if effect is not None else p_c)   # NI defaults to equal rates
+            if not (0 <= p_c <= 1) or not (0 <= p_t <= 1):
+                return _err("proportions must be between 0 and 1.")
             null = (-abs(float(margin)) if higher_is_better else abs(float(margin))) if ni else 0.0
             dist = abs((p_t - p_c) - null)
+            if dist <= 0:
+                return _err("the target difference equals the margin — no finite sample size can detect it.")
             var = p_c * (1 - p_c) + p_t * (1 - p_t) / ratio
             unit = var / dist ** 2
             detail = (f"proportions: control {p_c:.0%}, treatment {p_t:.0%}"

@@ -45,11 +45,11 @@ def _score(query_tokens: list[str], text: str) -> int:
 
 def retrieve(question: str, catalog: dict | None = None, k: int = 6) -> dict:
     """Return the top-k tables + relevant metrics for a question, plus a full table-name index."""
-    catalog = catalog or load_catalog()
+    catalog = load_catalog() if catalog is None else catalog   # an empty {} must NOT fall back to demo
     q = _tokens(question)
 
     scored_tables = sorted(
-        ((_score(q, _table_text(t)), t) for t in catalog["tables"]),
+        ((_score(q, _table_text(t)), t) for t in catalog.get("tables", [])),
         key=lambda x: x[0], reverse=True,
     )
     # keep tables with any signal; fall back to the top-k if the question is vague
@@ -58,7 +58,7 @@ def retrieve(question: str, catalog: dict | None = None, k: int = 6) -> dict:
         hits = [t for _, t in scored_tables[:k]]
 
     scored_metrics = sorted(
-        ((_score(q, f"{m['name']} {m['definition']}"), m) for m in catalog["metrics"]),
+        ((_score(q, f"{m['name']} {m['definition']}"), m) for m in catalog.get("metrics", [])),
         key=lambda x: x[0], reverse=True,
     )
     metrics = [m for s, m in scored_metrics if s > 0][:4]
@@ -66,7 +66,7 @@ def retrieve(question: str, catalog: dict | None = None, k: int = 6) -> dict:
     return {
         "tables": hits,
         "metrics": metrics,
-        "all_table_names": [t["name"] for t in catalog["tables"]],
+        "all_table_names": [t["name"] for t in catalog.get("tables", [])],
     }
 
 

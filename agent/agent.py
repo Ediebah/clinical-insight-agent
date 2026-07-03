@@ -368,7 +368,11 @@ def _run_model(question: str, context: str, spec: dict, result: AgentResult, tab
     result.sql = sql
     result.dataframe = df
     result.citations = _citations(sql, table_names)
-    mr = _fit_model(spec, df)
+    try:
+        mr = _fit_model(spec, df)
+    except Exception as e:  # noqa: BLE001 — a malformed model spec must not crash the app
+        mr = modeling.ModelResult(spec.get("model_type") or "?", spec.get("outcome", ""), 0, "",
+                                  error=f"the model spec was missing a required field ({e}).")
     result.model = mr.as_dict()
     result.interpretation = (f"**Findings**\nThe model could not be fit: {mr.error}"
                              if mr.error else _interpret_model(question, mr))
@@ -408,7 +412,7 @@ def run_analysis(question: str, max_tries: int = MAX_SQL_TRIES,
             spec = _route(question, context)
             if spec.get("model_type") == "sample_size":       # design-stage calc — no data/SQL
                 return _run_sample_size(question, spec, result)
-            if spec.get("mode") == "model" and spec.get("analytic_sql"):
+            if spec.get("analytic_sql") and spec.get("model_type") not in (None, "", "aggregate"):
                 return _run_model(question, context, spec, result, retrieved["all_table_names"], db_path)
 
         triage = _triage(question, context)
@@ -460,6 +464,8 @@ def run_analysis(question: str, max_tries: int = MAX_SQL_TRIES,
         result.interpretation = _interpret(question, sql, df, result.findings)
     except llm.LLMError as e:
         result.error = str(e)
+    except Exception as e:  # noqa: BLE001 — last-resort guard so the app degrades, never crashes
+        result.error = f"The analysis could not be completed: {e}"
     finally:
         result.trace = llm.trace_summary()
         _persist_trace(question, result.trace, result.error)
