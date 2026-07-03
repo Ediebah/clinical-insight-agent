@@ -332,13 +332,14 @@ def _interpret_model(question: str, mr: modeling.ModelResult) -> str:
     )
 
 
-def _run_model(question: str, context: str, spec: dict, result: AgentResult, table_names: list[str]) -> AgentResult:
+def _run_model(question: str, context: str, spec: dict, result: AgentResult, table_names: list[str],
+               db_path=None) -> AgentResult:
     sql = _clean_sql(spec.get("analytic_sql", ""))
     result.hypothesis = spec.get("hypothesis", "")
     df = None
     for attempt in range(1, MAX_SQL_TRIES + 1):
         try:
-            df = run_query(sql, max_rows=100000)      # a model needs the full analytic dataset, not 1000 rows
+            df = run_query(sql, max_rows=100000, db_path=db_path)   # full analytic dataset, not 1000 rows
             result.attempts.append({"sql": sql, "error": None})
             break
         except QueryError as e:
@@ -358,15 +359,16 @@ def _run_model(question: str, context: str, spec: dict, result: AgentResult, tab
     return result
 
 
-def run_analysis(question: str, max_tries: int = MAX_SQL_TRIES) -> AgentResult:
+def run_analysis(question: str, max_tries: int = MAX_SQL_TRIES,
+                 catalog: dict | None = None, db_path=None) -> AgentResult:
     result = AgentResult(question=question)
     llm.reset_trace()
     if _looks_like_injection(question):
         result.error = ("This request looks like an attempt to override the agent's instructions and "
-                        "was blocked. Please ask a data question about the healthcare warehouse.")
+                        "was blocked. Please ask a data question about the warehouse or your dataset.")
         return result
     try:
-        retrieved = retrieval.retrieve(question)
+        retrieved = retrieval.retrieve(question, catalog=catalog)   # catalog=None → the demo warehouse
         context = retrieval.render_context(retrieved)
 
         # Inferential questions → fit a real model. Checked BEFORE triage so a specific model
@@ -374,7 +376,7 @@ def run_analysis(question: str, max_tries: int = MAX_SQL_TRIES) -> AgentResult:
         if _MODEL_HINT.search(question):
             spec = _route(question, context)
             if spec.get("mode") == "model" and spec.get("analytic_sql"):
-                return _run_model(question, context, spec, result, retrieved["all_table_names"])
+                return _run_model(question, context, spec, result, retrieved["all_table_names"], db_path)
 
         triage = _triage(question, context)
         if not triage.get("answerable", True) and triage.get("clarification"):
@@ -388,7 +390,7 @@ def run_analysis(question: str, max_tries: int = MAX_SQL_TRIES) -> AgentResult:
         degen_used = False
         for attempt in range(1, max_tries + 1):
             try:
-                candidate = run_query(sql)
+                candidate = run_query(sql, db_path=db_path)
             except QueryError as e:                              # self-heal on SQL error
                 result.attempts.append({"sql": sql, "error": str(e)})
                 if attempt == max_tries:

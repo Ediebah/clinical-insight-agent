@@ -13,6 +13,7 @@ import json
 import os
 from pathlib import Path
 
+import pandas as pd
 import streamlit as st
 
 _FEEDBACK_LOG = Path(__file__).resolve().parent / "logs" / "feedback.jsonl"
@@ -237,20 +238,51 @@ st.markdown(f"""
 # ───────────────────────────── ask ─────────────────────────────
 if "question" not in st.session_state:
     st.session_state.question = EXAMPLES[0]
+if "byod" not in st.session_state:
+    st.session_state.byod = None          # holds {db_path, catalog, table} once a file is loaded
 
-with st.expander("📋 What data can I ask about?"):
-    st.markdown(_data_dictionary())
+_src = st.radio("Data source", ["Demo warehouse", "Bring your own data"],
+                horizontal=True, label_visibility="collapsed")
+_byod_mode = _src == "Bring your own data"
 
-st.markdown("<div class='eyebrow'>Try one — the agent auto-selects the method</div>",
-            unsafe_allow_html=True)
-for _group, _qs in EXAMPLE_GROUPS.items():
-    st.markdown(f"<div style='color:#8ea0b0;font-size:.78rem;font-weight:600;letter-spacing:.02em;"
-                f"margin:.55rem 0 .25rem'>{_group}</div>", unsafe_allow_html=True)
-    for start in range(0, len(_qs), 3):
-        cols = st.columns(3)
-        for c, ex in zip(cols, _qs[start:start + 3]):
-            if c.button(ex, key=f"ex_{ex}", use_container_width=True):
-                st.session_state.question = ex
+if _byod_mode:
+    st.markdown("<div class='eyebrow'>Bring your own data</div>", unsafe_allow_html=True)
+    st.markdown("<div style='color:#f5c451;font-size:.82rem;margin:-.2rem 0 .5rem'>⚠ Uploads reach the "
+                "server and the model sees your column names + query results — use synthetic / "
+                "non-sensitive data only (no PHI or confidential data).</div>", unsafe_allow_html=True)
+    _up = st.file_uploader("Upload a CSV or Excel file", type=["csv", "xlsx"],
+                           label_visibility="collapsed")
+    if _up is not None:
+        try:
+            _df = pd.read_csv(_up) if _up.name.lower().endswith(".csv") else pd.read_excel(_up)
+            from agent import userdata
+            _dbp, _cat, _tbl, _clean = userdata.prepare_upload(_df, _up.name)
+            st.session_state.byod = {"db_path": str(_dbp), "catalog": _cat, "table": _tbl}
+            st.success(f"Loaded **{_tbl}** — {len(_clean):,} rows × {len(_clean.columns)} columns.")
+            st.dataframe(_clean.head(8), use_container_width=True)
+            _cols = ", ".join(f"`{c['name']}`" for c in _cat["tables"][0]["columns"])
+            st.markdown(f"<div style='color:#8ea0b0;font-size:.85rem'>Ask about: {_cols}</div>",
+                        unsafe_allow_html=True)
+        except Exception as _e:  # noqa: BLE001
+            st.session_state.byod = None
+            st.error(f"Could not read that file: {_e}")
+    elif st.session_state.byod is None:
+        st.info("Upload a table, then ask in plain English — the agent queries it and picks the right "
+                "method (A/B ship-call, non-inferiority, regression, survival, forecast…).")
+else:
+    st.session_state.byod = None
+    with st.expander("📋 What data can I ask about?"):
+        st.markdown(_data_dictionary())
+    st.markdown("<div class='eyebrow'>Try one — the agent auto-selects the method</div>",
+                unsafe_allow_html=True)
+    for _group, _qs in EXAMPLE_GROUPS.items():
+        st.markdown(f"<div style='color:#8ea0b0;font-size:.78rem;font-weight:600;letter-spacing:.02em;"
+                    f"margin:.55rem 0 .25rem'>{_group}</div>", unsafe_allow_html=True)
+        for start in range(0, len(_qs), 3):
+            cols = st.columns(3)
+            for c, ex in zip(cols, _qs[start:start + 3]):
+                if c.button(ex, key=f"ex_{ex}", use_container_width=True):
+                    st.session_state.question = ex
 
 st.markdown("<div class='eyebrow'>Your question</div>", unsafe_allow_html=True)
 question = st.text_input("q", value=st.session_state.question, label_visibility="collapsed")
@@ -333,9 +365,13 @@ def _render_model(m: dict) -> str:
 
 
 # ───────────────────────────── run ─────────────────────────────
-if go and question:
+if go and question and _byod_mode and not st.session_state.byod:
+    st.warning("Upload a CSV or Excel file first, or switch to the demo warehouse.")
+elif go and question:
+    _b = st.session_state.byod
     with st.spinner("Retrieving context → planning → writing SQL → executing → interpreting…"):
-        st.session_state.result = run_analysis(question)
+        st.session_state.result = run_analysis(
+            question, catalog=(_b or {}).get("catalog"), db_path=(_b or {}).get("db_path"))
         st.session_state.result_q = question
 
 result = st.session_state.get("result")

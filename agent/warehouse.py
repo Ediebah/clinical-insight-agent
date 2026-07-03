@@ -82,15 +82,17 @@ def validate(sql: str) -> str:
     return cleaned
 
 
-def run_query(sql: str, max_rows: int = MAX_ROWS) -> pd.DataFrame:
-    """Validate + execute read-only, capped at max_rows. Returns a DataFrame or raises QueryError."""
+def run_query(sql: str, max_rows: int = MAX_ROWS, db_path: Path | None = None) -> pd.DataFrame:
+    """Validate + execute read-only, capped at max_rows. Returns a DataFrame or raises QueryError.
+    db_path overrides the warehouse (used for user-uploaded 'bring your own data' sessions)."""
     cleaned = validate(sql)
-    if not DB_PATH.exists():
-        raise QueryError(f"Warehouse not found at {DB_PATH}. Run the loader + `dbt build` first.")
+    path = Path(db_path) if db_path else DB_PATH
+    if not path.exists():
+        raise QueryError(f"Warehouse not found at {path}. Run the loader + `dbt build` first.")
     wrapped = f"select * from (\n{cleaned}\n) as _agent_q limit {max_rows}"
     t0 = time.perf_counter()
     try:
-        con = duckdb.connect(str(DB_PATH), read_only=True)
+        con = duckdb.connect(str(path), read_only=True)
         try:
             df = con.execute(wrapped).df()
         finally:
