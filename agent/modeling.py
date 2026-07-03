@@ -254,10 +254,13 @@ def fit_forest(df: pd.DataFrame, outcome: str, predictors: list[str]) -> ModelRe
             pairs = cm.where(np.triu(np.ones(cm.shape, dtype=bool), k=1)).stack()
             if len(pairs) and pairs.max() > 0.9:
                 (a, b), rmax = pairs.idxmax(), pairs.max()
-                mr.issues = [f"High collinearity ({a}–{b}, r={rmax:.2f}): permutation importance is split "
-                             "among correlated predictors, so the magnitudes understate individual "
-                             "features and the ranking among them is unstable — read the top *set*, not "
-                             "the exact order."]
+                redundant = int((pairs > 0.9).sum())
+                mr.issues = [f"Redundant predictors: {a} and {b} are near-perfectly correlated "
+                             f"(r={rmax:.3f}) — they carry essentially the same information, so either "
+                             f"could be dropped with no loss of predictive skill ({redundant} pair"
+                             f"{'s' if redundant != 1 else ''} exceed r=0.9). The forest splits importance "
+                             "between such twins, understating both — interpret it at the group level, or "
+                             "keep one feature per correlated cluster."]
         return mr
     except Exception as e:  # noqa: BLE001
         return ModelResult("forest", outcome, 0, "importance", error=str(e))
