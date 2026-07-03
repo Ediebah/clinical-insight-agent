@@ -219,13 +219,12 @@ def _data_dictionary() -> str:
 # ───────────────────────────── hero ─────────────────────────────
 st.markdown(f"""
 <div class="hero">
-  <div class="hero-eyebrow">AI-native biostatistics · clinical data</div>
+  <div class="hero-eyebrow">Healthcare analytics · agentic AI</div>
   <h1 class="hero-title">Clinical Insight <span class="accent">Agent</span></h1>
-  <p class="hero-sub">Biostatistician-grade analysis, run by an AI agent over a clinical data warehouse.
-  Ask in plain English — it engineers the data (missingness, collinearity), fits the right model
-  (survival, regression, non-inferiority, causal), checks the assumptions (proportional hazards,
-  separation, VIF), and reports the result with the caveats a text-to-SQL bot skips — exportable as a
-  regulated-style report.</p>
+  <p class="hero-sub">An AI agent that modernizes clinical data analysis. Ask in plain English — it
+  engineers the data (missingness, collinearity), fits the right model (survival, regression,
+  non-inferiority, causal, or ML), checks the assumptions (proportional hazards, separation, VIF), and
+  reports the result with the caveats a text-to-SQL bot skips — exportable as a regulated-style report.</p>
   <div class="pill-row">
     <span class="pill">survival · regression · causal</span>
     <span class="pill">non-inferiority · sample size</span>
