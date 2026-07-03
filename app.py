@@ -340,8 +340,14 @@ def _cached_report(_result, content_key: str):   # keyed on content_key (a conte
     return build_docx(_result)
 
 
+# Temporarily disabled: some figures don't render correctly in the .docx yet. Flip to True to restore.
+_REPORT_EXPORT_ENABLED = False
+
+
 def _report_button(result, view: str):
     """Offer the analysis as a regulated-style .docx report (cached by content so charts render once)."""
+    if not _REPORT_EXPORT_ENABLED:
+        return
     try:
         data = _cached_report(result, _result_key(result))
     except Exception as _e:  # noqa: BLE001
