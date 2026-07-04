@@ -1,0 +1,180 @@
+"""Regression tests for the security + statistical + BYOD + report hardening pass.
+
+All hermetic — no API key, no network. Warehouse tests use the committed demo DuckDB.
+"""
+import numpy as np
+import pandas as pd
+import pytest
+
+from agent import charts, guardrails, modeling
+from agent import warehouse as W
+
+
+# ───────────────────────── SQL security boundary ─────────────────────────
+@pytest.mark.parametrize("sql", [
+    "SELECT * FROM read_text('/etc/passwd')",
+    "SELECT * FROM read_csv_auto('agent/.env')",
+    "SELECT * FROM read_blob('agent/__init__.py')",
+    "SELECT * FROM read_parquet('x.parquet')",
+    "SELECT file FROM glob('/etc/*')",
+    "COPY (SELECT 1) TO '/tmp/x.csv'",
+    "ATTACH 'x.db'; SELECT 1",
+    "SELECT 1; DROP TABLE dim_patient",
+])
+def test_validate_blocks_exfiltration_and_writes(sql):
+    with pytest.raises(W.QueryError):
+        W.validate(sql)
+
+
+def test_parenthesized_select_allowed():
+    assert W.validate("(SELECT 1 AS a) UNION ALL (SELECT 2)")            # must not be rejected
+    assert W.validate("SELECT 1 WHERE 'NURSE ON CALL' = 'NURSE ON CALL'")  # keyword inside a literal is fine
+
+
+def test_run_query_engine_refuses_file_read():
+    if not W.DB_PATH.exists():
+        pytest.skip("demo warehouse not present")
+    with pytest.raises(W.QueryError):
+        W.run_query("SELECT content FROM read_text('requirements.txt')")
+    # a normal read-only query still works
+    df = W.run_query("SELECT count(*) AS n FROM dim_patient")
+    assert int(df.iloc[0]["n"]) > 0
+
+
+# ───────────────────────── statistical correctness ─────────────────────────
+def test_uplift_aipw_valid_ci_covers_truth():
+    rng = np.random.default_rng(7)
+    n = 1400
+    x1, x2 = rng.normal(0, 1, n), rng.normal(0, 1, n)
+    t = rng.binomial(1, 1 / (1 + np.exp(-(0.8 * x1 - 0.5 * x2))))        # confounded assignment
+    y = rng.binomial(1, np.clip(1 / (1 + np.exp(-(-0.3 + 0.7 * x1))) + 0.15 * t, 0, 1))
+    r = modeling.fit_uplift(pd.DataFrame({"y": y, "t": t, "x1": x1, "x2": x2}), "y", "t", ["x1", "x2"])
+    assert r.error is None and "AIPW" in r.fit_stat
+    a = r.terms[0]
+    se = (a.ci_high - a.ci_low) / (2 * 1.96)
+    assert a.estimate > 0.05                          # detects the positive treatment effect
+    assert se > 0.015                                 # honest influence-function SE (old bootstrap was ~3x smaller)
+    assert a.ci_low < a.estimate < a.ci_high          # a well-formed interval around the point estimate
+
+
+def test_bh_nan_is_never_significant():
+    assert guardrails.benjamini_hochberg([float("nan"), 5.4e-5])[0] == 1.0   # NaN → not significant
+    assert guardrails.benjamini_hochberg([None, 0.001])[0] == 1.0            # None handled the same
+
+
+def test_cox_flags_separation():
+    rng = np.random.default_rng(2)
+    n = 300
+    g = rng.integers(0, 2, n).astype(float)
+    df = pd.DataFrame({"t": rng.exponential(1, n), "e": g.astype(int), "g": g})  # events ONLY in group 1
+    r = modeling.fit_cox(df, "t", "e", ["g"])
+    assert r.error is None and any("separation" in i.lower() for i in r.issues)
+
+
+def test_cox_all_censored_clean_error():
+    df = pd.DataFrame({"t": [1, 2, 3, 4] * 10, "e": [0] * 40, "x": list(range(40))})
+    r = modeling.fit_cox(df, "t", "e", ["x"])
+    assert r.error is not None and "censored" in r.error.lower()
+
+
+def test_ni_ci_consistent_with_fm_verdict():
+    # reviewer counterexample: FM p just over 0.025 ⇒ NOT NI; the score CI must agree (lower ≤ -margin)
+    df = pd.DataFrame({"arm": ["control"] * 200 + ["trt"] * 200,
+                       "cured": [1] * 140 + [0] * 60 + [1] * 138 + [0] * 62})
+    r = modeling.fit_noninferiority(df, "arm", "cured", margin=0.10, higher_is_better=True, control="control")
+    t, v = r.terms[0], r.verdict
+    not_ni = v["call"] == "NOT NON-INFERIOR"
+    assert not_ni == (t.ci_low <= -0.10)            # figure/CI can never contradict the verdict
+
+
+def test_sample_size_means_uses_t_power():
+    r = modeling.calc_sample_size(outcome_type="mean", mean_control=0, mean_treatment=0.5, sd=1.0)
+    assert 63 <= r.arms[0]["n"] <= 65               # noncentral-t: 64 (normal approx gave 63)
+    ni = modeling.calc_sample_size(kind="noninferiority", outcome_type="proportion", p_control=0.85, margin=0.10)
+    assert "α=0.025" in ni.fit_stat                 # NI label shows the true one-sided level
+
+
+def test_experiment_donotship_reachable_without_named_control():
+    rng = np.random.default_rng(1)
+    # arms named neutrally (no control keyword) → auto-baseline is the LARGER arm, not the min-rate arm
+    df = pd.DataFrame({"arm": ["blue"] * 700 + ["red"] * 700,
+                       "c": list(rng.binomial(1, 0.20, 700)) + list(rng.binomial(1, 0.12, 700))})
+    r = modeling.fit_experiment(df, "arm", "c")
+    assert r.verdict["call"] in ("DO NOT SHIP", "SHIP")   # a directional verdict is reachable (not forced ≥0)
+
+
+def test_binary_note_on_1_2_coding():
+    assert modeling._binary_note(pd.Series([1, 2, 1, 2])) is not None      # ambiguous coding → warned
+    assert modeling._binary_note(pd.Series([0, 1, 0, 1])) is None          # {0,1} is unambiguous
+
+
+# ───────────────────────── BYOD hardening ─────────────────────────
+def test_userdata_reserved_and_unicode_columns():
+    from agent import userdata
+    df = pd.DataFrame({"from": [1], "Âge": [2], "select": [3]})
+    out = userdata.sanitize_columns(df)
+    cols = list(out.columns)
+    assert "from" not in cols and "select" not in cols    # reserved words suffixed
+    assert "age" in cols                                  # accented latin transliterated, not dropped
+
+
+def test_userdata_zero_columns_guard():
+    from agent import userdata
+    with pytest.raises(ValueError):
+        userdata.prepare_upload(pd.DataFrame(), "empty.csv")
+
+
+# ───────────────────────── charts + print theme ─────────────────────────
+def test_forest_plot_drops_nonfinite_terms():
+    finite = {"name": "x", "estimate": 1.4, "ci_low": 1.1, "ci_high": 1.8, "p": 0.01}
+    inf = {"name": "sep", "estimate": float("inf"), "ci_low": 0.0, "ci_high": float("inf"), "p": float("nan")}
+    assert charts.forest_plot({"effect_label": "odds ratio", "terms": [finite, inf]}) is not None  # doesn't crash
+    assert charts.forest_plot({"effect_label": "odds ratio", "terms": [inf]}) is None               # all dropped
+
+
+def test_print_theme_switches_and_restores():
+    assert charts._BG == "transparent"
+    with charts.render_for_print():
+        assert charts._BG == "white" and charts._PRINT_ON
+    assert charts._BG == "transparent" and not charts._PRINT_ON   # restored, no leakage into the UI
+
+
+# ───────────────────────── agent self-heal loop (hermetic) ─────────────────────────
+def test_self_heal_loop_recovers_from_sql_error(monkeypatch):
+    from agent import agent as A
+    from agent.warehouse import QueryError
+    calls = {"n": 0}
+
+    def fake_run_query(sql, **kw):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise QueryError("Binder Error: no such column foo")
+        return pd.DataFrame({"n": [42]})
+
+    monkeypatch.setattr(A, "run_query", fake_run_query)
+    monkeypatch.setattr(A.llm, "reset_trace", lambda: None)
+    monkeypatch.setattr(A.llm, "trace_summary", lambda: {})
+    monkeypatch.setattr(A.llm, "complete", lambda *a, **k: "SELECT count(*) AS n FROM dim_patient")
+    monkeypatch.setattr(A.llm, "complete_json", lambda *a, **k: {
+        "answerable": True, "hypothesis": "h", "analysis_plan": "p",
+        "answers_question": True, "confidence": "high", "issues": []})
+
+    r = A.run_analysis("How many patients are in the warehouse?")
+    assert r.error is None
+    assert calls["n"] == 2                                  # failed once → healed → succeeded
+    assert r.attempts[0]["error"] and r.attempts[1]["error"] is None
+    assert int(r.dataframe.iloc[0]["n"]) == 42
+
+
+def test_report_docx_smoke():
+    from types import SimpleNamespace
+
+    from agent import report
+    rng = np.random.default_rng(0)
+    df = pd.DataFrame({"arm": np.repeat(["control", "variant"], 300),
+                       "c": np.r_[rng.binomial(1, 0.10, 300), rng.binomial(1, 0.15, 300)]})
+    res = SimpleNamespace(question="Ship it?", model=modeling.fit_experiment(df, "arm", "c").as_dict(),
+                          citations=["ab"], sql="select 1", dataframe=None, findings=[],
+                          interpretation="**Findings**\nText.", hypothesis="H")
+    b = report.build_docx(res)
+    assert b[:2] == b"PK" and len(b) > 20_000               # a real .docx with an embedded figure

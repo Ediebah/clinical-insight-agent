@@ -15,6 +15,9 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
 MODEL = os.getenv("OPENAI_MODEL", "gpt-4o")
+# Hard cap on generated tokens per completion so a runaway/looping generation can't blow up cost or
+# latency. Applied to every call; override per-call via complete(max_tokens=...).
+MAX_TOKENS = 1500
 _client = None
 
 # rough USD per 1K tokens (input, output) — for an order-of-magnitude cost estimate
@@ -24,6 +27,9 @@ _COST = {
     "gpt-4.1": (0.002, 0.008),
     "gpt-4.1-mini": (0.0004, 0.0016),
 }
+# Unknown / dated model ids (e.g. a dated snapshot like "gpt-4o-2024-08-06") aren't in _COST. Rather
+# than report a misleading $0, fall back to gpt-4o pricing and flag the estimate as approximate.
+_FALLBACK_COST = _COST["gpt-4o"]
 _TRACE: list[dict] = []
 
 
@@ -36,7 +42,8 @@ def reset_trace() -> None:
 
 
 def trace_summary() -> dict:
-    ci, co = _COST.get(MODEL, (0.0, 0.0))
+    known = MODEL in _COST
+    ci, co = _COST[MODEL] if known else _FALLBACK_COST
     pt = sum(t["prompt_tokens"] for t in _TRACE)
     ct = sum(t["completion_tokens"] for t in _TRACE)
     return {
@@ -45,6 +52,9 @@ def trace_summary() -> dict:
         "completion_tokens": ct,
         "latency_ms": round(sum(t["ms"] for t in _TRACE)),
         "est_cost_usd": round(pt / 1000 * ci + ct / 1000 * co, 4),
+        # True → MODEL is unknown, so est_cost_usd uses the gpt-4o fallback rate above (an
+        # order-of-magnitude estimate, never a false $0). False → MODEL is a known priced id.
+        "est_cost_approx": not known,
     }
 
 
@@ -65,10 +75,13 @@ def _get_client():
     return _client
 
 
-def complete(system: str, user: str, *, json_mode: bool = False, temperature: float = 0.0) -> str:
+def complete(system: str, user: str, *, json_mode: bool = False, temperature: float = 0.0,
+             max_tokens: int = MAX_TOKENS) -> str:
     kwargs = dict(
         model=MODEL,
         temperature=temperature,
+        seed=0,                 # reproducibility: pin sampling so identical prompts return identically
+        max_tokens=max_tokens,  # cost/latency guardrail: cap tokens generated per call
         messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
     )
     if json_mode:

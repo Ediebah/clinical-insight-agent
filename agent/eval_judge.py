@@ -42,8 +42,8 @@ def _numbers(text: str) -> list[float]:
 
 
 def _numeric_grounding(interp: str, df) -> float:
-    """Fraction of numbers in the prose that trace to a result cell (allowing pct scalings) or are
-    plausibly structural (small integers: years, group counts). A rough hallucination cross-check."""
+    """Fraction of numbers in the prose that trace to a result cell (allowing pct scalings) or are a
+    plausible calendar year (1900-2100). A rough hallucination cross-check."""
     nums = _numbers(interp)
     if not nums or df is None or len(df) == 0:
         return 1.0
@@ -56,7 +56,7 @@ def _numeric_grounding(interp: str, df) -> float:
         ok = any(abs(x - c) <= max(abs(c) * 0.02, 0.5) for c in cells)
         ok = ok or any(abs(x - c * 100) <= max(abs(c * 100) * 0.02, 0.5) for c in cells)
         ok = ok or any(abs(x - c / 100) <= 0.01 for c in cells)
-        ok = ok or (x == int(x) and 0 <= x <= max(2100, len(df)))   # years / group counts / small ints
+        ok = ok or (x == int(x) and 1900 <= x <= 2100)   # a bare year is structural, not a data claim
         grounded += int(ok)
     return grounded / len(nums)
 

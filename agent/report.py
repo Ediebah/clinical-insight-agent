@@ -132,15 +132,26 @@ def _sig_line(doc, role):
 
 
 def _chart_png(chart):
-    """Render an Altair chart to PNG bytes (vl-convert); None if it can't be rendered."""
+    """Render an Altair chart to PNG bytes (vl-convert); None if it can't be rendered.
+    Rendered at 200 ppi for a crisp figure on the printed page."""
     if chart is None:
         return None
     try:
         buf = io.BytesIO()
-        chart.save(buf, format="png", ppi=120)
+        chart.save(buf, format="png", ppi=200)
         return buf.getvalue()
     except Exception:
         return None
+
+
+def _cell(v) -> str:
+    """Human-readable table cell: NaN / None / inf render as an em dash, not literal 'nan'/'None'/'inf'."""
+    import math
+    if v is None:
+        return "—"
+    if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
+        return "—"
+    return str(v)
 
 
 def _figure_titles(result, m):
@@ -369,16 +380,18 @@ def build_docx(result, *, when: _dt.datetime | None = None) -> bytes:
         for _, row in df.iterrows():
             c = dt.add_row().cells
             for j, col in enumerate(df.columns):
-                c[j].text = str(row[col])
+                c[j].text = _cell(row[col])
         if full.shape[0] > 30 or full.shape[1] > 12:
             _footnote(doc, f"Showing {min(30, full.shape[0])} of {full.shape[0]:,} rows and "
                            f"{min(12, full.shape[1])} of {full.shape[1]} columns.")
 
-    for fig, caption in _figure_titles(result, m):
-        png = _chart_png(fig)
-        if png:
-            figure_caption(caption)
-            doc.add_picture(io.BytesIO(png), width=Inches(6.0))
+    from agent import charts as _ch
+    with _ch.render_for_print():                      # light/print palette so figures are legible on white
+        for fig, caption in _figure_titles(result, m):
+            png = _chart_png(fig)
+            if png:
+                figure_caption(caption)
+                doc.add_picture(io.BytesIO(png), width=Inches(6.0))
 
     # ───────────────────────── 6. assumptions & diagnostics ─────────────────────────
     if diag:

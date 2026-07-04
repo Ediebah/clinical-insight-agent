@@ -1,7 +1,8 @@
 -- dim_patient — conformed patient dimension. Grain: one row per patient. PK: patient_id.
 -- Business logic that staging deliberately skipped: derived age + clinical age bands.
--- Age uses coalesce(death_date, current_date), so living patients' age refreshes over time
--- (a determinism trade-off we accept; swap current_date for a fixed date to freeze it).
+-- Age uses coalesce(death_date, as_of_date) where as_of_date is a fixed var (default 2024-01-01),
+-- so age/age_group are reproducible across rebuilds (not tied to wall-clock current_date).
+-- Override at run time with: dbt build --vars '{as_of_date: YYYY-MM-DD}'.
 
 with patients as (
     select * from {{ ref('stg_patients') }}
@@ -10,7 +11,8 @@ with patients as (
 with_age as (
     select
         *,
-        floor(date_diff('day', birth_date, coalesce(death_date, current_date)) / 365.25) as age
+        -- age as of a fixed reference date (var, default 2024-01-01) so it's reproducible across rebuilds
+        floor(date_diff('day', birth_date, coalesce(death_date, cast('{{ var("as_of_date", "2024-01-01") }}' as date))) / 365.25) as age
     from patients
 )
 

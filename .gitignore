@@ -43,3 +43,7 @@ agent/eval_history.jsonl
 .DS_Store
 .vscode/
 .idea/
+
+# --- coverage artifacts ---
+.coverage
+htmlcov/

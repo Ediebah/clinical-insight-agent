@@ -97,10 +97,11 @@ def main() -> int:
         hits = c.expected & pset
         misses = c.expected - pset
         false_alarms = c.forbidden & pset
+        unexpected = pset - c.expected     # any produced finding not expected → honest FP for precision
         sev_ok = all(produced.get(k) == v for k, v in c.severity.items() if k in produced)
         ok = not misses and not false_alarms and sev_ok
         all_pass &= ok
-        tp += len(hits); fn += len(misses); fp += len(false_alarms)
+        tp += len(hits); fn += len(misses); fp += len(unexpected)
         flag = "✅" if ok else "❌"
         detail = []
         if misses: detail.append(f"missed={sorted(misses)}")

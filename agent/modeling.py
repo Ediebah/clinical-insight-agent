@@ -348,6 +348,9 @@ def fit_cox(df: pd.DataFrame, duration: str, event: str, predictors: list[str]) 
         if len(d) < 2:
             return ModelResult("cox", duration, len(d), "hazard ratio",
                                error="No positive follow-up durations to fit a Cox model.")
+        if int(d[event].sum()) == 0:
+            return ModelResult("cox", duration, len(d), "hazard ratio",
+                               error="No events observed (all rows are censored) — a Cox model needs events.")
         mod = PHReg.from_formula(_formula(duration, preds, d), data=d, status=d[event])
         r = mod.fit()
         ci = r.conf_int()
@@ -359,6 +362,13 @@ def fit_cox(df: pd.DataFrame, duration: str, event: str, predictors: list[str]) 
             issues.append(f"Low events-per-variable (EPV≈{events / len(terms):.1f}): {events} events for "
                           f"{len(terms)} term(s). Under ~10 EPV, hazard ratios can be overfit/unstable — "
                           "reduce predictors.")
+        bse = getattr(r, "bse", None)                # separation guard (logistic has one; Cox needs it too)
+        sep = [name for i, name in enumerate(r.model.exog_names)
+               if abs(float(r.params[i])) > 10 or (bse is not None and float(bse[i]) > 10)]
+        if sep:
+            issues.append("Possible separation (" + ", ".join(sep[:3]) + "): a covariate near-perfectly "
+                          "predicts the event, so the hazard ratios and CIs diverge and are unreliable — "
+                          "use penalized (Firth) Cox or drop the term.")
         for name, pv in _ph_flags(r, d[duration].to_numpy()):    # proportional-hazards check
             issues.append(f"Proportional-hazards violation ({name}, Schoenfeld–time p={pv:.3g}): its hazard "
                           "ratio changes over follow-up — stratify on it or add a time interaction.")
@@ -455,6 +465,17 @@ def _is_binary_outcome(y: pd.Series) -> bool:
         return True
     # exactly two distinct non-null values is binary — numeric {0,1} or {1,2}, or a 2-level category
     return y.nunique(dropna=True) == 2
+
+
+def _binary_note(s: pd.Series) -> str | None:
+    """Warn when a numeric outcome has exactly two distinct values that aren't {0,1}: we treat the HIGHER
+    value as the event/positive class, which silently flips the effect direction if the coding is reversed."""
+    if pd.api.types.is_numeric_dtype(s):
+        vals = sorted(set(pd.unique(pd.Series(s).dropna())))
+        if len(vals) == 2 and set(vals) != {0, 1}:
+            return (f"Outcome is numeric coded {vals[0]:g}/{vals[1]:g}; the higher value ({vals[1]:g}) is "
+                    "treated as the event. If your coding is reversed the effect direction flips — recode to 0/1.")
+    return None
 
 
 def fit_forest(df: pd.DataFrame, outcome: str, predictors: list[str]) -> ModelResult:
@@ -573,38 +594,70 @@ def fit_uplift(df: pd.DataFrame, outcome: str, treatment: str,
     binary treatment on the outcome, adjusting for covariates. Observational → illustrative, not RCT-grade."""
     try:
         from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+        from sklearn.model_selection import StratifiedKFold
         preds = [p for p in (predictors or []) if p in df.columns and p not in (outcome, treatment)]
         d = _clean(df, [outcome, treatment, *preds])
-        t = _to_binary(d[treatment])
-        if t.nunique() < 2 or (t == 1).sum() < 20 or (t == 0).sum() < 20:
+        t = _to_binary(d[treatment]).to_numpy()
+        if len(np.unique(t)) < 2 or int((t == 1).sum()) < 20 or int((t == 0).sum()) < 20:
             return ModelResult("causal", outcome, len(d), "uplift",
                                error="Treatment needs ≥20 treated and ≥20 control rows.")
+        issues = []
+        if len(d) > 20000:                               # keep cross-fitting interactive on large inputs
+            d = d.sample(20000, random_state=0)
+            t = _to_binary(d[treatment]).to_numpy()
+            issues.append("Estimated on a random 20,000-row subsample for tractability.")
         is_class = _is_binary_outcome(d[outcome])
-        y = _to_binary(d[outcome]) if is_class else d[outcome].astype(float)
+        y = (_to_binary(d[outcome]) if is_class else d[outcome].astype(float)).to_numpy(dtype=float)
         X = pd.get_dummies(d[preds], drop_first=True) if preds else pd.DataFrame(index=d.index)
         if X.empty:
             X = pd.DataFrame({"_const": np.ones(len(d))}, index=d.index)
-        make = RandomForestClassifier if is_class else RandomForestRegressor
-        kw = dict(n_estimators=300, random_state=0, n_jobs=-1, min_samples_leaf=5)
-        if is_class:
-            kw["class_weight"] = "balanced"
-        if is_class and (y[t == 1].nunique() < 2 or y[t == 0].nunique() < 2):
+        X = X.to_numpy(dtype=float)
+        if is_class and (len(np.unique(y[t == 1])) < 2 or len(np.unique(y[t == 0])) < 2):
             return ModelResult("causal", outcome, len(d), "uplift",
                                error="Outcome has no variation within a treatment arm.")
-        m1, m0 = make(**kw).fit(X[t == 1], y[t == 1]), make(**kw).fit(X[t == 0], y[t == 0])
-        pred = (lambda m: m.predict_proba(X)[:, 1]) if is_class else (lambda m: m.predict(X))
-        uplift = pred(m1) - pred(m0)
-        ate = float(np.mean(uplift))
-        rng = np.random.default_rng(0)                    # bootstrap CI on the average uplift
-        boots = [float(np.mean(uplift[rng.integers(0, len(uplift), len(uplift))])) for _ in range(300)]
-        lo, hi = float(np.percentile(boots, 2.5)), float(np.percentile(boots, 97.5))
+
+        # Cross-fitted AIPW (doubly-robust) ATE with an influence-function CI: two potential-outcome
+        # forests + a propensity forest, all fit OUT-OF-FOLD — so predictions aren't in-sample and the
+        # interval reflects model + sampling variability (the old fixed-vector bootstrap understated it ~3×).
+        Out = RandomForestClassifier if is_class else RandomForestRegressor
+        okw = dict(n_estimators=200, random_state=0, n_jobs=-1, min_samples_leaf=5)
+        if is_class:
+            okw["class_weight"] = "balanced"
+
+        def _p1(m, xx):                                  # E[Y|X] robust to a single-class training fold
+            if not is_class:
+                return m.predict(xx)
+            if len(m.classes_) == 1:
+                return np.full(len(xx), float(m.classes_[0]))
+            return m.predict_proba(xx)[:, list(m.classes_).index(1)]
+
+        n = len(y)
+        mu1 = np.zeros(n); mu0 = np.zeros(n); ehat = np.zeros(n)
+        for tr, te in StratifiedKFold(5, shuffle=True, random_state=0).split(X, t):
+            ttr = t[tr]
+            mu1[te] = _p1(Out(**okw).fit(X[tr][ttr == 1], y[tr][ttr == 1]), X[te])
+            mu0[te] = _p1(Out(**okw).fit(X[tr][ttr == 0], y[tr][ttr == 0]), X[te])
+            ps = RandomForestClassifier(n_estimators=200, random_state=1, n_jobs=-1,
+                                        min_samples_leaf=5, class_weight="balanced").fit(X[tr], ttr)
+            ehat[te] = ps.predict_proba(X[te])[:, list(ps.classes_).index(1)]
+        ehat = np.clip(ehat, 0.025, 0.975)               # positivity/overlap trimming for a stable score
+        # AIPW score per unit: (mu1-mu0) + T(Y-mu1)/e - (1-T)(Y-mu0)/(1-e); ATE = mean, SE from its spread
+        psi = (mu1 - mu0) + t * (y - mu1) / ehat - (1 - t) * (y - mu0) / (1 - ehat)
+        ate = float(np.mean(psi))
+        se = float(np.std(psi, ddof=1) / np.sqrt(n))     # influence-function SE (asymptotically valid)
+        lo, hi = ate - 1.96 * se, ate + 1.96 * se
+        if float(ehat.min()) <= 0.03 or float(ehat.max()) >= 0.97:
+            issues.append("Weak overlap: some patients have a propensity near 0 or 1, so the effect is "
+                          "extrapolated for them (propensity trimmed to [0.025, 0.975]).")
         label = "uplift (Δ risk)" if is_class else "uplift (Δ outcome)"
-        return ModelResult("causal", outcome, len(d), label,
-                           [Term(f"effect of {treatment}", ate, lo, hi, float("nan"))],
-                           fit_stat=f"treated={(t == 1).sum():,} / control={(t == 0).sum():,}",
-                           note="T-learner uplift = predicted outcome if treated minus if untreated, "
-                                "averaged over patients. Observational — residual confounding may remain; "
-                                "NOT a randomized causal effect. Synthetic data.")
+        mr = ModelResult("causal", outcome, n, label,
+                         [Term(f"effect of {treatment}", ate, lo, hi, float("nan"))],
+                         fit_stat=f"AIPW doubly-robust; treated={int((t == 1).sum()):,} / control={int((t == 0).sum()):,}",
+                         note="Cross-fitted AIPW average treatment effect (two potential-outcome forests + a "
+                              "propensity forest); 95% CI from the influence function. Observational — assumes "
+                              "no unmeasured confounding and overlap; NOT a randomized causal effect. Synthetic data.")
+        mr.issues = issues
+        return mr
     except Exception as e:  # noqa: BLE001
         return ModelResult("causal", outcome, 0, "uplift", error=str(e))
 
@@ -647,11 +700,13 @@ def fit_experiment(df: pd.DataFrame, group: str, outcome: str, baseline: str | N
         d = d.assign(_y=y.values)
 
         # pick the control/baseline arm: an explicit choice, else an obvious name, else — deterministically
-        # — the lowest-rate arm (NOT value_counts().idxmax(), whose ties are row-order dependent).
+        # — the LARGEST arm (typical control allocation). NOT the lowest-rate arm: choosing the reference by
+        # its outcome would force every lift ≥0 and make the "DO NOT SHIP" branch unreachable (selection bias).
+        _counts = d[group].value_counts()
         base = baseline if baseline in arms else next((a for a in arms if _is_control(a)), None)
         auto_base = base is None
         if auto_base:
-            base = min(sorted(arms), key=lambda a: float(d.loc[d[group] == a, "_y"].mean()))
+            base = max(sorted(arms), key=lambda a: int(_counts.get(a, 0)))    # largest n, alphabetical tiebreak
         others = [a for a in arms if a != base]
 
         stat = {a: d.loc[d[group] == a, "_y"] for a in arms}
@@ -663,10 +718,13 @@ def fit_experiment(df: pd.DataFrame, group: str, outcome: str, baseline: str | N
                 k, n = int(v.sum()), int(len(v))
                 lo, hi = gr.wilson_ci(k, n)
                 return {"arm": a, "n": n, "value": (k / n if n else 0.0), "ci_low": lo, "ci_high": hi}
+            from scipy import stats
             n = int(len(v))
-            m, sd = float(v.mean()), float(v.std(ddof=1)) if n > 1 else 0.0
+            m = float(v.mean())
+            sd = float(v.std(ddof=1)) if n > 1 else 0.0
             se = sd / (n ** 0.5) if n else 0.0
-            return {"arm": a, "n": n, "value": m, "ci_low": m - 1.96 * se, "ci_high": m + 1.96 * se}
+            tcrit = float(stats.t.ppf(0.975, n - 1)) if n > 1 else 1.96        # t, not z, for a mean CI
+            return {"arm": a, "n": n, "value": m, "ci_low": m - tcrit * se, "ci_high": m + tcrit * se}
 
         base_s = arm_summary(base)
         for a in others:
@@ -680,9 +738,15 @@ def fit_experiment(df: pd.DataFrame, group: str, outcome: str, baseline: str | N
                 from scipy import stats
                 va, vb = stat[a].to_numpy(), stat[base].to_numpy()
                 diff = float(va.mean() - vb.mean())
-                se = (va.var(ddof=1) / len(va) + vb.var(ddof=1) / len(vb)) ** 0.5
-                lo, hi = diff - 1.96 * se, diff + 1.96 * se
+                s2a, s2b, na_, nb_ = va.var(ddof=1), vb.var(ddof=1), len(va), len(vb)
+                se = (s2a / na_ + s2b / nb_) ** 0.5
+                denom = (s2a / na_) ** 2 / max(na_ - 1, 1) + (s2b / nb_) ** 2 / max(nb_ - 1, 1)
+                dfw = ((s2a / na_ + s2b / nb_) ** 2 / denom) if denom > 0 else float(na_ + nb_ - 2)
+                tcrit = float(stats.t.ppf(0.975, dfw)) if se > 0 else 1.96   # t-CI consistent with the Welch p
+                lo, hi = diff - tcrit * se, diff + tcrit * se
                 p = float(stats.ttest_ind(va, vb, equal_var=False).pvalue)
+                if p != p:                      # zero-variance arms → NaN p: a null contrast, not significant
+                    p = 1.0
             raw_ps.append(p)
             comps.append({"arm": a, "diff": diff, "lo": lo, "hi": hi})
             arm_rows.append(a_s)
@@ -728,8 +792,12 @@ def fit_experiment(df: pd.DataFrame, group: str, outcome: str, baseline: str | N
         # flag statistical issues
         issues = []
         if auto_base:
-            issues.append(f"No control arm recognized by name — '{base}' (the lowest-rate arm) was used as "
-                          "the baseline. Pass an explicit baseline if that's not the intended reference.")
+            issues.append(f"No control arm recognized by name — the largest arm '{base}' "
+                          f"(n={int(_counts.get(base, 0))}) was used as the baseline. Pass an explicit "
+                          "baseline if that's not the intended reference.")
+        _bnote = _binary_note(d[outcome]) if binary else None
+        if _bnote:
+            issues.append(_bnote)
         sizes = [r["n"] for r in [base_s, *arm_rows]]
         if min(sizes) < 200:
             issues.append(f"Small arm (n={min(sizes)}) — the estimate is imprecise.")
@@ -785,10 +853,11 @@ def fit_noninferiority(df: pd.DataFrame, group: str, outcome: str, margin: float
             return ModelResult("noninferiority", outcome, len(d), "difference",
                                error="Each arm needs ≥2 observations to compare a continuous outcome.")
         d = d.assign(_y=(_to_binary(d[outcome]) if binary else d[outcome].astype(float)).values)
+        _counts = d[group].value_counts()
         base = control if control in arms else next((a for a in arms if _is_control(a)), None)
         auto_base = base is None
-        if auto_base:                                # deterministic reference (not row-order dependent)
-            base = min(sorted(arms), key=lambda a: float(d.loc[d[group] == a, "_y"].mean()))
+        if auto_base:                                # deterministic reference: the larger arm (typical control)
+            base = max(sorted(arms), key=lambda a: int(_counts.get(a, 0)))
         trt = next(a for a in arms if a != base)
         st = {a: d.loc[d[group] == a, "_y"] for a in arms}
 
@@ -798,20 +867,32 @@ def fit_noninferiority(df: pd.DataFrame, group: str, outcome: str, margin: float
                 k, n = int(v.sum()), int(len(v))
                 lo, hi = gr.wilson_ci(k, n)
                 return {"arm": a, "n": n, "value": (k / n if n else 0.0), "ci_low": lo, "ci_high": hi}
+            from scipy import stats
             n = int(len(v))
             m, se = float(v.mean()), (float(v.std(ddof=1)) / n ** 0.5 if n > 1 else 0.0)
-            return {"arm": a, "n": n, "value": m, "ci_low": m - 1.96 * se, "ci_high": m + 1.96 * se}
+            tcrit = float(stats.t.ppf(0.975, n - 1)) if n > 1 else 1.96
+            return {"arm": a, "n": n, "value": m, "ci_low": m - tcrit * se, "ci_high": m + tcrit * se}
 
         if binary:
             kt, nt, kc, nc = int(st[trt].sum()), len(st[trt]), int(st[base].sum()), len(st[base])
-            diff, lo, hi = gr.newcombe_diff_ci(kt, nt, kc, nc)
-            test = "Newcombe CI on the risk difference"
+            from statsmodels.stats.proportion import confint_proportions_2indep
+            diff = (kt / nt if nt else 0.0) - (kc / nc if nc else 0.0)
+            # score CI (Miettinen–Nurminen) — the SAME procedure family as the Farrington–Manning test
+            # below, so the reported interval, the figure, and the NI verdict can never disagree.
+            lo, hi = confint_proportions_2indep(kt, nt, kc, nc, compare="diff", method="score")
+            lo, hi = float(lo), float(hi)
+            test = "Miettinen–Nurminen score CI on the risk difference"
         else:
+            from scipy import stats
             va, vb = st[trt].to_numpy(), st[base].to_numpy()
             diff = float(va.mean() - vb.mean())
-            se = (va.var(ddof=1) / len(va) + vb.var(ddof=1) / len(vb)) ** 0.5
-            lo, hi = diff - 1.96 * se, diff + 1.96 * se
-            test = "Welch CI on the mean difference"
+            s2a, s2b, na_, nb_ = va.var(ddof=1), vb.var(ddof=1), len(va), len(vb)
+            se = (s2a / na_ + s2b / nb_) ** 0.5
+            denom = (s2a / na_) ** 2 / max(na_ - 1, 1) + (s2b / nb_) ** 2 / max(nb_ - 1, 1)
+            dfw = ((s2a / na_ + s2b / nb_) ** 2 / denom) if denom > 0 else float(na_ + nb_ - 2)
+            tcrit = float(stats.t.ppf(0.975, dfw)) if se > 0 else 1.96
+            lo, hi = diff - tcrit * se, diff + tcrit * se
+            test = "Welch t CI on the mean difference"
 
         fm_p = None
         if binary:                                   # Farrington–Manning score test IS the NI decision
@@ -821,7 +902,7 @@ def fit_noninferiority(df: pd.DataFrame, group: str, outcome: str, margin: float
             fm_p = float(test_proportions_2indep(kt, nt, kc, nc, value=val, compare="diff",
                                                  method="score", alternative=alt).pvalue)
             ni = fm_p < 0.025                         # one-sided α = 0.025
-            test = "Farrington–Manning score test (NI) + Newcombe 95% CI"
+            test = "Farrington–Manning score test (NI) + Miettinen–Nurminen 95% CI"
         else:                                         # continuous → CI-vs-margin
             ni = (lo > -margin) if higher_is_better else (hi < margin)
         superior = (lo > 0) if higher_is_better else (hi < 0)
@@ -856,8 +937,12 @@ def fit_noninferiority(df: pd.DataFrame, group: str, outcome: str, margin: float
         rows[1]["is_baseline"], rows[1]["is_winner"] = False, False   # NI ≠ "winner"; verdict says it all
         issues = []
         if auto_base:
-            issues.append(f"No control arm recognized by name — '{base}' (the lower-rate arm) was used as the "
-                          "reference. Pass an explicit control if that's not the intended comparator.")
+            issues.append(f"No control arm recognized by name — the larger arm '{base}' "
+                          f"(n={int(_counts.get(base, 0))}) was used as the reference. Pass an explicit "
+                          "control if that's not the intended comparator.")
+        _bnote = _binary_note(d[outcome]) if binary else None
+        if _bnote:
+            issues.append(_bnote)
         if binary and min(nt, nc) < 100:
             issues.append(f"Small arm (n={min(nt, nc)}) — the CI is wide; the NI call is fragile.")
         issues.append("NI is sensitive to the margin and analysis population — pre-specify the margin and "
@@ -922,7 +1007,13 @@ def calc_sample_size(kind: str = "superiority", outcome_type: str = "proportion"
             if dist <= 0:
                 return _err("the effect is zero — no finite sample size can detect a null difference.")
             d = dist / s
-            unit = (1 + 1 / ratio) / d ** 2                       # (za+zb)² × unit = control-arm n
+            from statsmodels.stats.power import TTestIndPower
+            _alt = "larger" if ni else "two-sided"
+            _a = alpha / 2 if ni else alpha              # NI is one-sided at α/2 (matches the za convention)
+            _tip = TTestIndPower()
+
+            def _n_ctrl(pw):                             # exact noncentral-t power → per-arm control n
+                return float(_tip.solve_power(effect_size=d, alpha=_a, power=pw, ratio=ratio, alternative=_alt))
             detail = (f"means: control {m_c:g}, treatment {m_t:g}, SD {s:g}"
                       + (f", NI margin {abs(float(margin)):g}" if ni else "") + f" (effect size d={d:.2f})")
         else:                                        # proportion — Blackwelder normal approximation
@@ -941,29 +1032,29 @@ def calc_sample_size(kind: str = "superiority", outcome_type: str = "proportion"
                 return _err("the target difference equals the margin — no finite sample size can detect it.")
             var = p_c * (1 - p_c) + p_t * (1 - p_t) / ratio
             unit = var / dist ** 2
+
+            def _n_ctrl(pw):                             # Blackwelder normal approximation → per-arm control n
+                return (za + stats.norm.ppf(pw)) ** 2 * unit
             detail = (f"proportions: control {p_c:.0%}, treatment {p_t:.0%}"
                       + (f", NI margin {abs(float(margin)):.0%}" if ni else "") + f" (Δ {p_t - p_c:+.0%})")
-
-        def _n_ctrl(pw):
-            return (za + stats.norm.ppf(pw)) ** 2 * unit
 
         n_c = int(math.ceil(_n_ctrl(power)))
         n_t = int(math.ceil(n_c * ratio))
         total = n_c + n_t
         curve = [{"power": pw, "n": int(math.ceil(max(_n_ctrl(pw), _n_ctrl(pw) * ratio)))}
                  for pw in (0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.95, 0.99)]
-        side = "one-sided α/2" if ni else "two-sided α"
+        side, side_val = ("one-sided α", alpha / 2) if ni else ("two-sided α", alpha)
         mr = ModelResult("sample_size", "sample size", total, "n per arm",
-                         fit_stat=f"{kind}; {side}={alpha}; power={power:.0%}"
+                         fit_stat=f"{kind}; {side}={side_val:g}; power={power:.0%}"
                          + (f"; {ratio:g}:1 allocation" if ratio != 1 else ""),
-                         note="Analytic power (normal approximation for proportions, t-test power for "
-                              "means). Assumes the stated effect/rates hold; for rare events or small n, "
+                         note="Noncentral-t power for means; normal (Blackwelder) approximation for "
+                              "proportions. Assumes the stated effect/rates hold; for rare events or small n, "
                               "confirm with simulation. Inflate for expected dropout.")
         arms = [{"arm": "treatment", "n": n_t}, {"arm": "control", "n": n_c}]
         mr.arms = [dict(a, value=float(a["n"]), ci_low=float("nan"), ci_high=float("nan"),
                         is_baseline=(a["arm"] == "control"), is_winner=False) for a in arms]
         mr.verdict = {"call": f"{max(n_c, n_t):,} per arm  ·  total {total:,}",
-                      "reason": f"To detect {detail} at {power:.0%} power ({side}={alpha}).",
+                      "reason": f"To detect {detail} at {power:.0%} power ({side}={side_val:g}).",
                       "power": power}
         mr.series = curve
         return mr

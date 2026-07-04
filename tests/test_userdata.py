@@ -24,7 +24,8 @@ def test_build_catalog_shape_matches_rag():
 def test_prepare_upload_roundtrip_queryable():
     df = pd.DataFrame({"Group": ["x", "y", "x"], "Val": [1, 2, 3]})
     db_path, cat, table, clean = userdata.prepare_upload(df, "My File.csv")
-    assert table == "my_file" and list(clean.columns) == ["group", "val"]
+    # 'group' is a SQL reserved word → suffixed to 'group_' so the agent's unquoted SELECT parses
+    assert table == "my_file" and list(clean.columns) == ["group_", "val"]
     con = duckdb.connect(str(db_path), read_only=True)
     try:
         n = con.execute(f"select count(*) from {table}").fetchone()[0]

@@ -43,6 +43,15 @@ def _score(query_tokens: list[str], text: str) -> int:
     return sum(1 for q in query_tokens if q in hay)
 
 
+def _clean_example(value, width: int = 40) -> str:
+    """Render a catalog example value as inert DATA for the prompt: replace control chars (incl.
+    newlines/tabs) with spaces, collapse whitespace, and hard-truncate — so an uploaded cell can't
+    inject newlines or fake prompt structure into the rendered context."""
+    s = re.sub(r"[\x00-\x1f\x7f]+", " ", str(value))   # control chars → space (defang structure)
+    s = re.sub(r"\s+", " ", s).strip()                 # collapse runs of whitespace
+    return s[:width]
+
+
 def retrieve(question: str, catalog: dict | None = None, k: int = 6) -> dict:
     """Return the top-k tables + relevant metrics for a question, plus a full table-name index."""
     catalog = load_catalog() if catalog is None else catalog   # an empty {} must NOT fall back to demo
@@ -90,7 +99,7 @@ def render_context(retrieved: dict) -> str:
             s = f"{c['name']}({c['type']})"
             ex = c.get("example_values") or []
             if ex:
-                s += " e.g. " + "|".join(str(e)[:28] for e in ex[:3])
+                s += " e.g. " + "|".join(_clean_example(e) for e in ex[:3])
             col_strs.append(s)
         lines.append("  columns: " + ", ".join(col_strs))
     if retrieved["metrics"]:

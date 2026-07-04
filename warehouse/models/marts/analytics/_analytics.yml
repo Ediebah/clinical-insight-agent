@@ -6,7 +6,8 @@ models:
   - name: mart_readmissions
     description: >
       30-day inpatient readmission flags. One row per index inpatient encounter; is_30d_readmission
-      is true when the same patient is admitted again within 0-30 days of discharge.
+      is true when the same patient is admitted again strictly after discharge and within a 1-30 day
+      window (a same-day transfer / overlapping stay is not a readmission).
     columns:
       - name: index_encounter_id
         description: "PK — the index inpatient encounter."
@@ -72,7 +73,7 @@ models:
         description: "PK — one randomized subject."
         data_tests: [not_null, unique]
       - name: trial
-        description: "Trial name (antibiotic_ni, device_trial)."
+        description: "Trial name (antibiotic_ni, device_ni)."
         data_tests: [not_null]
       - name: arm
         description: "Randomized arm (standard_of_care / new_drug / new_device)."

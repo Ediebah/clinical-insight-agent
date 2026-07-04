@@ -4,7 +4,8 @@ from agent import model_builder as mb
 
 def test_slug_prefixes_and_sanitizes():
     assert mb._slug("Patient Med Spend") == "mart_gen_patient_med_spend"
-    assert mb._slug("mart_cost_summary") == "mart_cost_summary"      # already a mart_ name → kept
+    # a mart_ name is re-prefixed (never kept) so a generated model can't collide with / overwrite a real mart
+    assert mb._slug("mart_cost_summary") == "mart_gen_cost_summary"
 
 
 def test_count_tests():

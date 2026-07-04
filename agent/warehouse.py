@@ -1,8 +1,12 @@
 """Safe, read-only query execution against the DuckDB warehouse.
 
 Guardrails (the spec's "agent can't run destructive or runaway SQL"):
-  1. Engine-level: the connection is opened read_only=True — DuckDB itself rejects any write.
-  2. Statement-level: we validate the SQL is a single SELECT/WITH with no write keywords.
+  1. Engine-level: the connection is opened read_only=True AND with external access disabled
+     (enable_external_access=false + no extension autoload). DuckDB then rejects, at the engine,
+     every write to the DB *and* all filesystem/URL access — so COPY … TO, read_csv/read_text/
+     read_blob/glob, ATTACH, and httpfs cannot touch the host. read_only alone does NOT stop those.
+  2. Statement-level: we validate the SQL is a single SELECT/WITH with no write/DDL keyword and no
+     file-reading table function (defense-in-depth + a clean self-heal message instead of a raw error).
   3. Runaway-level: results are capped by wrapping the query in an outer LIMIT.
 
 On any validation or execution error we raise QueryError with a clear message — the agent
@@ -48,10 +52,14 @@ def _audit(sql: str, rows: int, ms: float) -> None:
     except Exception:
         pass
 
-# Whole-word write/DDL keywords that must never appear in an analytics query.
+# Write/DDL keywords + DuckDB filesystem/URL table-functions that must never appear in an analytics
+# query. The engine (enable_external_access=false) is the real guard; this denylist is defense-in-depth
+# and turns an attempted file read into a clean self-heal message instead of a raw PermissionException.
 _FORBIDDEN = re.compile(
     r"\b(insert|update|delete|drop|create|alter|replace|truncate|attach|detach|copy|"
-    r"install|load|pragma|export|import|call|set|vacuum|checkpoint)\b",
+    r"install|load|pragma|export|import|call|set|vacuum|checkpoint|"
+    r"read_csv|read_csv_auto|read_parquet|read_json|read_json_auto|read_ndjson|read_text|read_blob|"
+    r"parquet_scan|glob|sniff_csv|copy_from|copy_to)\b",
     re.IGNORECASE,
 )
 
@@ -68,8 +76,9 @@ def _strip_sql_comments(sql: str) -> str:
 
 def _strip_literals(sql: str) -> str:
     """Blank out string/identifier literal CONTENTS so keyword/';' scanning ignores them
-    (e.g. ILIKE '%NURSE ON CALL%' must not trip the 'call' keyword). The read-only engine is the
-    real guard against writes; this scan only rejects obvious multi-statement / DDL attempts."""
+    (e.g. ILIKE '%NURSE ON CALL%' must not trip the 'call' keyword). The hardened engine
+    (read_only + external access disabled) is the real guard; this scan rejects obvious
+    multi-statement / DDL / file-function attempts before they reach the engine."""
     sql = re.sub(r"'(?:[^']|'')*'", "''", sql)   # single-quoted strings (with '' escape)
     sql = re.sub(r'"(?:[^"]|"")*"', '""', sql)   # double-quoted identifiers
     return sql
@@ -84,7 +93,7 @@ def validate(sql: str) -> str:
     scan = _strip_literals(body)                 # scan ignores string-literal contents
     if ";" in scan:
         raise QueryError("Only a single statement is allowed (found ';').")
-    if not re.match(r"^\s*(select|with)\b", body, re.IGNORECASE):
+    if not re.match(r"^\s*\(*\s*(select|with)\b", body, re.IGNORECASE):   # allow a leading '(' subquery
         raise QueryError("Only read-only SELECT/WITH queries are allowed.")
     if _FORBIDDEN.search(scan):
         bad = _FORBIDDEN.search(scan).group(0)
@@ -102,7 +111,14 @@ def run_query(sql: str, max_rows: int = MAX_ROWS, db_path: Path | None = None) -
     wrapped = f"select * from (\n{cleaned}\n) as _agent_q limit {max_rows}"
     t0 = time.perf_counter()
     try:
-        con = duckdb.connect(str(path), read_only=True)
+        # read_only stops writes to the DB; enable_external_access=false + no extension autoload stop
+        # ALL host filesystem/URL access (read_csv/read_text/glob/COPY/ATTACH/httpfs) — the engine-level
+        # teeth behind the statement denylist. Both together = defense-in-depth.
+        con = duckdb.connect(str(path), read_only=True, config={
+            "enable_external_access": False,
+            "autoinstall_known_extensions": False,
+            "autoload_known_extensions": False,
+        })
         try:
             df = con.execute(wrapped).df()
         finally:

@@ -39,19 +39,30 @@ def _reference(case) -> float:
     return float(run_query(case.reference_sql).iloc[0, 0])
 
 
-def _numeric_cells(df) -> list[float]:
-    if df is None or len(df) == 0:
+def _answer_cells(df) -> list[float]:
+    """The answer as a scalar (length-1 list), or [] if the result isn't a scalar answer.
+
+    Every GOLD question has scalar ground truth, so a correct answer is a single row with a single
+    numeric column (label/string columns are fine). Requiring that — instead of scanning every
+    numeric cell of a possibly multi-row table — is what stops a wrong query that merely *contains*
+    the true value somewhere from scoring as correct.
+    """
+    if df is None or len(df) != 1:
         return []
-    out = []
-    for c in df.columns:
-        if pd.api.types.is_numeric_dtype(df[c]):
-            out += [float(v) for v in df[c].dropna().tolist()]
-    return out
+    numeric = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
+    if len(numeric) != 1:
+        return []
+    col = df[numeric[0]].dropna()
+    return [float(col.iloc[0])] if len(col) else []
 
 
 def _matches(cells, ref, is_rate, rtol=0.02) -> bool:
-    targets = [ref] + ([ref / 100.0, ref * 100.0] if is_rate else [])
-    return any(abs(v - t) <= max(abs(t) * rtol, 0.5) for t in targets for v in cells)
+    if not cells:
+        return False
+    # A percentage answer may be reported as a percent (ref) or the equivalent fraction (ref/100);
+    # never as ref*100. Non-rate answers must match the reference directly.
+    targets = [ref, ref / 100.0] if is_rate else [ref]
+    return any(abs(v - t) <= max(abs(t) * rtol, 0.05) for t in targets for v in cells)
 
 
 def _faithful(res) -> bool | None:
@@ -61,7 +72,7 @@ def _faithful(res) -> bool | None:
         return None
     text = res.interpretation.lower()
     hit = sum(any(k in text for k in _FAITHFUL_KEYS.get(kind, ())) for kind in kinds)
-    return hit >= max(1, len(kinds) // 2)   # majority of flagged concerns reflected
+    return hit >= (len(kinds) + 1) // 2   # true majority (ceil) of flagged concerns reflected
 
 
 def main() -> int:
@@ -78,7 +89,7 @@ def main() -> int:
         else:
             ref = _reference(c)
             res = run_analysis(c.question)
-            ok = res.error is None and _matches(_numeric_cells(res.dataframe), ref, c.is_rate)
+            ok = res.error is None and _matches(_answer_cells(res.dataframe), ref, c.is_rate)
             f = _faithful(res)
             if f is not None:
                 faithful_total += 1

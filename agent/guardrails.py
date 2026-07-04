@@ -100,16 +100,18 @@ def two_proportion_p(k1: int, n1: int, k2: int, n2: int) -> float:
 
 
 def benjamini_hochberg(pvals: list[float]) -> list[float]:
-    """BH step-up adjusted q-values, returned in the original order."""
+    """BH step-up adjusted q-values, returned in the original order. A NaN/None p-value (e.g. a
+    zero-variance contrast) is treated as 1.0 — it must never be ranked or reported as significant."""
     m = len(pvals)
     if m == 0:
         return []
-    order = sorted(range(m), key=lambda i: pvals[i])
+    clean = [1.0 if (p is None or p != p) else float(p) for p in pvals]   # NaN/None → 1.0
+    order = sorted(range(m), key=lambda i: clean[i])
     q = [0.0] * m
     prev = 1.0
     for rank in range(m, 0, -1):
         i = order[rank - 1]
-        prev = min(prev, pvals[i] * m / rank)
+        prev = min(prev, clean[i] * m / rank)
         q[i] = min(prev, 1.0)
     return q
 

@@ -11,6 +11,7 @@ import datetime as _dt
 import html
 import json
 import os
+import shutil
 from pathlib import Path
 
 import pandas as pd
@@ -165,7 +166,9 @@ CSS = """
   color:var(--text); border-radius:11px; font-family:var(--font-body); padding:.7rem .9rem; }
 [data-testid="stTextInput"] input:focus{ border-color:var(--accent);
   box-shadow:0 0 0 3px rgba(79,209,197,.14); }
-[data-testid="stWidgetLabel"]{ display:none; }
+/* Visually hide widget labels but keep them in the a11y tree for screen readers (not display:none). */
+[data-testid="stWidgetLabel"]{ position:absolute; width:1px; height:1px; overflow:hidden;
+  clip-path:inset(50%); white-space:nowrap; }
 
 /* code / SQL */
 [data-testid="stCode"], pre{ background:var(--surface-2) !important;
@@ -242,7 +245,16 @@ st.markdown("""
 if "question" not in st.session_state:
     st.session_state.question = EXAMPLES[0]
 if "byod" not in st.session_state:
-    st.session_state.byod = None          # holds {db_path, catalog, table} once a file is loaded
+    st.session_state.byod = None          # holds {db_path, dir, catalog, table} once a file is loaded
+
+
+def _clear_byod() -> None:
+    """Drop the current BYOD session AND delete its mkdtemp DuckDB dir (else one leaks per upload/toggle)."""
+    _b = st.session_state.get("byod")
+    if _b and _b.get("dir"):
+        shutil.rmtree(_b["dir"], ignore_errors=True)
+    st.session_state.byod = None
+
 
 _src = st.radio("Data source", ["Demo warehouse", "Bring your own data"],
                 horizontal=True, label_visibility="collapsed")
@@ -261,32 +273,49 @@ if _byod_mode:
     _b = st.session_state.byod
     _fid = getattr(_up, "file_id", None) if _up is not None else None
     if _up is None:                                  # no file (never uploaded or removed) → clear session
-        st.session_state.byod = None
+        _clear_byod()                                # also delete any leaked temp dir from a prior upload
         st.info("Upload a table, then ask in plain English — the agent queries it and picks the right "
                 "method (regression, survival, non-inferiority, forecast…).")
     elif _b and _fid is not None and _b.get("file_id") == _fid:   # same file → don't re-materialize
         st.success(f"Loaded **{_b['table']}** — {_b['rows']:,} rows × {_b['ncols']} columns.")
         st.markdown(f"<div style='color:#8ea0b0;font-size:.85rem'>Ask about: {_b['cols']}</div>",
                     unsafe_allow_html=True)
+    elif (getattr(_up, "size", None) or 0) > 50 * 1024 * 1024:   # cap BEFORE read → don't OOM on huge files
+        _clear_byod()
+        st.error(f"That file is {_up.size / 1024 / 1024:.0f} MB, over the 50 MB limit — please upload a "
+                 "smaller CSV/Excel file (or pre-aggregate it first).")
     else:
         try:
-            _df = pd.read_csv(_up) if _up.name.lower().endswith(".csv") else pd.read_excel(_up)
             from agent import userdata
+            if _up.name.lower().endswith(".csv"):
+                _df = pd.read_csv(_up)
+            else:                                    # .xlsx → flag extra sheets before reading the first one
+                _xl = pd.ExcelFile(_up)
+                if len(_xl.sheet_names) > 1:
+                    st.warning(f"This workbook has {len(_xl.sheet_names)} sheets — only the first "
+                               f"(**{_xl.sheet_names[0]}**) was analyzed.")
+                _df = pd.read_excel(_xl, sheet_name=_xl.sheet_names[0])
+            _orig_rows, _orig_cols = _df.shape       # remember pre-cap size so we can disclose truncation
+            _clear_byod()                            # delete the previous upload's temp dir before the new one
             _dbp, _cat, _tbl, _clean = userdata.prepare_upload(_df, _up.name)
             _cols = ", ".join(f"`{c['name']}`" for c in _cat["tables"][0]["columns"])
-            st.session_state.byod = {"db_path": str(_dbp), "catalog": _cat, "table": _tbl,
-                                     "file_id": _fid, "rows": len(_clean),
-                                     "ncols": len(_clean.columns), "cols": _cols}
+            st.session_state.byod = {
+                "db_path": str(_dbp), "dir": str(_dbp.parent), "catalog": _cat, "table": _tbl,
+                "file_id": _fid, "rows": len(_clean), "ncols": len(_clean.columns), "cols": _cols}
             st.session_state.pop("result", None)     # new data → drop the stale prior result
             st.success(f"Loaded **{_tbl}** — {len(_clean):,} rows × {len(_clean.columns)} columns.")
+            if _orig_rows > len(_clean) or _orig_cols > len(_clean.columns):   # honest about what was kept
+                st.info(f"Analyzing the first {len(_clean):,} of {_orig_rows:,} rows and "
+                        f"{len(_clean.columns)} of {_orig_cols} columns "
+                        f"(capped at {userdata.MAX_ROWS:,} rows × {userdata.MAX_COLS} columns).")
             st.dataframe(_clean.head(8), use_container_width=True)
             st.markdown(f"<div style='color:#8ea0b0;font-size:.85rem'>Ask about: {_cols}</div>",
                         unsafe_allow_html=True)
         except Exception as _e:  # noqa: BLE001
-            st.session_state.byod = None
+            _clear_byod()
             st.error(f"Could not read that file: {_e}")
 else:
-    st.session_state.byod = None
+    _clear_byod()                                    # leaving BYOD → drop its temp dir (else it leaks)
     with st.expander("📋 What data can I ask about?"):
         st.markdown(_data_dictionary())
     st.markdown("<div class='eyebrow'>Try one — the agent auto-selects the method</div>",
@@ -339,8 +368,9 @@ def _cached_report(_result, content_key: str):   # keyed on content_key (a conte
     return build_docx(_result)
 
 
-# Temporarily disabled: some figures don't render correctly in the .docx yet. Flip to True to restore.
-_REPORT_EXPORT_ENABLED = False
+# Re-enabled: the .docx now renders figures with a dedicated light/print theme (white background, dark
+# ink, subtle gridlines) at 200 ppi, so titles, axis labels and CI whiskers are legible on the page.
+_REPORT_EXPORT_ENABLED = True
 
 
 def _report_button(result, view: str):

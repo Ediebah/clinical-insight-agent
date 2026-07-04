@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import re
 import tempfile
+import unicodedata
 from pathlib import Path
 
 import duckdb
@@ -32,11 +33,16 @@ _RESERVED = {
 
 
 def _sanitize(name: str, fallback: str = "col") -> str:
-    s = re.sub(r"[^0-9a-zA-Z]+", "_", str(name)).strip("_").lower()
+    # Transliterate accented latin to its ascii base (Âge→age) before the ascii-only pass; pure
+    # non-latin scripts (日本語) collapse to empty and fall back to `fallback`/dedup below.
+    ascii_name = unicodedata.normalize("NFKD", str(name)).encode("ascii", "ignore").decode("ascii")
+    s = re.sub(r"[^0-9a-zA-Z]+", "_", ascii_name).strip("_").lower()
     if not s:
         s = fallback
     if s[0].isdigit():
         s = f"c_{s}"
+    if s in _RESERVED:              # a keyword col name would break the agent's unquoted `SELECT <col>`
+        s = f"{s}_"                 # group→group_ ; dedup in sanitize_columns still guarantees uniqueness
     return s[:40]
 
 

@@ -23,10 +23,10 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements-dev.txt   # app runtime + dbt
 
-      - name: Lint (ruff) + unit tests (pytest) — fast, no API key
+      - name: Lint (ruff) + unit tests (pytest) with coverage gate — fast, no API key
         run: |
           ruff check .
-          pytest
+          pytest --cov=agent --cov-report=term-missing
 
       - name: Generate a small, reproducible Synthea dataset
         run: |

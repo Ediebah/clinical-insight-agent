@@ -18,13 +18,45 @@ import pandas as pd
 
 from .guardrails import wilson_ci
 
-TEAL = "#4fd1c5"
-TEAL_HI = "#8af7ea"
-TEAL_DIM = "#2c6f68"
-MUTED = "#8ea0b0"
-GRID = "#1a2531"
-DOMAIN = "#20303f"
-INK = "#cfe0ec"
+# Two palettes: SCREEN (dark clinical-teal, for the Streamlit UI) and PRINT (light, for the .docx export
+# where charts sit on a WHITE page). Builders read the module-level names below; `render_for_print()`
+# rebinds them to the light palette for the duration of a docx render so every title, axis label, value
+# label and CI whisker stays legible on white (the on-screen dark theme rendered near-invisibly there).
+_SCREEN = dict(teal="#4fd1c5", teal_hi="#8af7ea", teal_dim="#2c6f68", muted="#8ea0b0",
+               grid="#1a2531", domain="#20303f", ink="#cfe0ec", bg="transparent", title="#cfe0ec")
+_PRINT = dict(teal="#0d9488", teal_hi="#0f766e", teal_dim="#5eead4", muted="#475569",
+              grid="#e5e7eb", domain="#94a3b8", ink="#0f172a", bg="white", title="#0f172a")
+
+TEAL = _SCREEN["teal"]
+TEAL_HI = _SCREEN["teal_hi"]
+TEAL_DIM = _SCREEN["teal_dim"]
+MUTED = _SCREEN["muted"]
+GRID = _SCREEN["grid"]
+DOMAIN = _SCREEN["domain"]
+INK = _SCREEN["ink"]
+_BG = _SCREEN["bg"]
+_TITLE = _SCREEN["title"]
+_PRINT_ON = False
+
+
+def _apply_palette(p: dict) -> None:
+    global TEAL, TEAL_HI, TEAL_DIM, MUTED, GRID, DOMAIN, INK, _BG, _TITLE, _PRINT_ON
+    TEAL, TEAL_HI, TEAL_DIM = p["teal"], p["teal_hi"], p["teal_dim"]
+    MUTED, GRID, DOMAIN, INK = p["muted"], p["grid"], p["domain"], p["ink"]
+    _BG, _TITLE, _PRINT_ON = p["bg"], p["title"], p is _PRINT
+
+
+class render_for_print:
+    """Context manager: switch the chart palette to the light PRINT theme (white background, dark ink,
+    subtle light gridlines) so figures rendered to PNG for the .docx are legible on a white page.
+    Restores the SCREEN palette on exit. Not re-entrant, but the docx render is sequential."""
+    def __enter__(self):
+        _apply_palette(_PRINT)
+        return self
+
+    def __exit__(self, *exc):
+        _apply_palette(_SCREEN)
+        return False
 
 _TIERS = [
     re.compile(r"(rate|pct|percent|prevalence|proportion|ratio)", re.I),
@@ -103,7 +135,13 @@ def _add_ci(d: pd.DataFrame, y: str):
     if not numer or not denom:
         return False
     kcol, ncol = numer[0], max(denom, key=lambda c: d[c].sum())
-    scale = 100.0 if (_PCTISH.search(str(y)) or d[y].max() > 1.5) else 1.0
+    ymax = float(d[y].max())
+    if _PCTISH.search(str(y)) and ymax <= 100:
+        scale = 100.0 if ymax > 1.5 else 1.0             # percentage (0-100) vs fraction (0-1)
+    elif ymax <= 1.5:
+        scale = 1.0                                      # a bare proportion
+    else:
+        return False                                     # a count/cost — a Wilson CI in these units is meaningless
     los, his = [], []
     for _, row in d.iterrows():
         n = int(row[ncol]) if np.isfinite(row[ncol]) else 0    # finite guard (inf → int() OverflowError)
@@ -174,12 +212,17 @@ def forest_plot(model: dict):
     Log x-axis for ratios (OR/HR), linear for coefficients. Colored by significance."""
     if not model or model.get("error"):
         return None
-    terms = [t for t in model.get("terms", []) if t["ci_low"] == t["ci_low"]]   # drop NaN-CI (tests)
-    if not terms:
-        return None
     label = model.get("effect_label", "estimate")
     is_ratio = "ratio" in label
     null = 1.0 if is_ratio else 0.0
+
+    def _ok(t):                                    # drop non-finite estimates (separation → OR/HR=inf);
+        if not (np.isfinite(t["ci_low"]) and np.isfinite(t["ci_high"]) and np.isfinite(t["estimate"])):
+            return False                           # they're flagged in the text, and would wreck the axis
+        return (t["ci_low"] > 0 and t["ci_high"] > 0) if is_ratio else True   # log axis needs positive bounds
+    terms = [t for t in model.get("terms", []) if _ok(t)]
+    if not terms:
+        return None
 
     def _sig(t):                                   # p<0.05, or (no p, e.g. bootstrap ATE) CI excludes null
         if t["p"] is not None and t["p"] == t["p"]:
@@ -377,9 +420,9 @@ def radar_chart(df: pd.DataFrame, question: str = ""):
 
 
 def _finish(chart, height: int, title: str = ""):
-    c = chart.properties(height=height, background="transparent")
-    if title:
+    c = chart.properties(height=height, background=_BG)
+    if title and not _PRINT_ON:                     # in the docx the numbered Word caption names the figure
         c = c.properties(title=title)
     return (c.configure_axis(labelColor=MUTED, titleColor=MUTED, gridColor=GRID, domainColor=DOMAIN)
             .configure_view(strokeWidth=0)
-            .configure_title(color=INK, fontSize=13, anchor="start", font="IBM Plex Sans"))
+            .configure_title(color=_TITLE, fontSize=13, anchor="start", font="IBM Plex Sans"))
