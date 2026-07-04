@@ -349,6 +349,157 @@ def _render_monitoring() -> None:
                 "production.</div>", unsafe_allow_html=True)
 
 
+# ───────────────────────────── dashboard (descriptive first look) ─────────────────────────────
+@st.cache_data(ttl=600, show_spinner=False)
+def _dash_data() -> dict:
+    """A descriptive summary of the whole warehouse for the Dashboard tab (cached, read-only)."""
+    from agent import warehouse as W
+
+    def df(sql):
+        return W.run_query(sql)
+
+    def sc(sql):
+        return W.run_query(sql).iloc[0, 0]
+
+    out = {"kpis": {
+        "patients": int(sc("select count(*) from dim_patient")),
+        "encounters": int(sc("select count(*) from fct_encounters")),
+        "conditions": int(sc("select count(*) from fct_conditions")),
+        "median_age": float(sc("select median(age) from dim_patient")),
+        "deceased_pct": float(sc("select avg(is_deceased::int) from dim_patient")),
+        "total_cost": float(sc("select sum(total_claim_cost) from fct_encounters")),
+    }}
+    out["age_group"] = df("select age_group, count(*) n from dim_patient group by 1 order by 1")
+    out["gender"] = df("select gender, count(*) n from dim_patient group by 1 order by 2 desc")
+    out["race"] = df("select race, count(*) n from dim_patient group by 1 order by 2 desc")
+    out["conditions"] = df("select regexp_replace(c.condition_description, ' \\(disorder\\)$', '') condition, "
+                           "count(distinct f.patient_id) patients from fct_conditions f "
+                           "join dim_condition c on f.condition_code = c.condition_code "
+                           "where c.condition_description like '%(disorder)%' group by 1 order by 2 desc limit 10")
+    out["enc_class"] = df("select encounter_class, count(*) n from fct_encounters group by 1 order by 2 desc")
+    out["enc_year"] = df('select cast(year(encounter_date) as int) as "year", count(*) as encounters '
+                         "from fct_encounters where year(encounter_date) between 2011 and 2025 group by 1 order by 1")
+    out["cost_class"] = df("select encounter_class, round(avg(total_claim_cost), 0) avg_cost "
+                           "from fct_encounters group by 1 order by 2 desc")
+    _s = ("select '{lbl}' as metric, count({c}) as n, round(avg({c}), {d}) as mean, "
+          "round(median({c}), {d}) as median, round(stddev_samp({c}), {d}) as sd, round(min({c}), {d}) as min, "
+          "round(quantile_cont({c}, 0.25), {d}) as p25, round(quantile_cont({c}, 0.75), {d}) as p75, "
+          "round(max({c}), {d}) as max from {t}")
+    out["stats"] = df(" union all ".join([
+        _s.format(lbl="Age (years)", c="age", d=1, t="dim_patient"),
+        _s.format(lbl="Income ($)", c="income", d=0, t="dim_patient"),
+        _s.format(lbl="Healthcare expenses ($)", c="healthcare_expenses", d=0, t="dim_patient"),
+        _s.format(lbl="Encounter cost ($)", c="total_claim_cost", d=0, t="fct_encounters"),
+    ]))
+    return out
+
+
+def _dash_theme(chart, height):
+    return (chart.properties(height=height, background="transparent")
+            .configure_axis(labelColor="#8ea0b0", titleColor="#8ea0b0", gridColor="#182430",
+                            domainColor="#20303f", labelFontSize=11, titleFontSize=11)
+            .configure_view(strokeWidth=0).configure_legend(labelColor="#8ea0b0"))
+
+
+def _render_dashboard() -> None:
+    """First look at the data: cohort KPIs, demographics, clinical mix, utilization/cost, and a
+    descriptive-statistics table, all computed live over the warehouse."""
+    import math
+
+    import altair as alt
+    teal, blue = "#4fd1c5", "#8ab4f8"
+    try:
+        d = _dash_data()
+    except Exception as e:  # noqa: BLE001
+        st.warning(f"Dashboard unavailable: {e}")
+        return
+    k = d["kpis"]
+
+    st.markdown("<div class='eyebrow'>Cohort at a glance · the whole warehouse</div>", unsafe_allow_html=True)
+    _mon_kpis([
+        {"label": "patients", "value": f"{k['patients']:,}"},
+        {"label": "encounters", "value": f"{k['encounters']:,}"},
+        {"label": "conditions logged", "value": f"{k['conditions']:,}"},
+        {"label": "median age", "value": f"{k['median_age']:.0f}", "sub": "years"},
+        {"label": "deceased", "value": f"{k['deceased_pct'] * 100:.1f}%"},
+        {"label": "total billed", "value": f"${k['total_cost'] / 1e6:.0f}M"},
+    ])
+
+    def vbar(data, x, y, order=None, fmt=","):
+        order = order or list(data[x])
+        # headroom above the tallest bar so the value label sitting on top never clips
+        yscale = alt.Scale(domain=[0, float(data[y].max()) * 1.16], nice=False)
+        base = alt.Chart(data).encode(x=alt.X(f"{x}:N", sort=order, title=None, axis=alt.Axis(labelAngle=0)))
+        bars = base.mark_bar(color=teal, cornerRadiusEnd=3, size=34).encode(
+            y=alt.Y(f"{y}:Q", title=None, scale=yscale, axis=alt.Axis(labels=False, ticks=False, grid=False)))
+        lab = base.mark_text(dy=-6, color="#8ea0b0", fontSize=10).encode(
+            y=alt.Y(f"{y}:Q", scale=yscale), text=alt.Text(f"{y}:Q", format=fmt))
+        return _dash_theme(alt.layer(bars, lab), 190)
+
+    def hbar(data, cat, val, color=teal, fmt=",", h=None):
+        order = list(data[cat])
+        # headroom past the longest bar so the outside value label never clips at the right edge
+        xscale = alt.Scale(domain=[0, float(data[val].max()) * 1.22], nice=False)
+        base = alt.Chart(data).encode(y=alt.Y(f"{cat}:N", sort=order, title=None, axis=alt.Axis(labelLimit=170)))
+        bars = base.mark_bar(color=color, cornerRadiusEnd=3, height={"band": 0.72}).encode(
+            x=alt.X(f"{val}:Q", title=None, scale=xscale, axis=alt.Axis(labels=False, ticks=False, grid=False)))
+        lab = base.mark_text(align="left", dx=4, color="#8ea0b0", fontSize=10).encode(
+            x=alt.X(f"{val}:Q", scale=xscale), text=alt.Text(f"{val}:Q", format=fmt))
+        return _dash_theme(alt.layer(bars, lab), h or (24 + 26 * len(data)))
+
+    st.markdown("<div class='eyebrow'>Who · demographics</div>", unsafe_allow_html=True)
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.caption("Age group")
+        st.altair_chart(vbar(d["age_group"], "age_group", "n",
+                             order=["0-17", "18-39", "40-64", "65-74", "75+"]), use_container_width=True)
+    with c2:
+        st.caption("Sex")
+        st.altair_chart(vbar(d["gender"], "gender", "n"), use_container_width=True)
+    with c3:
+        st.caption("Race")
+        st.altair_chart(hbar(d["race"], "race", "n", h=190), use_container_width=True)
+
+    st.markdown("<div class='eyebrow'>What · clinical</div>", unsafe_allow_html=True)
+    c4, c5 = st.columns([3, 2])
+    with c4:
+        st.caption("Top conditions — disorders, by patients")
+        st.altair_chart(hbar(d["conditions"], "condition", "patients"), use_container_width=True)
+    with c5:
+        st.caption("Encounter mix")
+        st.altair_chart(hbar(d["enc_class"], "encounter_class", "n"), use_container_width=True)
+
+    st.markdown("<div class='eyebrow'>Utilization & cost</div>", unsafe_allow_html=True)
+    c6, c7 = st.columns(2)
+    with c6:
+        st.caption("Encounters per year")
+        area = alt.Chart(d["enc_year"]).mark_area(
+            color=teal, opacity=0.22, line={"color": teal, "strokeWidth": 2}).encode(
+            x=alt.X("year:O", title=None, axis=alt.Axis(labelAngle=0)),
+            y=alt.Y("encounters:Q", title=None))
+        st.altair_chart(_dash_theme(area, 205), use_container_width=True)
+    with c7:
+        st.caption("Avg cost per encounter, by class")
+        st.altair_chart(hbar(d["cost_class"], "encounter_class", "avg_cost", color=blue, fmt="$,.0f"),
+                        use_container_width=True)
+
+    st.markdown("<div class='eyebrow'>Descriptive statistics · key numerics</div>", unsafe_allow_html=True)
+    stats = d["stats"].copy()
+
+    def _num(v):
+        if v is None or (isinstance(v, float) and math.isnan(v)):
+            return "—"
+        return f"{v:,.0f}" if abs(v) >= 1000 else f"{v:,.1f}"
+    for col in ["mean", "median", "sd", "min", "p25", "p75", "max"]:
+        stats[col] = stats[col].map(_num)
+    stats["n"] = stats["n"].map(lambda v: f"{int(v):,}")
+    stats.columns = ["Variable", "N", "Mean", "Median", "SD", "Min", "P25", "P75", "Max"]
+    st.dataframe(stats, use_container_width=True, hide_index=True)
+    st.markdown("<div class='trace'>Computed live over the full warehouse (read-only). Synthetic Synthea data; "
+                "the negative age minimum is a generation artifact, exactly the kind of thing a first look "
+                "surfaces before you model.</div>", unsafe_allow_html=True)
+
+
 @st.cache_data(show_spinner=False)
 def _data_dictionary() -> str:
     """Human-readable 'what data is available' from the semantic catalog — so users know the scope."""
@@ -393,8 +544,11 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ───────────────────────────── nav ─────────────────────────────
-_view = st.segmented_control("nav", ["🔬 Analyze", "📊 Monitoring"], default="🔬 Analyze",
+_view = st.segmented_control("nav", ["🔬 Analyze", "📈 Dashboard", "📊 Monitoring"], default="🔬 Analyze",
                              label_visibility="collapsed")
+if _view == "📈 Dashboard":                              # first look at the data, then stop
+    _render_dashboard()
+    st.stop()
 if _view == "📊 Monitoring":                             # render the ops surface and stop (skip the analyze flow)
     _render_monitoring()
     st.stop()
