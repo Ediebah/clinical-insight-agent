@@ -6,12 +6,12 @@ The app is a containerized Streamlit service (`Dockerfile`). It needs one runtim
 
 > Why a container (vs. Streamlit Community Cloud): the image is **built once and cached**, so
 > redeploys are layer-diffs that go live in seconds, there is no revert-to-private quirk, and you
-> get a custom domain. Streamlit is a stateful server, so it does **not** run on Vercel — a container
+> get a custom domain. Streamlit is a stateful server, so it does **not** run on Vercel, a container
 > host is the right target.
 
 ---
 
-## Option A — Google Cloud Run  (recommended: custom domain, scales to zero, near-free)
+## Option A: Google Cloud Run  (recommended: custom domain, scales to zero, near-free)
 
 ```bash
 # one-time
@@ -36,7 +36,7 @@ Cloud Run prints a `*.run.app` URL. Redeploy anytime with the same `gcloud run d
 Custom domain: `gcloud run domain-mappings create --service clinical-insight-agent --domain agent.yourdomain.com`.
 `--min-instances 0` scales to zero (pay ~nothing idle); use `1` to avoid cold starts.
 
-## Option B — Hugging Face Spaces (Docker)  (fastest: free, no billing, credible ML home)
+## Option B: Hugging Face Spaces (Docker)  (fastest: free, no billing, credible ML home)
 
 1. Create a Space at <https://huggingface.co/new-space> → **SDK: Docker**.
 2. Prepend this front-matter to the Space's `README.md`:
@@ -57,7 +57,7 @@ Custom domain: `gcloud run domain-mappings create --service clinical-insight-age
 
 Free tier: 2 vCPU / 16 GB, sleeps after inactivity and wakes on visit. No card required.
 
-## Option C — Render  (simple Git-connected Docker deploy)
+## Option C: Render  (simple Git-connected Docker deploy)
 
 New **Web Service** → connect the repo → Runtime **Docker** → add env var `OPENAI_API_KEY` →
 create. Render injects `$PORT` automatically. Free tier spins down when idle.

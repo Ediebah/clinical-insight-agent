@@ -311,8 +311,41 @@ def _render_monitoring() -> None:
             st.markdown(f"<div class='gr-badge sev-{sev}'><span class='gr-tag'>{tag}</span>"
                         f"<span class='gr-kind'>{name}</span><span class='gr-msg'>{detail}</span></div>",
                         unsafe_allow_html=True)
+    st.markdown("<div class='eyebrow'>Data-quality agent · detect &middot; diagnose &middot; fix</div>",
+                unsafe_allow_html=True)
+    st.markdown("<div style='color:#8ea0b0;font-size:.85rem;margin:-.2rem 0 .55rem'>The checks above run "
+                "continuously. When one fails, this agent diagnoses the offending rows and drafts a "
+                "remediation SQL: a proposal for human review, never auto-applied.</div>",
+                unsafe_allow_html=True)
+    if st.button("▶ Run on a demo defect set", key="dq_demo"):
+        from agent import quality_agent as qa
+        _demo = qa.make_demo_db()
+        try:
+            rep = qa.run(db_path=_demo)
+        finally:
+            shutil.rmtree(Path(_demo).parent, ignore_errors=True)
+        for c in rep["checks"]:
+            sev, tag = ("info", "PASS") if c["passed"] else ("caution", "FAIL")
+            st.markdown(f"<div class='gr-badge sev-{sev}'><span class='gr-tag'>{tag}</span>"
+                        f"<span class='gr-kind'>{html.escape(c['name'])}</span>"
+                        f"<span class='gr-msg'>{html.escape(c['summary'])}</span></div>", unsafe_allow_html=True)
+            if not c["passed"]:
+                st.markdown(f"<div style='color:#8ea0b0;font-size:.83rem;margin:.15rem 0 .2rem 1.1rem'>"
+                            f"🔎 {html.escape(c.get('diagnosis', ''))}</div>", unsafe_allow_html=True)
+                prop = c.get("proposal") or {}
+                if prop.get("fix"):
+                    st.markdown(f"<div style='color:#4fd1c5;font-family:monospace;font-size:.72rem;"
+                                f"margin:.1rem 0 .1rem 1.1rem'>proposed fix &middot; confidence "
+                                f"{prop.get('confidence', '?')} &middot; proposal only, not auto-applied</div>",
+                                unsafe_allow_html=True)
+                    st.code(prop["fix"], language="sql")
+                    if prop.get("explanation"):
+                        st.caption(prop["explanation"])
+                elif prop.get("note"):
+                    st.caption(prop["note"])
+
     st.markdown("<div class='trace'>Telemetry: logs/traces.jsonl · audit.jsonl · feedback.jsonl "
-                "(per-deployment) + live warehouse checks — the ops surface a data team watches in "
+                "(per-deployment) + live warehouse checks. The ops surface a data team watches in "
                 "production.</div>", unsafe_allow_html=True)
 
 

@@ -29,8 +29,8 @@ _METHOD_BLURB = {
               "importance computed on a held-out split (imputation fit inside the pipeline).",
     "timeseries": "Holt–Winters exponential smoothing with an approximate, horizon-widening "
                   "prediction band.",
-    "causal": "Causal T-learner (two random forests) estimating an average treatment effect with a "
-              "bootstrap confidence interval; observational and not randomized.",
+    "causal": "Cross-fitted AIPW doubly-robust estimator (potential-outcome + propensity forests) for the "
+              "average treatment effect, with an influence-function 95% CI; observational, not randomized.",
     "experiment": "Two-group experiment analysis: per-arm rates/means with confidence intervals, "
                   "Newcombe/Welch interval on the difference, and Benjamini–Hochberg FDR control "
                   "across variants.",
