@@ -91,12 +91,19 @@ def _pick_measure(df):
     return nums[0]
 
 
-def _fmt(col, v) -> str:
+def _pct_scale(series) -> float:
+    """For a rate/proportion column, return 100 when the values are stored as a fraction (0-1) rather than
+    an already-scaled percentage (0-100), so 0.1443 renders as '14.4%' — not '0.1%'."""
+    m = pd.to_numeric(pd.Series(series), errors="coerce").abs().max()
+    return 100.0 if (m == m and m <= 1.5) else 1.0
+
+
+def _fmt(col, v, pct_scale: float = 1.0) -> str:
     if v is None or (isinstance(v, float) and np.isnan(v)):
         return "—"
     c = str(col).lower()
     if _PCTISH.search(c):
-        return f"{v:.1f}%"
+        return f"{v * pct_scale:.1f}%"
     if _MONEY.search(c):
         return f"${v:,.0f}"
     return f"{int(v):,}" if float(v).is_integer() else f"{v:,.1f}"
@@ -110,21 +117,22 @@ def kpi_cards(df: pd.DataFrame, question: str = "") -> list[dict]:
     y = _pick_measure(df)
     if y is None or df[y].dropna().empty:                # no measure, or all values missing
         return []
+    psc = _pct_scale(df[y])                              # render a fraction rate (0-1) as a percentage
     cats = [c for c in _cats(df) if not _ID.search(str(c))]
     if len(df) == 1:
-        return [{"label": str(y).replace("_", " "), "value": _fmt(y, df.iloc[0][y]), "sub": ""}]
+        return [{"label": str(y).replace("_", " "), "value": _fmt(y, df.iloc[0][y], psc), "sub": ""}]
     if not cats:
         col = df[y].dropna()
-        return [{"label": f"max {y}".replace("_", " "), "value": _fmt(y, col.max()), "sub": ""},
-                {"label": f"median {y}".replace("_", " "), "value": _fmt(y, col.median()), "sub": ""}]
+        return [{"label": f"max {y}".replace("_", " "), "value": _fmt(y, col.max(), psc), "sub": ""},
+                {"label": f"median {y}".replace("_", " "), "value": _fmt(y, col.median(), psc), "sub": ""}]
     x = cats[0]
     valid = df.dropna(subset=[y])                        # idxmax/idxmin need non-NA
     top = valid.loc[valid[y].idxmax()]
     bot = valid.loc[valid[y].idxmin()]
     return [
-        {"label": f"highest {x}".replace("_", " "), "value": str(top[x]), "sub": _fmt(y, top[y])},
-        {"label": f"lowest {x}".replace("_", " "), "value": str(bot[x]), "sub": _fmt(y, bot[y])},
-        {"label": "spread", "value": _fmt(y, top[y] - bot[y]), "sub": "high − low"},
+        {"label": f"highest {x}".replace("_", " "), "value": str(top[x]), "sub": _fmt(y, top[y], psc)},
+        {"label": f"lowest {x}".replace("_", " "), "value": str(bot[x]), "sub": _fmt(y, bot[y], psc)},
+        {"label": "spread", "value": _fmt(y, top[y] - bot[y], psc), "sub": "high − low"},
     ]
 
 
@@ -181,7 +189,8 @@ def build_chart(df: pd.DataFrame, question: str = ""):
         d = df[keep].dropna(subset=[y]).sort_values(y, ascending=False).head(15).copy()
         top_val = d[y].max()
         d["_top"] = d[y] == top_val
-        d["_label"] = d[y].map(lambda v: _fmt(y, v))
+        psc = _pct_scale(d[y])
+        d["_label"] = d[y].map(lambda v: _fmt(y, v, psc))
         has_ci = _add_ci(d, y)
 
         base = alt.Chart(d).encode(y=alt.Y(f"{x}:N", sort="-x", title=None))

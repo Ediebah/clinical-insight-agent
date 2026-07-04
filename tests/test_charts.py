@@ -29,6 +29,21 @@ def test_kpi_cards_shape():
     assert len(cards) == 3 and cards[0]["label"].startswith("highest")
 
 
+def test_kpi_formats_fraction_rate_as_percent():
+    # a rate stored as a fraction (0-1) must render as a percentage, not '0.1%' (the readmission-KPI bug)
+    df = pd.DataFrame({"age_group": ["0-17", "75+"], "readmission_rate": [0.0, 0.1443]})
+    cards = charts.kpi_cards(df)
+    blob = " ".join(c.get("value", "") + c.get("sub", "") for c in cards)
+    assert "14.4%" in blob and "0.1%" not in blob
+
+
+def test_kpi_percent_column_left_unscaled():
+    # a column already in percent units (>1.5) must NOT be multiplied again
+    df = pd.DataFrame({"grp": ["a", "b"], "prevalence_pct": [3.88, 51.67]})
+    blob = " ".join(c.get("sub", "") for c in charts.kpi_cards(df))
+    assert "51.7%" in blob and "3.9%" in blob
+
+
 def test_add_ci_computes_bounds():
     d = _prevalence_df().copy()
     assert charts._add_ci(d, "prevalence_pct") is True
