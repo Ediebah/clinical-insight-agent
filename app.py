@@ -444,10 +444,18 @@ def _render_model(m: dict) -> str:
     terms = m["terms"]
     has_ci = any(t["ci_low"] == t["ci_low"] for t in terms)          # drop columns that don't apply
     has_p = any(t["p"] == t["p"] for t in terms)                     # (e.g. forest importance: neither)
-    cols = ["term", m["effect_label"]] + (["95% CI"] if has_ci else []) + (["p-value"] if has_p else [])
+    has_n = any(t.get("n") is not None for t in terms)               # per-category subjects (categoricals)
+    has_ev = any(t.get("events") is not None for t in terms)         # per-category events (event models)
+    cols = (["term"] + (["n"] if has_n else []) + (["events"] if has_ev else [])
+            + [m["effect_label"]] + (["95% CI"] if has_ci else []) + (["p-value"] if has_p else []))
     lines = [head, "", "| " + " | ".join(cols) + " |", "|" + "|".join(["---"] * len(cols)) + "|"]
     for t in terms:
-        row = [f"`{t['name']}`", f"{t['estimate']:.3f}"]
+        row = [f"`{t['name']}`"]
+        if has_n:
+            row.append("—" if t.get("n") is None else f"{t['n']:,}")
+        if has_ev:
+            row.append("—" if t.get("events") is None else f"{t['events']:,}")
+        row.append(f"{t['estimate']:.3f}")
         if has_ci:
             lo = t["ci_low"]
             row.append("—" if lo != lo else f"[{lo:.3f}, {t['ci_high']:.3f}]")    # lo != lo → NaN

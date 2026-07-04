@@ -71,6 +71,24 @@ def test_cox_flags_separation():
     assert r.error is None and any("separation" in i.lower() for i in r.issues)
 
 
+def test_rare_categorical_levels_pooled_with_counts():
+    # sparse race levels (hawaiian/native, a handful each) must be pooled BEFORE fitting — no HR=0 [0, inf]
+    rng = np.random.default_rng(0)
+    n = 1100
+    race = rng.choice(["white", "black", "asian", "other", "hawaiian", "native"], n,
+                      p=[0.74, 0.14, 0.08, 0.036, 0.0022, 0.0018])
+    age = rng.uniform(30, 90, n)
+    dead = (rng.random(n) < 0.12).astype(int)
+    mr = modeling.fit_cox(pd.DataFrame({"age": age, "e": dead, "race": race}), "age", "e", ["race"])
+    assert mr.error is None
+    fit = [t for t in mr.terms if not np.isnan(t.ci_low)]            # the estimated (non-reference) levels
+    assert fit and all(np.isfinite(t.estimate) and t.estimate > 0 and np.isfinite(t.ci_high) for t in fit)
+    assert any("pooled" in i.lower() and "race" in i.lower() for i in mr.issues)     # DE step recorded
+    assert not any("hawaiian" in t.name or "native" in t.name for t in mr.terms)     # not fit as singletons
+    cats = [t for t in mr.terms if t.n is not None]                 # per-category N/events, complete partition
+    assert sum(t.n for t in cats) == n and all(t.events is not None for t in cats)
+
+
 def test_cox_all_censored_clean_error():
     df = pd.DataFrame({"t": [1, 2, 3, 4] * 10, "e": [0] * 40, "x": list(range(40))})
     r = modeling.fit_cox(df, "t", "e", ["x"])

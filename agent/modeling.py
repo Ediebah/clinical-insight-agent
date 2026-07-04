@@ -8,6 +8,7 @@ trustworthy. This is the "fit a covariate-adjusted model" the guardrail keeps re
 """
 from __future__ import annotations
 
+import re
 from dataclasses import asdict, dataclass, field
 
 import numpy as np
@@ -21,6 +22,8 @@ class Term:
     ci_low: float
     ci_high: float
     p: float
+    n: int | None = None     # subjects in this level (categorical only; mutually exclusive across levels)
+    events: int | None = None  # events within this level (event models: logistic / Cox)
 
 
 @dataclass
@@ -52,6 +55,43 @@ def _formula(outcome: str, predictors: list[str], df: pd.DataFrame) -> str:
         else:
             rhs.append(p)
     return f"{outcome} ~ " + (" + ".join(rhs) if rhs else "1")
+
+
+_CAT_TERM = re.compile(r"^C\((?P<col>[^)]+)\)\[T\.(?P<lvl>.+)\]$")
+
+
+def _term_counts(name: str, d: pd.DataFrame, event_col: str | None) -> tuple:
+    """(n, events) for a categorical dummy term C(col)[T.level]: the subjects in that level and — for an
+    event model — the events among them. Mutually exclusive across the levels of one categorical (each
+    subject is in exactly one level). (None, None) for a continuous term — a slope has no group."""
+    m = _CAT_TERM.match(str(name))
+    if not m or m.group("col") not in d.columns:
+        return None, None
+    mask = d[m.group("col")].astype(str) == m.group("lvl")
+    n = int(mask.sum())
+    ev = (int(pd.to_numeric(d.loc[mask, event_col], errors="coerce").fillna(0).sum())
+          if event_col and event_col in d.columns else None)
+    return n, ev
+
+
+def _reference_terms(d: pd.DataFrame, preds: list[str], event_col: str | None, null_value: float) -> list:
+    """One row per categorical predictor's REFERENCE (omitted) level, carrying its n and events so the
+    displayed levels form a complete, mutually-exclusive partition of the sample. estimate = the null
+    (OR/HR = 1, coef = 0), no CI/p — shown in the results table, not plotted on the forest."""
+    refs = []
+    for p in preds:
+        if p not in d.columns or pd.api.types.is_numeric_dtype(d[p]):
+            continue
+        levels = sorted(str(x) for x in d[p].dropna().unique())
+        if len(levels) < 2:
+            continue
+        ref = levels[0]                              # statsmodels Treatment coding → first level is reference
+        mask = d[p].astype(str) == ref
+        ev = (int(pd.to_numeric(d.loc[mask, event_col], errors="coerce").fillna(0).sum())
+              if event_col and event_col in d.columns else None)
+        refs.append(Term(f"C({p})[{ref}] (ref)", null_value, float("nan"), float("nan"), float("nan"),
+                         int(mask.sum()), ev))
+    return refs
 
 
 def _to_binary(s: pd.Series) -> pd.Series:
@@ -114,6 +154,28 @@ def _reduce_collinearity(d: pd.DataFrame, predictors: list[str], vif_max: float 
     return keep + other, dropped
 
 
+def _reduce_rare_levels(d: pd.DataFrame, predictors: list[str], min_count: int):
+    """Pool sparse levels of each categorical predictor into a single 'other' bucket. A level with fewer
+    than min_count subjects cannot support a stable effect estimate — it drives the odds/hazard ratio to
+    0 or ∞ with a degenerate [0, ∞] CI (sparse-category separation). Merging such levels is the standard
+    consolidation a careful analyst does BEFORE fitting, not something to explain away after. Returns
+    (d, pooled, became_constant) with pooled = [(col, [rare_levels], n_pooled)]."""
+    pooled, gone = [], []
+    for p in predictors:
+        if p not in d.columns or pd.api.types.is_numeric_dtype(d[p]):
+            continue
+        s = d[p].astype("object")
+        vc = s.value_counts(dropna=True)
+        rare = [lvl for lvl, c in vc.items() if int(c) < min_count and str(lvl) != "other"]
+        if not rare:
+            continue
+        d[p] = s.where(~s.isin(rare), other="other")
+        pooled.append((p, rare, int(vc[rare].sum())))
+        if d[p].nunique(dropna=True) <= 1:              # collapsed to a single value → caller drops it
+            gone.append(p)
+    return d, pooled, gone
+
+
 def _prepare(df: pd.DataFrame, outcome_cols: list[str], predictors: list[str], vif_max: float = 10.0,
              max_missing: float = 0.10, dominance: float = 0.99, impute: bool = True):
     """Comprehensive pre-modeling data engineering, with a transparent record of every step:
@@ -165,6 +227,19 @@ def _prepare(df: pd.DataFrame, outcome_cols: list[str], predictors: list[str], v
                      f"ID-like (>{card_cap} categories): " + ", ".join(unusable[:6])
                      + ("…" if len(unusable) > 6 else "") + ".")
         preds = [p for p in preds if p not in unusable]
+
+    # 3c. pool sparse levels of a categorical predictor into 'other' so a level with a handful of subjects
+    #     can't produce a degenerate effect (OR/HR → 0 or ∞ with a [0, ∞] CI) — sparse-category separation.
+    min_level = max(15, int(np.ceil(0.01 * len(d))))
+    d, pooled, gone = _reduce_rare_levels(d, preds, min_level)
+    for col, lvls, npool in pooled:
+        shown = ", ".join(str(x) for x in lvls[:6]) + (f", +{len(lvls) - 6} more" if len(lvls) > 6 else "")
+        steps.append(f"Pooled {len(lvls)} sparse level(s) of '{col}' (<{min_level} subjects each: {shown}) "
+                     f"into 'other' ({npool} subjects) to avoid sparse-category separation.")
+    if gone:
+        steps.append(f"Dropped {len(gone)} predictor(s) left single-valued after pooling: "
+                     + ", ".join(gone) + ".")
+        preds = [p for p in preds if p not in gone]
 
     if impute:                                         # 4. impute remaining missingness
         imputed = []                                   # (skipped when a downstream pipeline imputes per-fold)
@@ -271,6 +346,8 @@ def fit_logistic(df: pd.DataFrame, outcome: str, predictors: list[str]) -> Model
         terms = [Term(name, float(np.exp(m.params[name])), float(np.exp(ci.loc[name, 0])),
                       float(np.exp(ci.loc[name, 1])), float(m.pvalues[name]))
                  for name in m.params.index if name != "Intercept"]
+        for t in terms:                              # per-category subjects + events (mutually exclusive)
+            t.n, t.events = _term_counts(t.name, d, outcome)
         events = int(min((d[outcome] == 0).sum(), (d[outcome] == 1).sum()))
         if terms and events / len(terms) < 10:       # events-per-variable rule of thumb
             issues.append(f"Low events-per-variable (EPV≈{events / len(terms):.1f}): {events} events for "
@@ -288,6 +365,7 @@ def fit_logistic(df: pd.DataFrame, outcome: str, predictors: list[str]) -> Model
         for p, pv in _nonlinearity_flags(_refit, d, preds):
             issues.append(f"Non-linearity ({p}, quadratic term p={pv:.3g}): {p} isn't linear in the "
                           "log-odds — model it with splines or a polynomial, or categorize it.")
+        terms = _reference_terms(d, preds, outcome, 1.0) + terms   # complete the categorical partition
         mr = ModelResult("logistic", outcome, int(m.nobs), "odds ratio", terms,
                          fit_stat=f"pseudo-R²={m.prsquared:.3f}",
                          note="Odds ratio > 1 = higher odds of the outcome, holding the others fixed.")
@@ -357,6 +435,8 @@ def fit_cox(df: pd.DataFrame, duration: str, event: str, predictors: list[str]) 
         terms = [Term(name, float(np.exp(r.params[i])), float(np.exp(ci[i, 0])),
                       float(np.exp(ci[i, 1])), float(r.pvalues[i]))
                  for i, name in enumerate(r.model.exog_names)]
+        for t in terms:                              # per-category subjects + events (mutually exclusive)
+            t.n, t.events = _term_counts(t.name, d, event)
         events = int(d[event].sum())
         if terms and events / len(terms) < 10:       # events-per-variable rule of thumb
             issues.append(f"Low events-per-variable (EPV≈{events / len(terms):.1f}): {events} events for "
@@ -369,9 +449,11 @@ def fit_cox(df: pd.DataFrame, duration: str, event: str, predictors: list[str]) 
             issues.append("Possible separation (" + ", ".join(sep[:3]) + "): a covariate near-perfectly "
                           "predicts the event, so the hazard ratios and CIs diverge and are unreliable — "
                           "use penalized (Firth) Cox or drop the term.")
-        for name, pv in _ph_flags(r, d[duration].to_numpy()):    # proportional-hazards check
-            issues.append(f"Proportional-hazards violation ({name}, Schoenfeld–time p={pv:.3g}): its hazard "
-                          "ratio changes over follow-up — stratify on it or add a time interaction.")
+        ph = _ph_flags(r, d[duration].to_numpy())                # proportional-hazards check (consolidated)
+        if ph:
+            names = ", ".join(n for n, _ in ph[:6]) + (f", +{len(ph) - 6} more" if len(ph) > 6 else "")
+            issues.append(f"Proportional-hazards violation for {len(ph)} covariate(s) ({names}): the hazard "
+                          "ratio changes over follow-up — stratify on these or add a time interaction.")
 
         def _refit(p):                               # linearity of the log-hazard
             mm = PHReg.from_formula(_formula(duration, preds, d) + f" + I({p} ** 2)",
@@ -382,6 +464,7 @@ def fit_cox(df: pd.DataFrame, duration: str, event: str, predictors: list[str]) 
         for p, pv in _nonlinearity_flags(_refit, d, preds):
             issues.append(f"Non-linearity ({p}, quadratic term p={pv:.3g}): {p} isn't linear in the "
                           "log-hazard — model it with splines or a polynomial.")
+        terms = _reference_terms(d, preds, event, 1.0) + terms   # complete the categorical partition
         mr = ModelResult("cox", duration, int(r.model.surv.n_obs), "hazard ratio", terms,
                          fit_stat=f"events={int(d[event].sum())}",
                          note="Hazard ratio > 1 = faster time-to-event (higher risk), others fixed.")
@@ -1085,7 +1168,8 @@ def render(r: ModelResult) -> str:
     for t in r.terms:
         ci = "" if np.isnan(t.ci_low) else f"  95% CI [{t.ci_low:.3f}, {t.ci_high:.3f}]"
         p = "" if np.isnan(t.p) else f"  p={t.p:.4f}" + (" *" if t.p < 0.05 else "")
-        lines.append(f"  {t.name:22} {r.effect_label}={t.estimate:.3f}{ci}{p}")
+        cnt = (f"  n={t.n:,}" + (f", events={t.events:,}" if t.events is not None else "")) if t.n is not None else ""
+        lines.append(f"  {t.name:22} {r.effect_label}={t.estimate:.3f}{cnt}{ci}{p}")
     for iss in r.issues:
         lines.append(f"  ! {iss}")
     if r.note:

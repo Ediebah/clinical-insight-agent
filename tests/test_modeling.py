@@ -19,8 +19,9 @@ def test_logistic_recovers_positive_effects():
     assert r.error is None and r.model_type == "logistic" and r.n == 800
     terms = {t.name: t for t in r.terms}
     assert terms["x"].estimate > 1 and terms["x"].p < 0.05          # OR > 1 for a positive predictor
-    gkey = next(k for k in terms if k.startswith("C(g)"))
+    gkey = next(k for k in terms if k.startswith("C(g)[T."))        # the dummy level, not the reference row
     assert terms[gkey].estimate > 1                                  # level B has higher odds
+    assert terms["C(g)[A] (ref)"].estimate == 1.0                   # reference level shown as OR=1
 
 
 def test_ols_recovers_slope():

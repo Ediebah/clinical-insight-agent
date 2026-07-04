@@ -358,18 +358,30 @@ def build_docx(result, *, when: _dt.datetime | None = None) -> bytes:
                        "Newcombe (proportions) or Welch (means) interval.")
     elif m.get("terms"):
         table_caption(f"Model estimates ({m.get('effect_label', 'estimate')}) with 95% CIs.")
-        tt = doc.add_table(rows=1, cols=4); tt.style = "Table Grid"
-        for j, h in enumerate(["Term", m.get("effect_label", "estimate"), "95% CI", "p-value"]):
+        terms = m["terms"]
+        has_n = any(t.get("n") is not None for t in terms)          # per-category subjects (categoricals)
+        has_ev = any(t.get("events") is not None for t in terms)    # per-category events (event models)
+        headers = (["Term"] + (["N"] if has_n else []) + (["Events"] if has_ev else [])
+                   + [m.get("effect_label", "estimate"), "95% CI", "p-value"])
+        tt = doc.add_table(rows=1, cols=len(headers)); tt.style = "Table Grid"
+        for j, h in enumerate(headers):
             tt.rows[0].cells[j].text = h
-        for term in m["terms"]:
+        for term in terms:
+            lo, pv = term["ci_low"], term["p"]
+            vals = [str(term["name"])]
+            if has_n:
+                vals.append("—" if term.get("n") is None else f"{term['n']:,}")
+            if has_ev:
+                vals.append("—" if term.get("events") is None else f"{term['events']:,}")
+            vals += [f"{term['estimate']:.3f}",
+                     "—" if lo != lo else f"[{lo:.3f}, {term['ci_high']:.3f}]",
+                     "—" if pv != pv else f"{pv:.4f}"]
             c = tt.add_row().cells
-            lo = term["ci_low"]
-            ci = "—" if lo != lo else f"[{lo:.3f}, {term['ci_high']:.3f}]"
-            pv = term["p"]
-            pcol = "—" if pv != pv else f"{pv:.4f}"
-            c[0].text, c[1].text, c[2].text, c[3].text = str(term["name"]), f"{term['estimate']:.3f}", ci, pcol
-        _footnote(doc, "Confidence intervals are two-sided at 95%. p-values are unadjusted unless the "
-                       "method note states otherwise.")
+            for j, v in enumerate(vals):
+                c[j].text = v
+        _footnote(doc, "N and Events are the mutually-exclusive subjects and events per category (the "
+                       "reference level is included). CIs are two-sided at 95%; p-values are unadjusted "
+                       "unless the method note states otherwise.")
     elif getattr(result, "dataframe", None) is not None:
         full = result.dataframe
         df = full.iloc[:30, :12]                      # cap rows AND columns for a readable page
