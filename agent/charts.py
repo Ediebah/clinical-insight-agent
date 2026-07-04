@@ -233,27 +233,36 @@ def forest_plot(model: dict):
     if not terms:
         return None
 
-    def _sig(t):                                   # p<0.05, or (no p, e.g. bootstrap ATE) CI excludes null
+    def _sig(t):                                   # p<0.05, or (no p, e.g. AIPW ATE) CI excludes the null
         if t["p"] is not None and t["p"] == t["p"]:
             return "significant" if t["p"] < 0.05 else "n.s."
         return "significant" if (t["ci_low"] > null or t["ci_high"] < null) else "n.s."
 
+    def _vlabel(t):                                # the numeric estimate a clinical reader must be able to read
+        j = "–" if is_ratio else " to "
+        return f"{t['estimate']:.2f} ({t['ci_low']:.2f}{j}{t['ci_high']:.2f})"
+
     d = pd.DataFrame([{"term": t["name"], "est": t["estimate"], "lo": t["ci_low"], "hi": t["ci_high"],
-                       "sig": _sig(t)} for t in terms])
-    xscale = alt.Scale(type="log") if is_ratio else alt.Scale(zero=False)
-    base = alt.Chart(d).encode(y=alt.Y("term:N", sort=list(d["term"]), title=None))
-    ci = base.mark_rule(color=MUTED, strokeWidth=2).encode(
-        x=alt.X("lo:Q", scale=xscale, title=f"{label}  (95% CI)"), x2="hi:Q")
-    cap_lo = base.mark_tick(color=MUTED, thickness=2, size=9).encode(x=alt.X("lo:Q", scale=xscale))
-    cap_hi = base.mark_tick(color=MUTED, thickness=2, size=9).encode(x=alt.X("hi:Q", scale=xscale))
-    pts = base.mark_point(filled=True, size=150).encode(
+                       "sig": _sig(t), "vlabel": _vlabel(t)} for t in terms])
+    xscale = alt.Scale(type="log", nice=False, padding=8) if is_ratio else alt.Scale(zero=False, padding=8)
+    order = list(d["term"])
+    base = alt.Chart(d).encode(y=alt.Y("term:N", sort=order, title=None,
+                                       axis=alt.Axis(labelLimit=200, ticks=False, domain=False)))
+    xaxis = alt.Axis(grid=False, title=f"{label}  (95% CI)")     # no gridlines → a clean, uncluttered forest
+    ci = base.mark_rule(color=MUTED, strokeWidth=1.5).encode(x=alt.X("lo:Q", scale=xscale, axis=xaxis), x2="hi:Q")
+    cap_lo = base.mark_tick(color=MUTED, thickness=1.5, size=7).encode(x=alt.X("lo:Q", scale=xscale))
+    cap_hi = base.mark_tick(color=MUTED, thickness=1.5, size=7).encode(x=alt.X("hi:Q", scale=xscale))
+    pts = base.mark_point(filled=True, size=95).encode(
         x=alt.X("est:Q", scale=xscale),
-        color=alt.Color("sig:N", scale=alt.Scale(domain=["significant", "n.s."], range=[TEAL, "#6b7c8c"]),
-                        legend=alt.Legend(title=None, orient="top", labelColor=MUTED)),
+        color=alt.Color("sig:N", scale=alt.Scale(domain=["significant", "n.s."], range=[TEAL, "#94a3b8"]),
+                        legend=alt.Legend(title=None, orient="top")),
         tooltip=["term", "est", "lo", "hi"])
-    ref = alt.Chart(pd.DataFrame({"x": [null]})).mark_rule(color="#f5c451", strokeDash=[5, 4]).encode(x="x:Q")
-    chart = alt.layer(ref, ci, cap_lo, cap_hi, pts).resolve_scale(x="shared")
-    return _finish(chart, min(460, 140 + 70 * len(d)), f"Forest plot — {label} (dashed line = no effect)")
+    vals = base.mark_text(align="center", dy=-12, fontSize=10, color=INK).encode(
+        x=alt.X("est:Q", scale=xscale), text="vlabel:N")
+    ref = alt.Chart(pd.DataFrame({"x": [null]})).mark_rule(
+        color="#e0a83e", strokeDash=[5, 4], strokeWidth=1.5).encode(x="x:Q")
+    chart = alt.layer(ref, ci, cap_lo, cap_hi, pts, vals).resolve_scale(x="shared")
+    return _finish(chart, 64 + 48 * len(d), f"Forest plot — {label} (dashed line = no effect)", width=640)
 
 
 def survival_plot(km: list):
@@ -331,18 +340,21 @@ def experiment_chart(model: dict):
     fmt = ".0%" if binm else ".2f"
     y_title = "conversion rate" if binm else f"mean {model.get('outcome', 'value')}"
     order = list(d["arm"])
-    base = alt.Chart(d).encode(x=alt.X("arm:N", sort=order, title=None))
-    bars = base.mark_bar(cornerRadiusEnd=3).encode(
+    present = [r for r in ("winner", "variant", "control") if r in set(d["role"])]   # no phantom legend rows
+    palette = {"winner": TEAL, "variant": "#7c93a8", "control": "#334759"}
+    base = alt.Chart(d).encode(x=alt.X("arm:N", sort=order, title=None, axis=alt.Axis(labelAngle=0)))
+    bars = base.mark_bar(cornerRadiusEnd=3, size=54).encode(
         y=alt.Y("value:Q", title=y_title, axis=alt.Axis(format=fmt)),
-        color=alt.Color("role:N",
-                        scale=alt.Scale(domain=["winner", "variant", "control"],
-                                        range=[TEAL, "#6b7c8c", "#3a4a5a"]),
-                        legend=alt.Legend(title=None, orient="top", labelColor=MUTED)),
+        color=alt.Color("role:N", scale=alt.Scale(domain=present, range=[palette[r] for r in present]),
+                        legend=alt.Legend(title=None, orient="top")),
         tooltip=["arm", alt.Tooltip("value:Q", format=fmt), "n:Q"])
-    err = base.mark_rule(color=INK, strokeWidth=1.5).encode(y="ci_low:Q", y2="ci_high:Q")
-    labels = base.mark_text(dy=-8, color=INK, fontSize=12).encode(
+    err = base.mark_rule(color=INK, strokeWidth=1.5).encode(y=alt.Y("ci_low:Q", title=y_title), y2="ci_high:Q")
+    cap_lo = base.mark_tick(color=INK, thickness=1.5, size=14, orient="horizontal").encode(y="ci_low:Q")
+    cap_hi = base.mark_tick(color=INK, thickness=1.5, size=14, orient="horizontal").encode(y="ci_high:Q")
+    labels = base.mark_text(dy=-8, color=INK, fontSize=13, fontWeight="bold").encode(
         y="ci_high:Q", text=alt.Text("value:Q", format=fmt))
-    return _finish(alt.layer(bars, err, labels), 340, "Outcome by variant (95% CI)")
+    return _finish(alt.layer(bars, err, cap_lo, cap_hi, labels), 300, "Outcome by variant (95% CI)",
+                   width=min(560, 200 + 120 * len(d)))
 
 
 def power_curve_chart(model: dict):
@@ -428,10 +440,17 @@ def radar_chart(df: pd.DataFrame, question: str = ""):
     return fig
 
 
-def _finish(chart, height: int, title: str = ""):
-    c = chart.properties(height=height, background=_BG)
+def _finish(chart, height: int, title: str = "", width=None):
+    props = {"height": height, "background": _BG}
+    if _PRINT_ON:
+        # explicit width → a landscape figure. Without it Word scales the narrow PNG to 6in wide and
+        # stretches the height proportionally, producing the tall, whitespace-heavy figures.
+        props["width"] = width or 660
+    c = chart.properties(**props)
     if title and not _PRINT_ON:                     # in the docx the numbered Word caption names the figure
         c = c.properties(title=title)
-    return (c.configure_axis(labelColor=MUTED, titleColor=MUTED, gridColor=GRID, domainColor=DOMAIN)
+    return (c.configure_axis(labelColor=MUTED, titleColor=MUTED, gridColor=GRID, domainColor=DOMAIN,
+                             labelFontSize=12, titleFontSize=13, titleFontWeight="normal")
             .configure_view(strokeWidth=0)
-            .configure_title(color=_TITLE, fontSize=13, anchor="start", font="IBM Plex Sans"))
+            .configure_legend(labelColor=MUTED, titleColor=MUTED, labelFontSize=12)
+            .configure_title(color=_TITLE, fontSize=14, anchor="start", font="IBM Plex Sans"))
