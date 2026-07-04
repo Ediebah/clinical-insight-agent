@@ -125,10 +125,11 @@ def _confidential_footer(doc):
 def _sig_line(doc, role):
     from docx.shared import Pt
     p = doc.add_paragraph()
+    p.paragraph_format.space_after = Pt(4)          # tight, so all three lines fit on the title page
     p.add_run(f"{role}:").bold = True
-    p.add_run("   ____________________________    Name/Title: ____________________    Date: ____________")
+    p.add_run("  ____________________  Name/Title: ______________  Date: __________")
     for r in p.runs:
-        r.font.size = Pt(10)
+        r.font.size = Pt(9.5)
 
 
 def _chart_png(chart):
@@ -241,7 +242,6 @@ def build_docx(result, *, when: _dt.datetime | None = None) -> bytes:
         c[0].text = k; c[0].paragraphs[0].runs[0].bold = True
         c[1].text = v
 
-    doc.add_paragraph()
     ce = doc.add_paragraph()
     ce.add_run("Confidentiality. ").bold = True
     ce.add_run("This document contains automated analytical output and is intended for internal "
