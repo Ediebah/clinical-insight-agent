@@ -648,15 +648,6 @@ st.markdown("""
   engineers the data (missingness, collinearity), fits the right model (survival, regression,
   non-inferiority, causal, or ML), checks the assumptions (proportional hazards, separation, VIF), and
   reports the result with the caveats a text-to-SQL bot skips.</p>
-  <div class="pill-row">
-    <span class="pill">dbt star schema</span>
-    <span class="pill">RAG semantic catalog</span>
-    <span class="pill">self-healing SQL</span>
-    <span class="pill">survival · regression · causal</span>
-    <span class="pill">non-inferiority · sample size</span>
-    <span class="pill">VIF · PH · assumption checks</span>
-    <span class="pill">Wilson CIs · FDR</span>
-  </div>
   <div class="meta">OpenAI <span class="dot">·</span> DuckDB (Synthea, synthetic)
     <span class="dot">·</span> read-only, row-capped</div>
 </div>
@@ -674,7 +665,7 @@ if _view == "📊 Monitoring":                             # render the ops surf
 
 # ───────────────────────────── ask ─────────────────────────────
 if "question" not in st.session_state:
-    st.session_state.question = EXAMPLES[0]
+    st.session_state.question = ""          # start empty so the input reads as "type your own"
 if "byod" not in st.session_state:
     st.session_state.byod = None          # holds {db_path, dir, catalog, table} once a file is loaded
 
@@ -749,7 +740,7 @@ else:
     _clear_byod()                                    # leaving BYOD → drop its temp dir (else it leaks)
     with st.expander("📋 What data can I ask about?"):
         st.markdown(_data_dictionary())
-    st.markdown("<div class='eyebrow'>Try one — the agent auto-selects the method</div>",
+    st.markdown("<div class='eyebrow'>Try an example — or type your own question below</div>",
                 unsafe_allow_html=True)
     for _group, _qs in EXAMPLE_GROUPS.items():
         st.markdown(f"<div style='color:var(--accent);font-size:.98rem;font-weight:700;"
@@ -760,8 +751,10 @@ else:
                 if c.button(ex, key=f"ex_{ex}", use_container_width=True):
                     st.session_state.question = ex
 
-st.markdown("<div class='eyebrow'>Your question</div>", unsafe_allow_html=True)
-question = st.text_input("q", key="question", label_visibility="collapsed")   # persists typed text
+st.markdown("<div class='eyebrow'>Your question — ask anything about the data in plain English</div>",
+            unsafe_allow_html=True)
+question = st.text_input("q", key="question", label_visibility="collapsed",   # persists typed text
+                         placeholder="e.g. What predicts 30-day readmission, adjusting for age and sex?")
 go = st.button("Run analysis  →", type="primary")
 
 
