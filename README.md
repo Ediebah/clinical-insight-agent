@@ -44,32 +44,6 @@ Built entirely on **synthetic EHR data (zero PHI)**, so the whole thing is publi
 
 ---
 
-## Architecture
-
-```
-┌──────────┐  generate   ┌───────────┐  load   ┌──────────────────┐   dbt: staging → star schema → analytics
-│ Synthea  │────────────▶│ raw CSVs  │────────▶│ DuckDB (raw)     │───────────────────────────────────────┐
-│ (Java)   │ seed 12345  │ 10 tables │         │ faithful VARCHAR │                                         │
-└──────────┘             └───────────┘         └──────────────────┘                                         ▼
-                                                                          ┌───────────────────────────────────────────┐
-   dbt docs generate → manifest.json + catalog.json ──────────┐          │ 10 stg_ views · 6 dim_ · 5 fct_ · 5 mart_   │
-                                                               │          │ 26 models · 111 data tests · docs each      │
-                                                               ▼          └───────────────────────────────────────────┘
-                                              ┌──────────────────────────┐
-                                              │ semantic_catalog.json     │  tables · grain · keys · types ·
-                                              │ (AI-readable)             │  example values · metric SQL + caveats
-                                              └────────────┬──────────────┘
-                                                           │ RAG (token-overlap retrieval, no embeddings)
-                                                           ▼
-   ┌──────────────────────────────────────  agent loop  ──────────────────────────────────────┐
-   │ triage/clarify? → retrieve → route → plan → SQL → execute(read-only) → SELF-HEAL           │
-   │   → cite → GUARDRAIL (CIs · FDR · confounding) → VERIFY (LLM critic) → interpret → model    │
-   └───────────────────────────────────────────┬───────────────────────────────────────────────┘
-                                                ▼  Streamlit UI, shows its work, cost trace, monitoring
-```
-
----
-
 ## Capabilities
 
 ### The agent loop  (`agent/agent.py`)
