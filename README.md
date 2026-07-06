@@ -15,7 +15,7 @@ correction, confounding) that a text-to-SQL tool never does. Built by a clinical
 Built entirely on **synthetic EHR data (zero PHI)**, so the whole thing is public and reproducible.
 
 **🔗 Live demo:** [healthcare-warehouse-agent.streamlit.app](https://healthcare-warehouse-agent.streamlit.app)
-· **CI on every push:** `dbt build` + 104 data tests + 117 unit tests + guardrail eval.
+· **CI on every push:** `dbt build` + 111 data tests + 117 unit tests + guardrail eval.
 
 ![Clinical Insight Agent: a natural-language answer rendered as KPI cards, a bar chart with Wilson 95% confidence-interval whiskers, self-verification, and the statistical guardrail (contrasts + FDR, confounding).](assets/dashboard.png)
 
@@ -53,7 +53,7 @@ Built entirely on **synthetic EHR data (zero PHI)**, so the whole thing is publi
 └──────────┘             └───────────┘         └──────────────────┘                                         ▼
                                                                           ┌───────────────────────────────────────────┐
    dbt docs generate → manifest.json + catalog.json ──────────┐          │ 10 stg_ views · 6 dim_ · 5 fct_ · 5 mart_   │
-                                                               │          │ 26 models · 104 data tests · docs each      │
+                                                               │          │ 26 models · 111 data tests · docs each      │
                                                                ▼          └───────────────────────────────────────────┘
                                               ┌──────────────────────────┐
                                               │ semantic_catalog.json     │  tables · grain · keys · types ·
@@ -138,7 +138,7 @@ The connection is opened `read_only=True` **and** with `enable_external_access=f
 autoload, so DuckDB rejects, at the engine, every write **and** all filesystem/URL access
 (`COPY … TO`, `read_csv`/`read_text`/`read_blob`/`glob`, `ATTACH`, `httpfs`). A **statement denylist**
 (write/DDL keywords + file-reading table functions), single-statement enforcement, an outer row cap, and an
-append-only **audit log** are defense-in-depth on top. `read_only` alone would not stop file exfiltration , 
+append-only **audit log** are defense-in-depth on top. `read_only` alone would not stop file exfiltration;
 this does, and it's covered by tests.
 
 ### Monitoring tab  (`app.py`)
@@ -170,17 +170,17 @@ only, since column names + a few example values reach the LLM.
 
 ### The warehouse  (`warehouse/`)
 `dbt-core` + `dbt-duckdb` + `dbt_utils`, **26 models across staging → core (star schema) → analytics marts**,
-with **104 data tests** and docs on every model. [Synthea](https://github.com/synthetichealth/synthea)
-generates **1,139 synthetic patients**, reproducibly (seed 12345). A **semantic catalog** (14 analytics
+with **111 data tests** and docs on every model. [Synthea](https://github.com/synthetichealth/synthea)
+generates **1,139 synthetic patients**, reproducibly (seed 12345). A **semantic catalog** (16 modeled
 tables + 6 named metrics with statistical caveats) is auto-generated from the dbt artifacts to make the
 warehouse AI-readable, and a deterministic **token-overlap RAG** retrieves over it (no embedding calls).
 
 ### Engineering
 - **117 keyless `pytest` unit tests** (guardrail stats, SQL validation & security, retrieval, charts, agent
   helpers, modeling) + `ruff` + a coverage gate, run in CI.
-- **GitHub Actions CI:** Synthea → DuckDB → `dbt build` (104 tests) → regenerate the catalog → guardrail eval,
+- **GitHub Actions CI:** Synthea → DuckDB → `dbt build` (111 tests) → regenerate the catalog → guardrail eval,
   on every push.
-- **Eval suite** over one 33-case labeled `GOLD` set: answer accuracy, retrieval precision/recall/MRR
+- **Eval suite** over one 35-case labeled `GOLD` set: answer accuracy, retrieval precision/recall/MRR
   (keyless), guardrail precision/recall (keyless & deterministic), and an **LLM-as-a-judge** for factual
   consistency (hallucination rate) + relevance.
 - **Deployable:** a `Dockerfile` (portable to Cloud Run / Render / Railway / Fly) + `DEPLOY.md`, or Streamlit
@@ -230,7 +230,8 @@ cp agent/.env.example agent/.env      # then put your OPENAI_API_KEY in agent/.e
 .venv/bin/streamlit run app.py
 ```
 
-**Deploy:** the repo ships a slim `data/healthcare_demo.duckdb` (~32 MB, marts only) so the app runs without
+**Deploy:** the repo ships a slim `data/healthcare_demo.duckdb` (~34 MB — the full star schema with
+`fct_observations` sampled) so the app runs without
 rebuilding the warehouse. Build the container (`docker build -t clinical-agent .`) and run it anywhere, or on
 [share.streamlit.io](https://share.streamlit.io) point a new app at `app.py` and add `OPENAI_API_KEY` under
 Secrets. See `DEPLOY.md`.
