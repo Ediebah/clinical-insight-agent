@@ -11,6 +11,21 @@
         "condition_code"
       ],
       "foreign_keys": [],
+      "depends_on": [
+        "stg_conditions"
+      ],
+      "upstream": [
+        {
+          "name": "synthea.conditions",
+          "kind": "source",
+          "layer": "raw"
+        },
+        {
+          "name": "stg_conditions",
+          "kind": "model",
+          "layer": "staging"
+        }
+      ],
       "columns": [
         {
           "name": "condition_code",
@@ -28,10 +43,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "Pneumonia (disorder)",
-            "Proliferative diabetic retinopathy due to type II diabetes mellitus",
-            "Mitral valve regurgitation (disorder)",
-            "Severe anxiety (panic) (finding)"
+            "Traumatic dislocation of temporomandibular joint (disorder)",
+            "Idiopathic atrophic hypothyroidism (disorder)",
+            "History of aortic valve replacement (situation)",
+            "Mitral valve regurgitation (disorder)"
           ]
         },
         {
@@ -53,16 +68,31 @@
         "medication_code"
       ],
       "foreign_keys": [],
+      "depends_on": [
+        "stg_medications"
+      ],
+      "upstream": [
+        {
+          "name": "synthea.medications",
+          "kind": "source",
+          "layer": "raw"
+        },
+        {
+          "name": "stg_medications",
+          "kind": "model",
+          "layer": "staging"
+        }
+      ],
       "columns": [
         {
           "name": "medication_code",
           "type": "VARCHAR",
           "description": "Primary key (RxNorm code).",
           "example_values": [
-            "313110",
-            "106892",
-            "562251",
-            "106258"
+            "310988",
+            "849574",
+            "1049625",
+            "476556"
           ]
         },
         {
@@ -70,10 +100,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "Meperidine Hydrochloride 50 MG Oral Tablet",
-            "fosfomycin 3000 MG Granules for Oral Solution",
-            "amoxicillin 875 MG / clavulanate 125 MG Oral Tablet",
-            "120 ACTUAT fluticasone propionate 0.11 MG/ACTUAT Metered Dose Inhaler [Flovent]"
+            "120 ACTUAT fluticasone propionate 0.11 MG/ACTUAT Metered Dose Inhaler [Flovent]",
+            "proparacaine hydrochloride 5 MG/ML Ophthalmic Solution",
+            "Doxycycline Monohydrate 50 MG Oral Tablet",
+            "{7 (ethinyl estradiol 0.035 MG / norgestimate 0.18 MG Oral Tablet) / 7 (ethinyl estradiol 0.035 MG / norgestimate 0.215 MG Oral Tablet) / 7 (ethinyl estradiol 0.035 MG / norgestimate 0.25 MG Oral Tablet) / 7 (inert ingredients 1 MG Oral Tablet) } Pack [Ortho Tri-Cyclen 28 Day]"
           ]
         }
       ]
@@ -87,6 +117,21 @@
         "organization_id"
       ],
       "foreign_keys": [],
+      "depends_on": [
+        "stg_organizations"
+      ],
+      "upstream": [
+        {
+          "name": "synthea.organizations",
+          "kind": "source",
+          "layer": "raw"
+        },
+        {
+          "name": "stg_organizations",
+          "kind": "model",
+          "layer": "staging"
+        }
+      ],
       "columns": [
         {
           "name": "organization_id",
@@ -99,10 +144,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "TRINITY FAMILY MEDICINE",
-            "CAREWELL URGENT CARE CENTERS OF MA  PC",
-            "CLAFLIN HILL CORPORATION",
-            "LIFE CARE CENTER OF PLYMOUTH"
+            "BOSTON HEALTH CARE FOR THE HOMELESS PROGRAM INC",
+            "NURSE ON CALL",
+            "CAPE HERITAGE REHABILITATION & HEALTH CARE CENTER",
+            "EAST FALMOUTH FAMILY PRACTICE PC"
           ]
         },
         {
@@ -170,6 +215,21 @@
         "patient_id"
       ],
       "foreign_keys": [],
+      "depends_on": [
+        "stg_patients"
+      ],
+      "upstream": [
+        {
+          "name": "synthea.patients",
+          "kind": "source",
+          "layer": "raw"
+        },
+        {
+          "name": "stg_patients",
+          "kind": "model",
+          "layer": "staging"
+        }
+      ],
       "columns": [
         {
           "name": "patient_id",
@@ -198,7 +258,7 @@
         {
           "name": "age",
           "type": "DOUBLE",
-          "description": "Age in years at death (if deceased) or as of the current date.",
+          "description": "Age in years at death (if deceased) or as of the cohort's snapshot date (the latest date in the data). Non-negative by construction.",
           "example_values": []
         },
         {
@@ -206,10 +266,10 @@
           "type": "VARCHAR",
           "description": "Clinical age band.",
           "example_values": [
-            "0-17",
             "18-39",
-            "65-74",
-            "40-64"
+            "0-17",
+            "40-64",
+            "75+"
           ]
         },
         {
@@ -217,8 +277,8 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "M",
-            "F"
+            "F",
+            "M"
           ]
         },
         {
@@ -226,10 +286,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "white",
-            "native",
-            "asian",
-            "other"
+            "other",
+            "black",
+            "hawaiian",
+            "asian"
           ]
         },
         {
@@ -246,10 +306,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "M",
             "W",
-            "D",
-            "S"
+            "S",
+            "M",
+            "D"
           ]
         },
         {
@@ -276,10 +336,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "Suffolk County",
+            "Barnstable County",
             "Worcester County",
             "Nantucket County",
-            "Barnstable County"
+            "Suffolk County"
           ]
         },
         {
@@ -322,6 +382,21 @@
         "payer_id"
       ],
       "foreign_keys": [],
+      "depends_on": [
+        "stg_payers"
+      ],
+      "upstream": [
+        {
+          "name": "synthea.payers",
+          "kind": "source",
+          "layer": "raw"
+        },
+        {
+          "name": "stg_payers",
+          "kind": "model",
+          "layer": "staging"
+        }
+      ],
       "columns": [
         {
           "name": "payer_id",
@@ -335,9 +410,9 @@
           "description": "",
           "example_values": [
             "Medicare",
-            "Blue Cross Blue Shield",
-            "UnitedHealthcare",
-            "NO_INSURANCE"
+            "Humana",
+            "Medicaid",
+            "Blue Cross Blue Shield"
           ]
         },
         {
@@ -345,9 +420,9 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "PRIVATE",
+            "NO_INSURANCE",
             "GOVERNMENT",
-            "NO_INSURANCE"
+            "PRIVATE"
           ]
         },
         {
@@ -397,6 +472,32 @@
         "provider_id"
       ],
       "foreign_keys": [],
+      "depends_on": [
+        "stg_providers",
+        "stg_organizations"
+      ],
+      "upstream": [
+        {
+          "name": "synthea.organizations",
+          "kind": "source",
+          "layer": "raw"
+        },
+        {
+          "name": "synthea.providers",
+          "kind": "source",
+          "layer": "raw"
+        },
+        {
+          "name": "stg_organizations",
+          "kind": "model",
+          "layer": "staging"
+        },
+        {
+          "name": "stg_providers",
+          "kind": "model",
+          "layer": "staging"
+        }
+      ],
       "columns": [
         {
           "name": "provider_id",
@@ -420,8 +521,8 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "M",
-            "F"
+            "F",
+            "M"
           ]
         },
         {
@@ -454,10 +555,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "NORTH READING",
-            "SHARON",
-            "BOSTON",
-            "MARLBOROUGH"
+            "BRIDGEWATER",
+            "FALMOUTH",
+            "NEEDHAM",
+            "LYNNFIELD"
           ]
         },
         {
@@ -513,6 +614,21 @@
           "references_column": "condition_code"
         }
       ],
+      "depends_on": [
+        "stg_conditions"
+      ],
+      "upstream": [
+        {
+          "name": "synthea.conditions",
+          "kind": "source",
+          "layer": "raw"
+        },
+        {
+          "name": "stg_conditions",
+          "kind": "model",
+          "layer": "staging"
+        }
+      ],
       "columns": [
         {
           "name": "condition_episode_id",
@@ -531,10 +647,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
+            "840544004",
             "160904001",
-            "73438004",
-            "427419006",
-            "161744009"
+            "161744009",
+            "73438004"
           ]
         },
         {
@@ -599,6 +715,21 @@
           "references_column": "payer_id"
         }
       ],
+      "depends_on": [
+        "stg_encounters"
+      ],
+      "upstream": [
+        {
+          "name": "synthea.encounters",
+          "kind": "source",
+          "layer": "raw"
+        },
+        {
+          "name": "stg_encounters",
+          "kind": "model",
+          "layer": "staging"
+        }
+      ],
       "columns": [
         {
           "name": "encounter_id",
@@ -653,10 +784,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
+            "hospice",
             "ambulatory",
             "virtual",
-            "wellness",
-            "hospice"
+            "wellness"
           ]
         },
         {
@@ -755,6 +886,21 @@
           "references_column": "medication_code"
         }
       ],
+      "depends_on": [
+        "stg_medications"
+      ],
+      "upstream": [
+        {
+          "name": "synthea.medications",
+          "kind": "source",
+          "layer": "raw"
+        },
+        {
+          "name": "stg_medications",
+          "kind": "model",
+          "layer": "staging"
+        }
+      ],
       "columns": [
         {
           "name": "medication_order_id",
@@ -773,10 +919,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "106892",
-            "562251",
-            "106258",
-            "313820"
+            "849574",
+            "1049504",
+            "1049625",
+            "349094"
           ]
         },
         {
@@ -836,7 +982,7 @@
         {
           "name": "days_supplied",
           "type": "BIGINT",
-          "description": "",
+          "description": "Days between dispense start and stop; null when ongoing or the source span is invalid (stop before start).",
           "example_values": []
         }
       ]
@@ -854,6 +1000,21 @@
           "column": "patient_id",
           "references_table": "dim_patient",
           "references_column": "patient_id"
+        }
+      ],
+      "depends_on": [
+        "stg_observations"
+      ],
+      "upstream": [
+        {
+          "name": "synthea.observations",
+          "kind": "source",
+          "layer": "raw"
+        },
+        {
+          "name": "stg_observations",
+          "kind": "model",
+          "layer": "staging"
         }
       ],
       "columns": [
@@ -886,10 +1047,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
+            "imaging",
             "vital-signs",
-            "laboratory",
             "survey",
-            "imaging"
+            "laboratory"
           ]
         },
         {
@@ -899,8 +1060,8 @@
           "example_values": [
             "55758-7",
             "5804-0",
-            "6690-2",
-            "93029-7"
+            "93029-7",
+            "93031-3"
           ]
         },
         {
@@ -908,10 +1069,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "Housing status",
-            "QOLS",
             "Body Height",
-            "Alkaline phosphatase [Enzymatic activity/volume] in Serum or Plasma"
+            "QOLS",
+            "Body mass index (BMI) [Ratio]",
+            "pH of Urine by Test strip"
           ]
         },
         {
@@ -919,10 +1080,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "25.0",
-            "121.4",
-            "English",
-            "5.0"
+            "41.6",
+            "124.3",
+            "103.2",
+            "140.6"
           ]
         },
         {
@@ -937,9 +1098,9 @@
           "description": "",
           "example_values": [
             "{score}",
+            "kg/m2",
             "s",
-            "pg/mL",
-            "kg/m2"
+            "pg/mL"
           ]
         },
         {
@@ -968,6 +1129,21 @@
           "references_column": "patient_id"
         }
       ],
+      "depends_on": [
+        "stg_procedures"
+      ],
+      "upstream": [
+        {
+          "name": "synthea.procedures",
+          "kind": "source",
+          "layer": "raw"
+        },
+        {
+          "name": "stg_procedures",
+          "kind": "model",
+          "layer": "staging"
+        }
+      ],
       "columns": [
         {
           "name": "procedure_event_id",
@@ -986,10 +1162,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
+            "104326007",
             "241046008",
             "52052004",
-            "269911007",
-            "305351004"
+            "274474001"
           ]
         },
         {
@@ -1023,8 +1199,8 @@
           "example_values": [
             "37320007",
             "267020005",
-            "1231000119100",
-            "37849005"
+            "37849005",
+            "1231000119100"
           ]
         },
         {
@@ -1033,8 +1209,8 @@
           "description": "",
           "example_values": [
             "Traumatic dislocation of temporomandibular joint (disorder)",
-            "History of aortic valve replacement (situation)",
             "Proliferative diabetic retinopathy due to type II diabetes mellitus",
+            "History of aortic valve replacement (situation)",
             "Adolescent idiopathic scoliosis (disorder)"
           ]
         }
@@ -1050,6 +1226,48 @@
         "age_group"
       ],
       "foreign_keys": [],
+      "depends_on": [
+        "dim_patient",
+        "fct_conditions",
+        "dim_condition"
+      ],
+      "upstream": [
+        {
+          "name": "synthea.conditions",
+          "kind": "source",
+          "layer": "raw"
+        },
+        {
+          "name": "synthea.patients",
+          "kind": "source",
+          "layer": "raw"
+        },
+        {
+          "name": "stg_conditions",
+          "kind": "model",
+          "layer": "staging"
+        },
+        {
+          "name": "stg_patients",
+          "kind": "model",
+          "layer": "staging"
+        },
+        {
+          "name": "dim_condition",
+          "kind": "model",
+          "layer": "core"
+        },
+        {
+          "name": "dim_patient",
+          "kind": "model",
+          "layer": "core"
+        },
+        {
+          "name": "fct_conditions",
+          "kind": "model",
+          "layer": "core"
+        }
+      ],
       "columns": [
         {
           "name": "condition_code",
@@ -1067,10 +1285,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "Pneumonia (disorder)",
-            "Proliferative diabetic retinopathy due to type II diabetes mellitus",
-            "Mitral valve regurgitation (disorder)",
-            "Severe anxiety (panic) (finding)"
+            "Traumatic dislocation of temporomandibular joint (disorder)",
+            "Idiopathic atrophic hypothyroidism (disorder)",
+            "History of aortic valve replacement (situation)",
+            "Mitral valve regurgitation (disorder)"
           ]
         },
         {
@@ -1119,6 +1337,48 @@
           "references_column": "condition_code"
         }
       ],
+      "depends_on": [
+        "fct_conditions",
+        "fct_encounters",
+        "dim_condition"
+      ],
+      "upstream": [
+        {
+          "name": "synthea.conditions",
+          "kind": "source",
+          "layer": "raw"
+        },
+        {
+          "name": "synthea.encounters",
+          "kind": "source",
+          "layer": "raw"
+        },
+        {
+          "name": "stg_conditions",
+          "kind": "model",
+          "layer": "staging"
+        },
+        {
+          "name": "stg_encounters",
+          "kind": "model",
+          "layer": "staging"
+        },
+        {
+          "name": "dim_condition",
+          "kind": "model",
+          "layer": "core"
+        },
+        {
+          "name": "fct_conditions",
+          "kind": "model",
+          "layer": "core"
+        },
+        {
+          "name": "fct_encounters",
+          "kind": "model",
+          "layer": "core"
+        }
+      ],
       "columns": [
         {
           "name": "condition_code",
@@ -1126,9 +1386,9 @@
           "description": "PK \u2014 SNOMED-CT condition code.",
           "example_values": [
             "88805009",
-            "160904001",
-            "1255252008",
-            "22253000"
+            "90560007",
+            "73438004",
+            "161744009"
           ]
         },
         {
@@ -1136,10 +1396,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "Seizure disorder (disorder)",
-            "Sputum finding (finding)",
-            "Pneumonia (disorder)",
-            "Traumatic dislocation of temporomandibular joint (disorder)"
+            "Pre-eclampsia (disorder)",
+            "Severe anxiety (panic) (finding)",
+            "Epidermal burn of skin (disorder)",
+            "Seizure disorder (disorder)"
           ]
         },
         {
@@ -1169,10 +1429,23 @@
       ]
     },
     {
+      "name": "mart_experiments",
+      "layer": "analytics",
+      "relation": "healthcare.main.mart_experiments",
+      "description": "Synthetic product A/B experiment assignments (conversion + revenue by variant), so the agent can draft ship / no-ship calls. One row per user assignment; outcomes are deterministic hash-based pseudo-random (reproducible). Illustrative, not clinical data.",
+      "primary_key": [
+        "assignment_id"
+      ],
+      "foreign_keys": [],
+      "depends_on": [],
+      "upstream": [],
+      "columns": []
+    },
+    {
       "name": "mart_readmissions",
       "layer": "analytics",
       "relation": "healthcare.main.mart_readmissions",
-      "description": "30-day inpatient readmission flags. One row per index inpatient encounter; is_30d_readmission is true when the same patient is admitted again within 0-30 days of discharge.",
+      "description": "30-day inpatient readmission flags. One row per index inpatient encounter; is_30d_readmission is true when the same patient is admitted again strictly after discharge and within a 1-30 day window (a same-day transfer / overlapping stay is not a readmission).",
       "primary_key": [
         "index_encounter_id"
       ],
@@ -1181,6 +1454,26 @@
           "column": "patient_id",
           "references_table": "dim_patient",
           "references_column": "patient_id"
+        }
+      ],
+      "depends_on": [
+        "fct_encounters"
+      ],
+      "upstream": [
+        {
+          "name": "synthea.encounters",
+          "kind": "source",
+          "layer": "raw"
+        },
+        {
+          "name": "stg_encounters",
+          "kind": "model",
+          "layer": "staging"
+        },
+        {
+          "name": "fct_encounters",
+          "kind": "model",
+          "layer": "core"
         }
       ],
       "columns": [
@@ -1217,7 +1510,7 @@
         {
           "name": "days_to_next_admission",
           "type": "BIGINT",
-          "description": "",
+          "description": "Days from discharge to the next inpatient admission; null when the next stay overlaps discharge (no clean gap).",
           "example_values": []
         },
         {
@@ -1233,6 +1526,19 @@
           "example_values": []
         }
       ]
+    },
+    {
+      "name": "mart_trials",
+      "layer": "analytics",
+      "relation": "healthcare.main.mart_trials",
+      "description": "Synthetic clinical-trial outcomes (treatment arm vs standard of care; a binary cure endpoint + an adverse-event flag) for non-inferiority analysis. One row per randomized subject. Deterministic hash-based pseudo-random. NOT real data.",
+      "primary_key": [
+        "subject_id"
+      ],
+      "foreign_keys": [],
+      "depends_on": [],
+      "upstream": [],
+      "columns": []
     }
   ],
   "metrics": [

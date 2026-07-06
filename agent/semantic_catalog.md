@@ -51,7 +51,7 @@ Condition-concept dimension. Grain: one row per SNOMED-CT condition_code.
 | column | type | description | examples |
 |---|---|---|---|
 | `condition_code` | VARCHAR | Primary key (SNOMED-CT code). | 160904001, 73438004, 427419006 |
-| `condition_description` | VARCHAR |  | Pneumonia (disorder), Proliferative diabetic retinopathy due to type II diabetes mellitus, Mitral valve regurgitation (disorder) |
+| `condition_description` | VARCHAR |  | Traumatic dislocation of temporomandibular joint (disorder), Idiopathic atrophic hypothyroidism (disorder), History of aortic valve replacement (situation) |
 | `code_system` | VARCHAR |  | SNOMED-CT |
 
 ### `dim_medication`  (core)
@@ -62,8 +62,8 @@ Medication-concept dimension. Grain: one row per RxNorm medication_code.
 
 | column | type | description | examples |
 |---|---|---|---|
-| `medication_code` | VARCHAR | Primary key (RxNorm code). | 313110, 106892, 562251 |
-| `medication_description` | VARCHAR |  | Meperidine Hydrochloride 50 MG Oral Tablet, fosfomycin 3000 MG Granules for Oral Solution, amoxicillin 875 MG / clavulanate 125 MG Oral Tablet |
+| `medication_code` | VARCHAR | Primary key (RxNorm code). | 310988, 849574, 1049625 |
+| `medication_description` | VARCHAR |  | 120 ACTUAT fluticasone propionate 0.11 MG/ACTUAT Metered Dose Inhaler [Flovent], proparacaine hydrochloride 5 MG/ML Ophthalmic Solution, Doxycycline Monohydrate 50 MG Oral Tablet |
 
 ### `dim_organization`  (core)
 Organization dimension. Grain: one row per organization_id.
@@ -74,7 +74,7 @@ Organization dimension. Grain: one row per organization_id.
 | column | type | description | examples |
 |---|---|---|---|
 | `organization_id` | VARCHAR | Primary key (UUID). |  |
-| `organization_name` | VARCHAR |  | TRINITY FAMILY MEDICINE, CAREWELL URGENT CARE CENTERS OF MA  PC, CLAFLIN HILL CORPORATION |
+| `organization_name` | VARCHAR |  | BOSTON HEALTH CARE FOR THE HOMELESS PROGRAM INC, NURSE ON CALL, CAPE HERITAGE REHABILITATION & HEALTH CARE CENTER |
 | `city` | VARCHAR |  | BRIDGEWATER, FALMOUTH, NEEDHAM |
 | `state` | VARCHAR |  | MA |
 | `zip_code` | VARCHAR |  | 025328305, 014535768, 018033735 |
@@ -95,15 +95,15 @@ Patient dimension. Grain: one row per patient. Adds derived age + clinical age b
 | `birth_date` | DATE |  |  |
 | `death_date` | DATE |  |  |
 | `is_deceased` | BOOLEAN |  |  |
-| `age` | DOUBLE | Age in years at death (if deceased) or as of the current date. |  |
-| `age_group` | VARCHAR | Clinical age band. | 0-17, 18-39, 65-74 |
-| `gender` | VARCHAR |  | M, F |
-| `race` | VARCHAR |  | white, native, asian |
+| `age` | DOUBLE | Age in years at death (if deceased) or as of the cohort's snapshot date (the latest date in the data). Non-negative by construction. |  |
+| `age_group` | VARCHAR | Clinical age band. | 18-39, 0-17, 40-64 |
+| `gender` | VARCHAR |  | F, M |
+| `race` | VARCHAR |  | other, black, hawaiian |
 | `ethnicity` | VARCHAR |  | nonhispanic, hispanic |
-| `marital_status` | VARCHAR |  | M, W, D |
+| `marital_status` | VARCHAR |  | W, S, M |
 | `city` | VARCHAR |  | Somerville, Hopkinton, Hudson |
 | `state` | VARCHAR |  | Massachusetts |
-| `county` | VARCHAR |  | Suffolk County, Worcester County, Nantucket County |
+| `county` | VARCHAR |  | Barnstable County, Worcester County, Nantucket County |
 | `zip_code` | VARCHAR |  | 02134, 02155, 01904 |
 | `healthcare_expenses` | DOUBLE |  |  |
 | `healthcare_coverage` | DOUBLE |  |  |
@@ -118,8 +118,8 @@ Payer dimension. Grain: one row per payer_id.
 | column | type | description | examples |
 |---|---|---|---|
 | `payer_id` | VARCHAR | Primary key (UUID). |  |
-| `payer_name` | VARCHAR |  | Medicare, Blue Cross Blue Shield, UnitedHealthcare |
-| `ownership` | VARCHAR |  | PRIVATE, GOVERNMENT, NO_INSURANCE |
+| `payer_name` | VARCHAR |  | Medicare, Humana, Medicaid |
+| `ownership` | VARCHAR |  | NO_INSURANCE, GOVERNMENT, PRIVATE |
 | `state_headquartered` | VARCHAR |  |  |
 | `amount_covered` | DOUBLE |  |  |
 | `amount_uncovered` | DOUBLE |  |  |
@@ -137,11 +137,11 @@ Provider dimension with denormalized organization name. Grain: one row per provi
 |---|---|---|---|
 | `provider_id` | VARCHAR | Primary key (UUID). |  |
 | `provider_name` | VARCHAR |  | Huong243 Jakubowski832, Jasper743 Champlin946, Carylon722 Corwin846 |
-| `gender` | VARCHAR |  | M, F |
+| `gender` | VARCHAR |  | F, M |
 | `specialty` | VARCHAR |  | GENERAL PRACTICE |
 | `organization_id` | VARCHAR |  |  |
 | `organization_name` | VARCHAR |  | BOSTON HEALTH CARE FOR THE HOMELESS PROGRAM INC, NURSE ON CALL, CAPE HERITAGE REHABILITATION & HEALTH CARE CENTER |
-| `city` | VARCHAR |  | NORTH READING, SHARON, BOSTON |
+| `city` | VARCHAR |  | BRIDGEWATER, FALMOUTH, NEEDHAM |
 | `state` | VARCHAR |  | MA |
 | `zip_code` | VARCHAR |  | 025328305, 014535768, 018033735 |
 | `encounter_count` | INTEGER |  |  |
@@ -158,7 +158,7 @@ Condition-episode fact. Grain: one row per patient-condition episode.
 |---|---|---|---|
 | `condition_episode_id` | VARCHAR | Surrogate primary key. |  |
 | `patient_id` | VARCHAR |  |  |
-| `condition_code` | VARCHAR |  | 160904001, 73438004, 427419006 |
+| `condition_code` | VARCHAR |  | 840544004, 160904001, 161744009 |
 | `encounter_id` | VARCHAR |  |  |
 | `onset_date` | DATE |  |  |
 | `resolved_date` | DATE |  |  |
@@ -182,7 +182,7 @@ Encounter fact. Grain: one row per encounter. Measures: costs, out-of-pocket, du
 | `encounter_date` | DATE |  |  |
 | `encounter_start` | TIMESTAMP |  |  |
 | `encounter_stop` | TIMESTAMP |  |  |
-| `encounter_class` | VARCHAR |  | ambulatory, virtual, wellness |
+| `encounter_class` | VARCHAR |  | hospice, ambulatory, virtual |
 | `encounter_code` | VARCHAR |  | 305408004, 453131000124105, 185349003 |
 | `encounter_description` | VARCHAR |  | Well child visit (procedure), Non-urgent orthopedic admission (procedure), Urgent care clinic (environment) |
 | `reason_code` | VARCHAR |  | 128613002, 37849005, 37320007 |
@@ -204,7 +204,7 @@ Medication-order fact. Grain: one row per medication order.
 |---|---|---|---|
 | `medication_order_id` | VARCHAR | Surrogate primary key. |  |
 | `patient_id` | VARCHAR |  |  |
-| `medication_code` | VARCHAR |  | 106892, 562251, 106258 |
+| `medication_code` | VARCHAR |  | 849574, 1049504, 1049625 |
 | `payer_id` | VARCHAR |  |  |
 | `encounter_id` | VARCHAR |  |  |
 | `dispense_start` | TIMESTAMP |  |  |
@@ -214,7 +214,7 @@ Medication-order fact. Grain: one row per medication order.
 | `payer_coverage` | DOUBLE |  |  |
 | `dispenses` | INTEGER |  |  |
 | `total_cost` | DOUBLE |  |  |
-| `days_supplied` | BIGINT |  |  |
+| `days_supplied` | BIGINT | Days between dispense start and stop; null when ongoing or the source span is invalid (stop before start). |  |
 
 ### `fct_observations`  (core)
 Observation fact (labs/vitals/survey). Grain: one row per measurement.
@@ -229,12 +229,12 @@ Observation fact (labs/vitals/survey). Grain: one row per measurement.
 | `patient_id` | VARCHAR |  |  |
 | `encounter_id` | VARCHAR |  |  |
 | `observed_at` | TIMESTAMP |  |  |
-| `observation_category` | VARCHAR |  | vital-signs, laboratory, survey |
-| `observation_code` | VARCHAR |  | 55758-7, 5804-0, 6690-2 |
-| `observation_description` | VARCHAR |  | Housing status, QOLS, Body Height |
-| `value_text` | VARCHAR |  | 25.0, 121.4, English |
+| `observation_category` | VARCHAR |  | imaging, vital-signs, survey |
+| `observation_code` | VARCHAR |  | 55758-7, 5804-0, 93029-7 |
+| `observation_description` | VARCHAR |  | Body Height, QOLS, Body mass index (BMI) [Ratio] |
+| `value_text` | VARCHAR |  | 41.6, 124.3, 103.2 |
 | `value_numeric` | DOUBLE |  |  |
-| `units` | VARCHAR |  | {score}, s, pg/mL |
+| `units` | VARCHAR |  | {score}, kg/m2, s |
 | `value_type` | VARCHAR |  | text, numeric |
 
 ### `fct_procedures`  (core)
@@ -248,13 +248,13 @@ Procedure fact. Grain: one row per procedure performed.
 |---|---|---|---|
 | `procedure_event_id` | VARCHAR | Surrogate primary key. |  |
 | `patient_id` | VARCHAR |  |  |
-| `procedure_code` | VARCHAR |  | 241046008, 52052004, 269911007 |
+| `procedure_code` | VARCHAR |  | 104326007, 241046008, 52052004 |
 | `encounter_id` | VARCHAR |  |  |
 | `procedure_start` | TIMESTAMP |  |  |
 | `procedure_stop` | TIMESTAMP |  |  |
 | `base_cost` | DOUBLE |  |  |
-| `reason_code` | VARCHAR |  | 37320007, 267020005, 1231000119100 |
-| `reason_description` | VARCHAR |  | Traumatic dislocation of temporomandibular joint (disorder), History of aortic valve replacement (situation), Proliferative diabetic retinopathy due to type II diabetes mellitus |
+| `reason_code` | VARCHAR |  | 37320007, 267020005, 37849005 |
+| `reason_description` | VARCHAR |  | Traumatic dislocation of temporomandibular joint (disorder), Proliferative diabetic retinopathy due to type II diabetes mellitus, History of aortic valve replacement (situation) |
 
 ### `mart_condition_prevalence`  (analytics)
 Condition prevalence by patient age band. One row per (condition_code, age_group). Small age bands make rare-condition estimates noisy — total_patients_in_age_group is the denominator, exposed so consumers can judge reliability.
@@ -265,7 +265,7 @@ Condition prevalence by patient age band. One row per (condition_code, age_group
 | column | type | description | examples |
 |---|---|---|---|
 | `condition_code` | VARCHAR |  | 160904001, 73438004, 427419006 |
-| `condition_description` | VARCHAR |  | Pneumonia (disorder), Proliferative diabetic retinopathy due to type II diabetes mellitus, Mitral valve regurgitation (disorder) |
+| `condition_description` | VARCHAR |  | Traumatic dislocation of temporomandibular joint (disorder), Idiopathic atrophic hypothyroidism (disorder), History of aortic valve replacement (situation) |
 | `age_group` | VARCHAR |  | 18-39, 0-17, 40-64 |
 | `patients_with_condition` | BIGINT |  |  |
 | `total_patients_in_age_group` | BIGINT |  |  |
@@ -280,15 +280,24 @@ Cost of the diagnosing encounter aggregated by condition (NOT lifetime cost of c
 
 | column | type | description | examples |
 |---|---|---|---|
-| `condition_code` | VARCHAR | PK — SNOMED-CT condition code. | 88805009, 160904001, 1255252008 |
-| `condition_description` | VARCHAR |  | Seizure disorder (disorder), Sputum finding (finding), Pneumonia (disorder) |
+| `condition_code` | VARCHAR | PK — SNOMED-CT condition code. | 88805009, 90560007, 73438004 |
+| `condition_description` | VARCHAR |  | Pre-eclampsia (disorder), Severe anxiety (panic) (finding), Epidermal burn of skin (disorder) |
 | `num_episodes` | BIGINT |  |  |
 | `num_patients` | BIGINT | Distinct patients who have this condition. |  |
 | `total_diagnosing_encounter_cost` | DOUBLE |  |  |
 | `avg_diagnosing_encounter_cost` | DOUBLE |  |  |
 
+### `mart_experiments`  (analytics)
+Synthetic product A/B experiment assignments (conversion + revenue by variant), so the agent can draft ship / no-ship calls. One row per user assignment; outcomes are deterministic hash-based pseudo-random (reproducible). Illustrative, not clinical data.
+
+- **Relation:** `healthcare.main.mart_experiments`
+- **Primary key:** assignment_id
+
+| column | type | description | examples |
+|---|---|---|---|
+
 ### `mart_readmissions`  (analytics)
-30-day inpatient readmission flags. One row per index inpatient encounter; is_30d_readmission is true when the same patient is admitted again within 0-30 days of discharge.
+30-day inpatient readmission flags. One row per index inpatient encounter; is_30d_readmission is true when the same patient is admitted again strictly after discharge and within a 1-30 day window (a same-day transfer / overlapping stay is not a readmission).
 
 - **Relation:** `healthcare.main.mart_readmissions`
 - **Primary key:** index_encounter_id
@@ -301,36 +310,15 @@ Cost of the diagnosing encounter aggregated by condition (NOT lifetime cost of c
 | `admission_date` | TIMESTAMP |  |  |
 | `discharge_date` | TIMESTAMP |  |  |
 | `next_admission_start` | TIMESTAMP |  |  |
-| `days_to_next_admission` | BIGINT |  |  |
+| `days_to_next_admission` | BIGINT | Days from discharge to the next inpatient admission; null when the next stay overlaps discharge (no clean gap). |  |
 | `is_30d_readmission` | BOOLEAN | True if a subsequent inpatient admission occurred within 30 days of discharge. |  |
 | `total_claim_cost` | DOUBLE |  |  |
 
-### `mart_experiments`  (analytics)
-Product A/B experiment / test assignments — conversion and revenue by variant, for analyzing experiments and drafting ship / no-ship recommendations. One row per user assignment. Synthetic, deterministic.
-
-- **Relation:** `healthcare.main.mart_experiments`
-- **Primary key:** assignment_id
-- **Experiments available:** `checkout_redesign`, `pricing_page`, `aggressive_upsell`, `onboarding_email`
-
-| column | type | description | examples |
-|---|---|---|---|
-| `experiment` | VARCHAR | Experiment name — filter to ONE per analysis. | checkout_redesign, pricing_page |
-| `variant` | VARCHAR | The arm/variant the user was assigned to. | control, treatment, variant_b |
-| `assignment_id` | VARCHAR | PK — one user's assignment. |  |
-| `converted` | INTEGER | 1 if the user converted, else 0 (primary A/B metric). | 0, 1 |
-| `revenue` | DOUBLE | Revenue for converted users, else 0 (continuous metric). |  |
-
 ### `mart_trials`  (analytics)
-Synthetic clinical-trial outcomes for non-inferiority analysis — a treatment arm vs standard of care, with a binary cure endpoint and an adverse-event flag. One row per randomized subject. Synthetic, deterministic — NOT real data.
+Synthetic clinical-trial outcomes (treatment arm vs standard of care; a binary cure endpoint + an adverse-event flag) for non-inferiority analysis. One row per randomized subject. Deterministic hash-based pseudo-random. NOT real data.
 
 - **Relation:** `healthcare.main.mart_trials`
 - **Primary key:** subject_id
-- **Trials available:** `antibiotic_ni` (new_drug vs standard_of_care), `device_ni` (new_device vs standard_of_care)
 
 | column | type | description | examples |
 |---|---|---|---|
-| `trial` | VARCHAR | Trial name — filter to ONE per analysis. | antibiotic_ni, device_trial |
-| `arm` | VARCHAR | Randomized arm; standard_of_care is the control. | standard_of_care, new_drug, new_device |
-| `subject_id` | VARCHAR | PK — one randomized subject. |  |
-| `cured` | INTEGER | 1 if the cure endpoint was met, else 0 (higher is better). | 0, 1 |
-| `adverse_event` | INTEGER | 1 if an adverse event occurred, else 0 (lower is better). | 0, 1 |

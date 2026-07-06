@@ -24,7 +24,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from . import guardrails, llm, modeling, retrieval, vocabulary
+from . import guardrails, lineage, llm, modeling, retrieval, vocabulary
 from .warehouse import QueryError, run_query
 
 MAX_SQL_TRIES = 4
@@ -119,6 +119,7 @@ class AgentResult:
     verification: dict | None = None                          # {answers_question, confidence, issues}
     model: dict | None = None                                 # inferential model result (ModelResult.as_dict)
     interpretation: str = ""
+    lineage: dict | None = None                               # data provenance of the tables used
     trace: dict | None = None                                 # {calls, tokens, latency_ms, est_cost_usd}
     error: str | None = None
 
@@ -514,6 +515,17 @@ def run_analysis(question: str, max_tries: int = MAX_SQL_TRIES,
             return result
         context += vocab.grounding_block()
 
+        # Data lineage: a "where does X come from / what depends on X" question is answered
+        # deterministically from the dbt DAG baked into the catalog — no SQL, no model. (Demo only;
+        # BYOD uploads have no lineage.) This is the "trace a data point to its origin" capability.
+        lin_cat = retrieval.load_catalog() if catalog is None else None
+        _subj = lineage.detect(question, lin_cat)
+        if _subj:
+            result.interpretation = lineage.answer(_subj, lin_cat, downstream=lineage.is_downstream(question))
+            result.lineage = lineage.for_tables([_subj], lin_cat)
+            result.citations = [_subj]
+            return result
+
         # Inferential questions → fit a real model. Checked BEFORE triage so a specific model
         # question ("what predicts X adjusting for Y") isn't clarified away as vague.
         if _MODEL_HINT.search(question):
@@ -522,8 +534,10 @@ def run_analysis(question: str, max_tries: int = MAX_SQL_TRIES,
             if spec.get("model_type") == "sample_size":       # design-stage calc — no data/SQL
                 return _run_sample_size(question, spec, result, start)
             if spec.get("analytic_sql") and spec.get("model_type") not in (None, "", "aggregate"):
-                return _run_model(question, context, spec, result, retrieved["all_table_names"],
-                                  db_path, start, vocab)
+                res = _run_model(question, context, spec, result, retrieved["all_table_names"],
+                                 db_path, start, vocab)
+                res.lineage = lineage.for_tables(res.citations, lin_cat)   # provenance of the tables used
+                return res
 
         _check_deadline(start)
         triage = _triage(question, context)
@@ -584,6 +598,7 @@ def run_analysis(question: str, max_tries: int = MAX_SQL_TRIES,
         result.sql = sql
         result.dataframe = df
         result.citations = _citations(sql, retrieved["all_table_names"])
+        result.lineage = lineage.for_tables(result.citations, lin_cat)   # provenance of the tables used
         result.findings = guardrails.analyze(df, question, sql)
         _check_deadline(start)
         result.verification = _verify(question, sql, df)

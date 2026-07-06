@@ -71,6 +71,11 @@ EXAMPLE_GROUPS = {
         "Forecast monthly encounter volume for the next 12 months.",
         "Analyze the checkout redesign A/B test — should we ship it?",
     ],
+    "Data lineage & trust": [
+        "Where does the 30-day readmission rate come from?",
+        "How is dim_patient built, and from what source?",
+        "What depends on fct_encounters?",
+    ],
 }
 EXAMPLES = [q for qs in EXAMPLE_GROUPS.values() for q in qs]
 
@@ -772,6 +777,17 @@ def eyebrow(text: str):
     st.markdown(f"<div class='eyebrow'>{text}</div>", unsafe_allow_html=True)
 
 
+def _render_lineage(lin: dict | None) -> None:
+    """Compact provenance panel — where the tables an analysis used come from (the dbt lineage)."""
+    if not lin or not lin.get("tables"):
+        return
+    with st.expander("🧬 Data lineage — where these numbers come from"):
+        for t in lin["tables"]:
+            st.markdown(t["chain"])
+        if lin.get("sources"):
+            st.caption("Raw source(s): " + ", ".join(lin["sources"]))
+
+
 def _result_key(result) -> str:
     """Content hash of a result — the report cache is keyed on THIS, never on the question text, so a
     cross-session cache hit can only mean identical content (no leak of one user's uploaded data)."""
@@ -921,6 +937,13 @@ if result is not None:
         st.error(result.error)
         st.stop()
 
+    # ───────── data-lineage answer (no SQL / model — a "where does this come from?" question) ─────────
+    if result.lineage is not None and result.model is None and not result.sql and result.dataframe is None:
+        eyebrow("Data lineage")
+        st.markdown(f"<div class='card'>{result.interpretation}</div>", unsafe_allow_html=True)
+        _render_lineage(result.lineage)
+        st.stop()
+
     # ───────── inferential model view (adjusted effects) ─────────
     if result.model is not None:
         if result.hypothesis:
@@ -933,6 +956,7 @@ if result is not None:
             if result.citations:
                 chips = "".join(f"<span class='pill'>{html.escape(t)}</span>" for t in result.citations)
                 st.markdown(f"<div class='cite'>tables used: {chips}</div>", unsafe_allow_html=True)
+            _render_lineage(result.lineage)
         eyebrow("Statistical model")
         _mt = result.model.get("model_type")
         if _mt in ("experiment", "noninferiority", "sample_size"):   # decision/design → verdict badge
@@ -1012,6 +1036,7 @@ if result is not None:
     if result.citations:
         chips = "".join(f"<span class='pill'>{html.escape(t)}</span>" for t in result.citations)
         st.markdown(f"<div class='cite'>tables used: {chips}</div>", unsafe_allow_html=True)
+    _render_lineage(result.lineage)
 
     if result.error:
         st.error(result.error)

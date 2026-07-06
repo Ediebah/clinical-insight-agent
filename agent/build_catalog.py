@@ -99,7 +99,56 @@ def sample_values(con, table_name: str, col: str, limit: int = 4) -> list[str]:
         return []
 
 
-def build_tables(manifest: dict, catalog: dict, pks: dict, fks: dict, con=None) -> list[dict]:
+def _node_display(manifest: dict, uid: str) -> dict | None:
+    """Resolve a manifest unique_id to {name, kind, layer} — for a model or a source; None else."""
+    n = manifest["nodes"].get(uid)
+    if n is not None:
+        if n["resource_type"] != "model":
+            return None
+        path = n["path"]
+        if path.startswith("staging/"):
+            layer = "staging"
+        elif path.startswith("marts/"):
+            layer = path.split("/")[1]                 # core | analytics
+        else:
+            layer = "model"
+        return {"name": n["name"], "kind": "model", "layer": layer}
+    s = manifest.get("sources", {}).get(uid)
+    if s is not None:
+        return {"name": f'{s["source_name"]}.{s["name"]}', "kind": "source", "layer": "raw"}
+    return None
+
+
+_LAYER_ORDER = {"raw": 0, "staging": 1, "core": 2, "analytics": 3, "model": 4}
+
+
+def build_lineage(manifest: dict) -> dict[str, dict]:
+    """Per model: immediate parents (`depends_on`) + full transitive upstream (`upstream`), each
+    resolved to {name, kind, layer} and ordered raw → staging → core → analytics. Extracted here
+    (build time) from dbt's DAG so lineage travels IN the committed catalog — no manifest at runtime."""
+    parent_map = manifest.get("parent_map", {})
+
+    def ancestors(uid: str, seen: set) -> None:
+        for p in parent_map.get(uid, []):
+            if p not in seen:
+                seen.add(p)
+                ancestors(p, seen)
+
+    out: dict[str, dict] = {}
+    for uid, node in manifest["nodes"].items():
+        if node["resource_type"] != "model":
+            continue
+        immediate = [d for p in node.get("depends_on", {}).get("nodes", [])
+                     if (d := _node_display(manifest, p))]
+        seen: set = set()
+        ancestors(uid, seen)
+        anc = [d for p in seen if (d := _node_display(manifest, p))]
+        anc.sort(key=lambda d: (_LAYER_ORDER.get(d["layer"], 9), d["name"]))
+        out[node["name"]] = {"depends_on": [d["name"] for d in immediate], "upstream": anc}
+    return out
+
+
+def build_tables(manifest: dict, catalog: dict, pks: dict, fks: dict, lineage: dict, con=None) -> list[dict]:
     tables = []
     for uid, node in manifest["nodes"].items():
         if node["resource_type"] != "model":
@@ -132,6 +181,8 @@ def build_tables(manifest: dict, catalog: dict, pks: dict, fks: dict, con=None) 
             "description": node.get("description", "").strip(),
             "primary_key": pks.get(name, []),
             "foreign_keys": fks.get(name, []),
+            "depends_on": lineage.get(name, {}).get("depends_on", []),   # immediate parents (dbt DAG)
+            "upstream": lineage.get(name, {}).get("upstream", []),        # full provenance to raw sources
             "columns": cols,
         })
     tables.sort(key=lambda t: (t["layer"] != "core", t["name"]))   # core first, then analytics
@@ -218,9 +269,10 @@ def to_markdown(catalog: dict) -> str:
 def main() -> int:
     manifest, catalog_art = load_artifacts()
     pks, fks = collect_keys(manifest)
+    lineage = build_lineage(manifest)
     con = duckdb.connect(str(DB_PATH), read_only=True) if DB_PATH.exists() else None
     try:
-        tables = build_tables(manifest, catalog_art, pks, fks, con=con)
+        tables = build_tables(manifest, catalog_art, pks, fks, lineage, con=con)
     finally:
         if con is not None:
             con.close()
