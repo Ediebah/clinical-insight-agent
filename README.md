@@ -44,6 +44,42 @@ Built entirely on **synthetic EHR data (zero PHI)**, so the whole thing is publi
 
 ---
 
+## Architecture
+
+One reproducible pipeline, every stage versioned, tested, and public: synthetic data →
+a governed dbt star schema → a semantic layer the agent can read → a self-checking
+analysis loop → the UI. No user text ever reaches SQL, and the engine is read-only.
+
+```mermaid
+flowchart TB
+    subgraph GEN["1 · Data generation — synthetic, zero PHI"]
+        direction LR
+        SY["Synthea · Java<br/>seed 12345 · 1,139 patients"] -->|generate| CSV["raw CSVs<br/>10 source tables"] -->|load| RAW["DuckDB<br/>raw schema · faithful VARCHAR"]
+    end
+
+    subgraph WH["2 · dbt warehouse — 26 models · 111 data tests · docs on every model"]
+        direction LR
+        STG["staging<br/>10 stg_ views"] --> CORE["core · star schema<br/>6 dim_ + 5 fct_"] --> ANA["analytics<br/>5 mart_"]
+    end
+
+    subgraph SEM["3 · Semantic layer — makes the warehouse AI-readable"]
+        direction LR
+        DOCS["dbt docs generate<br/>manifest + catalog"] --> SC["semantic_catalog.json<br/>grain · keys · types · metric SQL + caveats · lineage"]
+    end
+
+    subgraph AG["4 · Agent loop (agent/agent.py) — plain-English question in"]
+        direction LR
+        RET["injection guard<br/>→ retrieve · RAG<br/>→ route → plan"] --> RUN["generate SQL<br/>→ execute read-only<br/>→ self-heal ≤ 4×"] --> CHK["cite<br/>→ guardrail · CIs · FDR · confounding<br/>→ verify · LLM critic"] --> OUT["interpret<br/>+ fit statistical model"]
+    end
+
+    RAW --> STG
+    ANA --> DOCS
+    SC -->|retrieval| RET
+    OUT --> UI["Streamlit UI — shows its work · cost/latency trace · monitoring · .docx export"]
+```
+
+---
+
 ## Capabilities
 
 ### The agent loop  (`agent/agent.py`)
@@ -247,7 +283,7 @@ pandas / numpy · **Altair** (+ vl-convert for print figures) · **python-docx**
 
 ---
 
-## Honest limits
+## Limitations
 
 - **Synthetic data.** Synthea is structurally realistic but generated from care-process models; magnitudes
   are **illustrative, not empirical**, this demonstrates method, not clinical fact.
