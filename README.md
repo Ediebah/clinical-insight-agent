@@ -1,81 +1,83 @@
 # Clinical Insight Agent: an AI data scientist over a dbt warehouse
 
-**An AI agent that runs end-to-end data science over a dbt-modeled healthcare warehouse, not text-to-SQL.**
-Ask a question in plain English and the agent retrieves the right schema context, **picks and fits the
-appropriate statistical model** (survival, adjusted regression, causal, non-inferiority, forecast, or ML),
-**engineers the data and checks the assumptions**, runs a **deterministic statistical guardrail**, verifies
-its own work, and reports the result, **with the caveats a generic SQL bot skips**, exportable as a
-regulated-style **Word report**.
+An AI agent that runs end-to-end data science over a dbt-modeled healthcare warehouse. It is not a
+text-to-SQL tool. You ask a question in plain English, and it pulls the right schema context, decides
+which statistical model the question actually needs (survival, adjusted regression, causal,
+non-inferiority, forecast, or a machine-learning model), prepares the data and checks the model's
+assumptions, runs a deterministic statistical guardrail, reviews its own answer, and reports the result
+with the caveats most tools leave out. Any analysis exports to a Word report.
 
-The differentiator isn't the LLM, it's the **statistical judgment encoded around it**: the pre-modeling
-data engineering, the assumption diagnostics, and the guardrail (confidence intervals, multiplicity
-correction, confounding) that a text-to-SQL tool never does. Built by a clinical data scientist
-(biostatistics + ML).
+What makes it useful is not the language model but the statistical judgment built around it: the data
+preparation before a model is fit, the assumption diagnostics after, and a guardrail that computes
+confidence intervals, corrects for multiple comparisons, and watches for confounding. A text-to-SQL tool
+does none of that. I built it as a clinical data scientist working in biostatistics and ML.
 
-Built entirely on **synthetic EHR data (zero PHI)**, so the whole thing is public and reproducible.
+Everything runs on synthetic EHR data, so there is no PHI and the whole project is public and reproducible.
 
-**🔗 Live demo:** [healthcare-warehouse-agent.streamlit.app](https://healthcare-warehouse-agent.streamlit.app)
-· **CI on every push:** `dbt build` + 111 data tests + 117 unit tests + guardrail eval.
+Live demo: [healthcare-warehouse-agent.streamlit.app](https://healthcare-warehouse-agent.streamlit.app).
+CI runs on every push: `dbt build`, 111 data tests, 117 unit tests, and the guardrail eval.
 
 ![Clinical Insight Agent: a natural-language answer rendered as KPI cards, a bar chart with Wilson 95% confidence-interval whiskers, self-verification, and the statistical guardrail (contrasts + FDR, confounding).](assets/dashboard.png)
 
 ---
 
-## What it does (in 30 seconds)
+## What it does
 
-- **Full analyses, autonomously.** One question → retrieve → plan → SQL → **self-heal** (fixes its own SQL on
-  errors, empty results, and degenerate all-zero aggregates) → cite → guardrail → **verify** → interpret +
-  recommend. It shows all of its work and its cost/latency trace.
-- **Auto-routes to the right model**, then fits it with `statsmodels`/`scikit-learn` (deterministic, the
-  numbers aren't hallucinated): regression, survival, causal effects, A/B ship-calls, non-inferiority,
-  forecasting, feature importance, and design-stage power/sample-size.
-- **Encodes biostatistics rigor** a SQL bot skips: covariate adjustment, confidence intervals everywhere,
-  FDR multiplicity correction, confounding/Simpson's-paradox flags, and assumption diagnostics.
-- **Condition-specific, in plain English.** Name a disease the way people say it — *heart attack*, *COPD*,
-  *diabetes*, *MI* — and it resolves the term to the warehouse's real SNOMED codes before querying (so
-  "heart attack" finds *Myocardial infarction*), grounds the cohort in what actually exists, and says so
-  honestly when a condition isn't in the data instead of analyzing an empty set.
-- **Trust the data before reasoning over it.** It traces any number back through the dbt lineage
-  (*"where does the readmission rate come from?"* → `mart_readmissions ← fct_encounters ← raw
-  synthea.encounters`), and a **pre-flight health gate** refuses to run analyses over a warehouse
-  that's failing critical integrity checks — so a broken pipeline can't push corrupt metrics downstream.
-- **Production-shaped:** read-only hardened at the engine, a live monitoring tab, an eval suite, 117 unit
-  tests + CI, a Dockerfile, bring-your-own-data upload, and a `.docx` report export.
+- Runs a full analysis from one question. It retrieves schema context, plans an approach, writes SQL, and
+  fixes that SQL on its own when a query errors, returns nothing, or comes back all zeros. Then it cites the
+  tables it used, runs the guardrail, reviews its own work, and interprets the result. The UI shows every
+  step, along with the cost and latency of the run.
+- Picks the model the question calls for and fits it with `statsmodels` or `scikit-learn`, so the numbers are
+  computed rather than generated: regression, survival, causal effects, A/B ship-decisions, non-inferiority,
+  forecasting, feature importance, and power or sample-size for study design.
+- Applies the statistics a plain SQL tool skips: covariate adjustment, confidence intervals throughout, FDR
+  correction for multiple comparisons, checks for confounding and Simpson's paradox, and model-assumption
+  diagnostics.
+- Understands conditions in plain English. Name a disease the way people say it (*heart attack*, *COPD*,
+  *diabetes*, *MI*) and it maps the term to the SNOMED descriptions actually in the warehouse before it
+  queries, so "heart attack" finds *Myocardial infarction*. It builds the cohort from what exists, and when a
+  condition isn't in the data it says so instead of analyzing an empty set.
+- Checks the data before reasoning over it. It can trace where any number comes from, following the dbt
+  lineage from a mart back to the raw Synthea table. A pre-flight health check refuses to run when the
+  warehouse is failing a critical integrity test, so a broken pipeline can't quietly feed corrupt metrics
+  into an analysis.
+- Built to run in production: the SQL engine is read-only, there is a live monitoring tab, an eval suite,
+  117 unit tests in CI, a Dockerfile, upload-your-own-data, and a Word-report export.
 
 ---
 
 ## Architecture
 
-One reproducible pipeline, every stage versioned, tested, and public: synthetic data →
-a governed dbt star schema → a semantic layer the agent can read → a self-checking
-analysis loop → the UI. No user text ever reaches SQL, and the engine is read-only.
+The whole pipeline is versioned, tested, and public. Synthetic data feeds a governed dbt star schema; a
+semantic layer makes that schema readable to the agent; the agent runs a self-checking analysis loop; and
+the UI shows the result. Nothing you type reaches SQL, and the query engine is read-only.
 
 ```mermaid
 flowchart TB
-    subgraph GEN["1 · Data generation — synthetic, zero PHI"]
+    subgraph GEN["1 · Data generation: synthetic, zero PHI"]
         direction LR
         SY["Synthea · Java<br/>seed 12345 · 1,139 patients"] -->|generate| CSV["raw CSVs<br/>10 source tables"] -->|load| RAW["DuckDB<br/>raw schema · faithful VARCHAR"]
     end
 
-    subgraph WH["2 · dbt warehouse — 26 models · 111 data tests · docs on every model"]
+    subgraph WH["2 · dbt warehouse: 26 models · 111 data tests · docs on every model"]
         direction LR
         STG["staging<br/>10 stg_ views"] --> CORE["core · star schema<br/>6 dim_ + 5 fct_"] --> ANA["analytics<br/>5 mart_"]
     end
 
-    subgraph SEM["3 · Semantic layer — makes the warehouse AI-readable"]
+    subgraph SEM["3 · Semantic layer: makes the warehouse AI-readable"]
         direction LR
         DOCS["dbt docs generate<br/>manifest + catalog"] --> SC["semantic_catalog.json<br/>grain · keys · types · metric SQL + caveats · lineage"]
     end
 
-    subgraph AG["4 · Agent loop (agent/agent.py) — plain-English question in"]
+    subgraph AG["4 · Agent loop (agent/agent.py): plain-English question in"]
         direction LR
-        RET["injection guard<br/>→ retrieve · RAG<br/>→ route → plan"] --> RUN["generate SQL<br/>→ execute read-only<br/>→ self-heal ≤ 4×"] --> CHK["cite<br/>→ guardrail · CIs · FDR · confounding<br/>→ verify · LLM critic"] --> OUT["interpret<br/>+ fit statistical model"]
+        RET["injection guard<br/>then retrieve · RAG<br/>then route, plan"] --> RUN["generate SQL<br/>then execute read-only<br/>then self-heal up to 4x"] --> CHK["cite<br/>then guardrail · CIs · FDR · confounding<br/>then verify · LLM critic"] --> OUT["interpret<br/>and fit a statistical model"]
     end
 
     RAW --> STG
     ANA --> DOCS
     SC -->|retrieval| RET
-    OUT --> UI["Streamlit UI — shows its work · cost/latency trace · monitoring · .docx export"]
+    OUT --> UI["Streamlit UI: shows its work · cost/latency trace · monitoring · .docx export"]
 ```
 
 ---
@@ -83,125 +85,132 @@ flowchart TB
 ## Capabilities
 
 ### The agent loop  (`agent/agent.py`)
-Prompt-injection guard → RAG retrieval over the semantic catalog → **model routing** (does this need an
-inferential model, or a plain aggregation?) → clarify-gate on vague questions → hypothesis + plan → generate
-DuckDB SQL → execute read-only and **self-heal up to 4× on SQL error / empty / degenerate result** → cite the
-catalog tables used → statistical guardrail → **LLM verify-critic** ("does this SQL answer *this* question?")
-→ interpret with a recommendation. A per-run wall-clock budget and graceful degradation mean it never hangs
-or crashes the app; every run's tokens/latency/cost are persisted.
+A question first passes a prompt-injection check, then RAG retrieval pulls the relevant slice of the semantic
+catalog. The agent decides whether the question needs an inferential model or just an aggregation, and asks a
+clarifying question when a request is too vague to answer. It forms a hypothesis and a plan, writes DuckDB
+SQL, and runs it read-only. If the query errors, returns nothing, or degenerates to all zeros, it rewrites
+and retries up to four times. It then cites the catalog tables it used, runs the statistical guardrail, and
+has a second LLM critic confirm that the SQL actually answers the question asked before interpreting the
+result and giving a recommendation. A per-run time budget and graceful fallbacks keep it from hanging or
+crashing the app, and every run's tokens, latency, and cost are recorded.
 
 ### Condition-specific analysis  (`agent/vocabulary.py`)
-Ask about a specific disease in plain English and a deterministic resolver maps the term to the warehouse's
-real SNOMED `condition_description` values **before** any SQL runs: *heart attack* → *Myocardial infarction*,
-*COPD* → *chronic obstructive bronchitis* **and** *pulmonary emphysema*, plus common abbreviations (MI, HTN,
-CKD, IHD) and demonyms/plurals (*diabetics*, *asthmatics*). Both the aggregate and the model paths then filter
-on a cohort that exists, so the agent never silently fits a model on an empty set; a condition absent from this
-synthetic build (e.g. *flu*) returns an honest clarification naming the closest available conditions, and a
-tiny cohort (e.g. *stroke*, n=6) is reported as too small to model rather than forced. It's keyless, and no
-user text ever reaches SQL — matching happens over an in-memory copy of the vocabulary, so the injection
-surface is zero. Hardened against a **~2,250-scenario adversarial stress test** (0 crashes / false-blocks /
-invalid filters throughout); whole-word matching took precision on benign analytical questions to 100%.
+Ask about a specific disease in plain English and a deterministic resolver maps the term to the SNOMED
+`condition_description` values in the warehouse before any SQL runs. "Heart attack" becomes *Myocardial
+infarction*; *COPD* becomes both *chronic obstructive bronchitis* and *pulmonary emphysema*; common
+abbreviations (MI, HTN, CKD, IHD) and forms like *diabetics* or *asthmatics* resolve too. Both the aggregate
+and the modeling paths then filter on a cohort that exists, so the agent never fits a model on an empty set.
+A condition that isn't in this synthetic build, such as *flu*, returns an honest note naming the closest
+available conditions, and a tiny cohort, such as *stroke* at n=6, is reported as too small to model rather
+than forced. It needs no API key, and no user text reaches SQL: matching happens over an in-memory copy of
+the vocabulary, so there is nothing to inject into. It held up across a roughly 2,250-scenario adversarial
+stress test with no crashes, false blocks, or invalid filters, and whole-word matching brought precision on
+ordinary analytical questions to 100%.
 
-### Data trust — lineage + a pre-flight health gate  (`agent/lineage.py`, `agent/quality_agent.py`)
-Two guards so an agent only reasons over data it can trust:
-- **Lineage / provenance.** A *"where does this number come from?"* question is answered **deterministically
-  from the dbt DAG** (no LLM, no SQL): *"where does the readmission rate come from?"* → `mart_readmissions ←
-  fct_encounters ← stg_encounters ← raw synthea.encounters`; *"what depends on fct_encounters?"* walks it the
-  other way. The lineage is baked into the semantic catalog at build time, so it works on the deployed app
-  with no manifest present, and **every** analysis attaches the provenance of the tables its SQL touched.
-- **Pre-flight health gate.** Before producing metrics, a cached data-quality battery (PK uniqueness,
-  referential integrity, completeness, accepted values, numeric ranges) runs against the warehouse; a
-  **critical** failure (a duplicate key or an orphaned foreign key) **blocks the analysis** rather than let a
-  broken pipeline push corrupt numbers downstream — silent when healthy, loud when not.
+### Data trust: lineage and a pre-flight health gate  (`agent/lineage.py`, `agent/quality_agent.py`)
+Two checks keep the agent on data it can trust.
+- Lineage. A "where does this number come from?" question is answered straight from the dbt DAG, with no LLM
+  and no SQL: the readmission rate traces back as `mart_readmissions ← fct_encounters ← stg_encounters ← raw
+  synthea.encounters`, and "what depends on fct_encounters?" walks the graph the other way. The lineage is
+  baked into the semantic catalog at build time, so it works on the deployed app even with no manifest
+  present, and every analysis attaches the provenance of the tables its SQL touched.
+- Pre-flight health gate. Before it produces any metric, a cached data-quality battery runs against the
+  warehouse: primary-key uniqueness, referential integrity, completeness, accepted values, and numeric
+  ranges. A critical failure, such as a duplicate key or an orphaned foreign key, blocks the analysis rather
+  than letting a broken pipeline push corrupt numbers downstream. It stays quiet when the data is healthy and
+  speaks up when it isn't.
 
 ### Model families it fits  (`agent/modeling.py`)
 | Question shape | Model | Output |
 |---|---|---|
-| Adjusted risk / effect (binary) | Logistic regression | Adjusted **odds ratios** + 95% CIs |
-| Adjusted effect (continuous) | OLS regression | Adjusted **coefficients** + 95% CIs |
-| Time-to-event / survival | **Cox PH + Kaplan-Meier** | **Hazard ratios** + KM curves with CI bands |
-| Strongest predictors | Random forest importance | Permutation importance, **leakage-safe CV** |
-| Forecast / trend | Holt-Winters | Forecast with a horizon-widening band |
-| Effect of an intervention | **Cross-fitted AIPW** (doubly-robust) | **ATE** + influence-function CI, positivity trimming |
-| "Should we ship variant B?" | A/B experiment | **SHIP / NO-SHIP / INCONCLUSIVE** + lift CI, **BH-FDR** |
-| "Is treatment non-inferior?" | **Non-inferiority** | Farrington-Manning test + **Miettinen-Nurminen** CI |
-| "How many patients per arm?" | Power / sample-size | n per arm + a sample-size-vs-power curve |
-| Two-variable association | Pearson / Welch-t / ANOVA / χ² | Test statistic + p |
+| Adjusted risk or effect (binary) | Logistic regression | Adjusted odds ratios with 95% CIs |
+| Adjusted effect (continuous) | OLS regression | Adjusted coefficients with 95% CIs |
+| Time-to-event / survival | Cox PH and Kaplan-Meier | Hazard ratios and KM curves with CI bands |
+| Strongest predictors | Random forest importance | Permutation importance, leakage-safe CV |
+| Forecast / trend | Holt-Winters | Forecast with a widening band over the horizon |
+| Effect of an intervention | Cross-fitted AIPW (doubly robust) | ATE with an influence-function CI, positivity trimming |
+| "Should we ship variant B?" | A/B experiment | Ship / no-ship / inconclusive with a lift CI, BH-FDR |
+| "Is treatment non-inferior?" | Non-inferiority | Farrington-Manning test with a Miettinen-Nurminen CI |
+| "How many patients per arm?" | Power / sample-size | n per arm and a sample-size vs power curve |
+| Two-variable association | Pearson / Welch t / ANOVA / χ² | Test statistic and p-value |
 
-**Every model first runs an audited data-engineering pass** (`_prepare`): drop rows with a missing outcome,
-drop predictors >10% missing, drop quasi-constant and datetime/high-cardinality/ID-like columns, **pool
-sparse categorical levels** into `other` (avoids sparse-category separation), single-impute the rest
-(median/mode), and **remove multicollinearity by VIF** *before* fitting. After fitting it surfaces (not
-silently fixes) **assumption violations**: events-per-variable, complete/quasi-complete separation,
-**proportional hazards** (Schoenfeld residuals), non-linearity (quadratic-term test), and heteroskedasticity
-(Breusch-Pagan). The random forest trains in a **scikit-learn `Pipeline`** with imputation fit per fold
-(no leakage), 5-fold cross-validation, and class balancing.
+Before any model is fit, the data goes through a preparation pass (`_prepare`). Rows missing the outcome are
+dropped, predictors more than 10% missing are dropped, and quasi-constant, datetime, high-cardinality, and
+ID-like columns are removed. Sparse categorical levels are pooled into an `other` bucket to avoid separation,
+the rest is single-imputed with a median or mode, and collinear predictors are removed by VIF. After fitting,
+the model surfaces assumption problems rather than quietly fixing them: events-per-variable, complete or
+quasi-complete separation, proportional hazards (Schoenfeld residuals), non-linearity (a quadratic-term
+test), and heteroskedasticity (Breusch-Pagan). The random forest is trained inside a `scikit-learn` Pipeline
+with imputation fit per fold to avoid leakage, 5-fold cross-validation, and class balancing.
 
 ### The statistical guardrail  (`agent/guardrails.py`), deterministic, no LLM
-Wilson score CIs per group, **pairwise Newcombe difference CIs + two-proportion z-tests corrected with
-Benjamini-Hochberg FDR**, skew-aware summaries (median/IQR + bootstrap mean CI), **confounding** and
-**Simpson's-paradox** detection, missing-denominator and multiple-comparison flags, and an always-on
-synthetic-data note. The LLM may only *phrase* these caveats, never invent or omit them.
+Computed in code rather than by the model: Wilson score intervals per group; pairwise Newcombe difference
+intervals with two-proportion z-tests, corrected for multiplicity with Benjamini-Hochberg FDR; skew-aware
+summaries (median and IQR plus a bootstrap mean interval); detection of confounding and Simpson's paradox;
+and flags for a missing denominator or too many comparisons. A note that the data is synthetic is always
+present. The LLM is allowed to phrase these caveats but never to invent or drop one.
 
-### Security, read-only, hardened at the engine  (`agent/warehouse.py`)
-The connection is opened `read_only=True` **and** with `enable_external_access=false` + no extension
-autoload, so DuckDB rejects, at the engine, every write **and** all filesystem/URL access
-(`COPY … TO`, `read_csv`/`read_text`/`read_blob`/`glob`, `ATTACH`, `httpfs`). A **statement denylist**
-(write/DDL keywords + file-reading table functions), single-statement enforcement, an outer row cap, and an
-append-only **audit log** are defense-in-depth on top. `read_only` alone would not stop file exfiltration;
-this does, and it's covered by tests.
+### Security: read-only, hardened at the engine  (`agent/warehouse.py`)
+The DuckDB connection is opened read-only, with external access disabled and no extension autoloading, so the
+engine itself rejects every write and every attempt to reach the filesystem or a URL (`COPY … TO`,
+`read_csv`, `read_text`, `read_blob`, `glob`, `ATTACH`, `httpfs`). On top of that there is a statement
+denylist for write and DDL keywords and file-reading table functions, single-statement enforcement, an outer
+row cap, and an append-only audit log. Read-only on its own would not stop file exfiltration; this setup
+does, and it is covered by tests.
 
 ### Monitoring tab  (`app.py`)
-A production ops surface: agent usage, success rate, **latency p50/p95**, tokens, and estimated spend; an
-activity chart and most-asked questions; **👍/👎 human feedback** with free-text corrections; and **live,
-automated data-quality checks** against the warehouse, row volumes, **primary-key uniqueness**,
-**referential integrity**, **completeness**, and **metric sanity** (e.g. readmission rate in a plausible band).
+A small ops surface for the agent: usage, success rate, latency at p50 and p95, tokens, and estimated spend,
+plus an activity chart and the most-asked questions. Users can leave thumbs-up or thumbs-down feedback with a
+free-text correction. It also runs live data-quality checks against the warehouse, covering row volumes,
+primary-key uniqueness, referential integrity, completeness, and metric sanity (for example, whether the
+readmission rate sits in a plausible band).
 
-### Regulated `.docx` report export  (`agent/report.py`)
-Any analysis exports to an industry-format Statistical Analysis Report: a title/approval page (explicit
-**DRAFT** status + signature block), synopsis, data sources & analysis population, methods with the **exact
-runtime software versions**, numbered results tables (with **mutually-exclusive N/events per category and the
-reference level**) and **publication-grade forest / KM / forecast / power figures**, assumption diagnostics,
-the guardrail findings, interpretation, and an **ICH-E9 limitations & validation statement**, with a
-confidential, page-numbered footer. Rendered and verified in a real Word engine (`python-docx` + `vl-convert`).
+### Word report export  (`agent/report.py`)
+Any analysis exports to a Statistical Analysis Report in the format the industry uses: a title and approval
+page marked DRAFT with a signature block, a synopsis, the data sources and analysis population, methods that
+record the exact software versions used at runtime, numbered results tables (with mutually exclusive N and
+events per category and the reference level called out), forest, Kaplan-Meier, forecast, and power figures,
+the assumption diagnostics, the guardrail findings, an interpretation, and an ICH-E9 limitations and
+validation statement, with a confidential, page-numbered footer. It is rendered and checked in a real Word
+engine (`python-docx` with `vl-convert`).
 
 ### Bring your own data  (`agent/userdata.py`)
-Upload a CSV/Excel and the **same agent** runs on it: the table is registered in a session DuckDB, a semantic
-catalog is generated from its columns, and the full pipeline (SQL → guardrail → any model, incl. A/B and
-non-inferiority) answers questions about *your* data. A non-PHI notice warns to upload non-sensitive data
-only, since column names + a few example values reach the LLM.
+Upload a CSV or Excel file and the same agent runs on it. The table is registered in a session-scoped DuckDB,
+a semantic catalog is generated from its columns, and the full pipeline (SQL, guardrail, and any model,
+including A/B and non-inferiority) answers questions about your data. A notice reminds you to upload
+non-sensitive data only, since column names and a few example values are sent to the LLM.
 
 ### Automation
-- **Automated dbt model generation** (`agent/model_builder.py`): plain English → the agent drafts a dbt model
-  (`{{ ref() }}` over the star schema) **plus schema tests**, writes the `.sql` + `schema.yml`, runs
-  `dbt build`, and **self-heals** (reads the failure → rewrites → rebuilds) until it's green.
-- **Data-quality auto-fix demo** (`agent/pipeline_healer.py`): a dbt test fails → the agent diagnoses the
-  root cause → proposes a fix → rebuild → green.
+- Automated dbt model generation (`agent/model_builder.py`): from plain English, the agent drafts a dbt model
+  that refs the star schema along with its schema tests, writes the `.sql` and `schema.yml`, runs `dbt build`,
+  and self-heals by reading the failure, rewriting, and rebuilding until the build is green.
+- Data-quality auto-fix demo (`agent/pipeline_healer.py`): when a dbt test fails, the agent diagnoses the root
+  cause, proposes a fix, and rebuilds to green.
 
 ### The warehouse  (`warehouse/`)
-`dbt-core` + `dbt-duckdb` + `dbt_utils`, **26 models across staging → core (star schema) → analytics marts**,
-with **111 data tests** and docs on every model. [Synthea](https://github.com/synthetichealth/synthea)
-generates **1,139 synthetic patients**, reproducibly (seed 12345). A **semantic catalog** (16 modeled
-tables + 6 named metrics with statistical caveats) is auto-generated from the dbt artifacts to make the
-warehouse AI-readable, and a deterministic **token-overlap RAG** retrieves over it (no embedding calls).
+`dbt-core` with `dbt-duckdb` and `dbt_utils`, 26 models across staging, a core star schema, and analytics
+marts, with 111 data tests and docs on every model. [Synthea](https://github.com/synthetichealth/synthea)
+generates 1,139 synthetic patients reproducibly (seed 12345). A semantic catalog covering 16 modeled tables
+and 6 named metrics with their statistical caveats is generated from the dbt artifacts to make the warehouse
+readable to the agent, and a deterministic token-overlap RAG retrieves over it with no embedding calls.
 
 ### Engineering
-- **117 keyless `pytest` unit tests** (guardrail stats, SQL validation & security, retrieval, charts, agent
-  helpers, modeling, condition-vocabulary grounding, data lineage, and the data-quality gate) + `ruff` +
-  a coverage gate, run in CI.
-- **GitHub Actions CI:** Synthea → DuckDB → `dbt build` (111 tests) → regenerate the catalog → guardrail eval,
-  on every push.
-- **Eval suite** over one 35-case labeled `GOLD` set: answer accuracy, retrieval precision/recall/MRR
-  (keyless), guardrail precision/recall (keyless & deterministic), and an **LLM-as-a-judge** for factual
-  consistency (hallucination rate) + relevance.
-- **Deployable:** a `Dockerfile` (portable to Cloud Run / Render / Railway / Fly) + `DEPLOY.md`, or Streamlit
-  Community Cloud. The OpenAI key is a runtime secret, never baked in.
+- 117 keyless `pytest` unit tests covering the guardrail statistics, SQL validation and security, retrieval,
+  charts, agent helpers, modeling, condition-vocabulary grounding, data lineage, and the data-quality gate,
+  plus `ruff` and a coverage gate, all run in CI.
+- GitHub Actions CI on every push: Synthea, then DuckDB, then `dbt build` (111 tests), then a catalog
+  regenerate, then the guardrail eval.
+- An eval suite over a 35-case labeled `GOLD` set: answer accuracy, retrieval precision/recall/MRR (keyless),
+  guardrail precision/recall (keyless and deterministic), and an LLM-as-a-judge check for factual consistency
+  (hallucination rate) and relevance.
+- Deployable with a `Dockerfile` (portable to Cloud Run, Render, Railway, or Fly) and `DEPLOY.md`, or on
+  Streamlit Community Cloud. The OpenAI key is a runtime secret and is never baked in.
 
 ![Survival analysis, Kaplan-Meier survival curves by group with 95% CI bands and a Cox hazard-ratio forest plot.](assets/survival.png)
 
 ![Experiment analysis, a SHIP / NO-SHIP verdict, per-variant conversion with 95% CIs, and a lift forest plot (Newcombe CI + two-proportion z-test, BH-FDR across variants).](assets/ab-experiment.png)
 
-![Non-inferiority, the treatment−control effect with its 95% CI shown against the non-inferiority margin; decided by the Farrington–Manning score test with a Miettinen–Nurminen CI.](assets/ni-noninferiority.png)
+![Non-inferiority, the effect of treatment versus control with its 95% CI shown against the non-inferiority margin; decided by the Farrington-Manning score test with a Miettinen-Nurminen CI.](assets/ni-noninferiority.png)
 
 ![Trial design, a power/sample-size question returns the required n per arm and a sample-size-vs-power curve.](assets/sample-size.png)
 
@@ -209,7 +218,8 @@ warehouse AI-readable, and a deterministic **token-overlap RAG** retrieves over 
 
 ## Try it / run locally
 
-Prereqs: `git`, [`uv`](https://docs.astral.sh/uv/), a **JDK 17+** (only to regenerate data), and an OpenAI key.
+Prereqs: `git`, [`uv`](https://docs.astral.sh/uv/), a JDK 17+ (only needed to regenerate data), and an
+OpenAI key.
 
 ```bash
 # 1. Environment (dev = app + dbt; the deployed app installs only requirements.txt)
@@ -241,19 +251,18 @@ cp agent/.env.example agent/.env      # then put your OPENAI_API_KEY in agent/.e
 .venv/bin/streamlit run app.py
 ```
 
-**Deploy:** the repo ships a slim `data/healthcare_demo.duckdb` (~34 MB — the full star schema with
-`fct_observations` sampled) so the app runs without
-rebuilding the warehouse. Build the container (`docker build -t clinical-agent .`) and run it anywhere, or on
-[share.streamlit.io](https://share.streamlit.io) point a new app at `app.py` and add `OPENAI_API_KEY` under
-Secrets. See `DEPLOY.md`.
+Deploy: the repo ships a slim `data/healthcare_demo.duckdb` (about 34 MB, the full star schema with
+`fct_observations` sampled) so the app runs without rebuilding the warehouse. Build the container
+(`docker build -t clinical-agent .`) and run it anywhere, or point a new app at `app.py` on
+[share.streamlit.io](https://share.streamlit.io) and add `OPENAI_API_KEY` under Secrets. See `DEPLOY.md`.
 
 ---
 
 ## Stack
 
-Python 3.12 · **DuckDB** · **dbt-core + dbt-duckdb + dbt_utils** · **statsmodels** · **scikit-learn** · scipy ·
-pandas / numpy · **Altair** (+ vl-convert for print figures) · **python-docx** · **Streamlit** ·
-**OpenAI** (`gpt-4o` by default, overridable via `OPENAI_MODEL`) · GitHub Actions · Docker.
+Python 3.12, DuckDB, dbt-core with dbt-duckdb and dbt_utils, statsmodels, scikit-learn, scipy, pandas and
+numpy, Altair (with vl-convert for print figures), python-docx, Streamlit, and OpenAI (`gpt-4o` by default,
+overridable with `OPENAI_MODEL`). CI runs on GitHub Actions; the app is packaged with Docker.
 
 ---
 
@@ -267,17 +276,17 @@ pandas / numpy · **Altair** (+ vl-convert for print figures) · **python-docx**
 │   ├── guardrails.py            deterministic statistical guardrail (Wilson/Newcombe, FDR, confounding, …)
 │   ├── warehouse.py             read-only, engine-hardened, audited SQL execution
 │   ├── retrieval.py             token-overlap RAG over the semantic catalog
-│   ├── report.py                regulated-style .docx Statistical Analysis Report
+│   ├── report.py                Word Statistical Analysis Report export
 │   ├── userdata.py              bring-your-own-data (CSV/Excel → same agent)
 │   ├── model_builder.py         autogen + validate a dbt model from plain English
 │   ├── pipeline_healer.py       self-healing pipeline demo (dbt test fails → agent fixes)
-│   ├── charts.py · llm.py · observe.py · build_catalog.py
-│   └── eval*.py · guardrail_eval.py · eval_dataset.py   the eval suite + GOLD set
+│   ├── charts.py, llm.py, observe.py, build_catalog.py
+│   └── eval*.py, guardrail_eval.py, eval_dataset.py   the eval suite + GOLD set
 ├── warehouse/                   the dbt project (staging → core → analytics marts + tests + docs)
 ├── tests/                       117 keyless pytest unit tests
 ├── scripts/load_raw.py          Synthea CSV → DuckDB raw
 ├── .github/workflows/ci.yml     Synthea → DuckDB → dbt build → catalog → guardrail eval
-├── Dockerfile · DEPLOY.md · GOVERNANCE.md
+├── Dockerfile, DEPLOY.md, GOVERNANCE.md
 └── data/healthcare_demo.duckdb  slim marts DB for the deployed demo (committed)
 ```
 
@@ -285,13 +294,13 @@ pandas / numpy · **Altair** (+ vl-convert for print figures) · **python-docx**
 
 ## Limitations
 
-- **Synthetic data.** Synthea is structurally realistic but generated from care-process models; magnitudes
-  are **illustrative, not empirical**, this demonstrates method, not clinical fact.
-- **Exploratory, not confirmatory.** Variable selection is data-driven and CIs/p-values aren't adjusted for
-  it; a real regulatory analysis additionally needs a pre-specified SAP and independent double-programming,
-  which a qualified biostatistician owns. The `.docx` export says so explicitly.
-- **The deployed demo DB samples `fct_observations`** to fit repo limits, no demo/eval question depends on
-  it; the full local warehouse has everything.
-- The agent is grounded to the catalog and read-only, but it can still write a well-formed query that answers
-  a subtly different question than intended, which is exactly why the shown SQL, guardrail, and verify-critic
-  keep a human in the loop.
+- Synthetic data. Synthea is structurally realistic but comes from care-process models, so the magnitudes are
+  illustrative rather than empirical. This shows method, not clinical fact.
+- Exploratory, not confirmatory. Variable selection is data-driven, and the CIs and p-values are not adjusted
+  for that selection. A real regulatory analysis also needs a pre-specified SAP and independent
+  double-programming, owned by a qualified biostatistician. The Word export says so.
+- The deployed demo DB samples `fct_observations` to fit the repo size limit. No demo or eval question
+  depends on it, and the full local warehouse has everything.
+- The agent is grounded to the catalog and read-only, but it can still write a valid query that answers a
+  slightly different question than you meant. That is why the SQL, the guardrail, and the verify step are all
+  shown, to keep a human in the loop.
