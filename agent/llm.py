@@ -1,7 +1,8 @@
-"""Thin OpenAI wrapper + lightweight cost/latency tracing.
+"""Thin OpenAI (or any OpenAI-compatible endpoint) wrapper + lightweight cost/latency tracing.
 
-The client is created lazily so this imports cleanly with no API key. Every call records tokens,
-latency, and an estimated cost into a per-run trace the agent can attach to its result.
+The client is created lazily so this imports cleanly with no API key. Set OPENAI_BASE_URL to run against
+a local model (Ollama, LM Studio, vLLM) or any OpenAI-compatible API with no OpenAI key. Every call
+records tokens, latency, and an estimated cost into a per-run trace the agent can attach to its result.
 """
 from __future__ import annotations
 
@@ -42,6 +43,7 @@ def reset_trace() -> None:
 
 
 def trace_summary() -> dict:
+    local = _is_local()
     known = MODEL in _COST
     ci, co = _COST[MODEL] if known else _FALLBACK_COST
     pt = sum(t["prompt_tokens"] for t in _TRACE)
@@ -51,11 +53,19 @@ def trace_summary() -> dict:
         "prompt_tokens": pt,
         "completion_tokens": ct,
         "latency_ms": round(sum(t["ms"] for t in _TRACE)),
-        "est_cost_usd": round(pt / 1000 * ci + ct / 1000 * co, 4),
+        # A local model via OPENAI_BASE_URL is free to run, so report $0 rather than a hosted estimate.
+        "est_cost_usd": 0.0 if local else round(pt / 1000 * ci + ct / 1000 * co, 4),
         # True → MODEL is unknown, so est_cost_usd uses the gpt-4o fallback rate above (an
-        # order-of-magnitude estimate, never a false $0). False → MODEL is a known priced id.
-        "est_cost_approx": not known,
+        # order-of-magnitude estimate, never a false $0). False → known priced id, or a free local run.
+        "est_cost_approx": (not known) and not local,
     }
+
+
+def _is_local() -> bool:
+    """True when pointed at a custom OpenAI-compatible endpoint (Ollama, LM Studio, vLLM, a free-tier
+    API) via OPENAI_BASE_URL rather than hosted OpenAI. Such endpoints need no real key, can be much
+    slower, and don't all accept every OpenAI-only parameter (e.g. `seed`, JSON mode)."""
+    return bool(os.getenv("OPENAI_BASE_URL"))
 
 
 def _get_client():
@@ -63,27 +73,37 @@ def _get_client():
     if _client is None:
         if not os.getenv("OPENAI_API_KEY"):
             load_dotenv(Path(__file__).resolve().parent / ".env", override=False)
-        if not os.getenv("OPENAI_API_KEY"):
+        base_url = os.getenv("OPENAI_BASE_URL") or None
+        key = os.getenv("OPENAI_API_KEY")
+        # A local / self-hosted endpoint (Ollama etc.) ignores the key, so only hosted OpenAI needs one.
+        if not key and not base_url:
             raise LLMError(
-                "OPENAI_API_KEY is not set. Copy agent/.env.example to agent/.env and add your key "
-                "(then restart the app if it was already running)."
+                "OPENAI_API_KEY is not set. Copy agent/.env.example to agent/.env and add your key, or "
+                "set OPENAI_BASE_URL to run on a local model with no key (see the README). Restart the "
+                "app if it was already running."
             )
         from openai import OpenAI
         # max_retries → the SDK retries transient failures (429 rate-limit, 5xx, timeouts,
-        # connection errors) with exponential backoff; timeout caps a hung request.
-        _client = OpenAI(max_retries=4, timeout=40.0)
+        # connection errors) with exponential backoff; timeout caps a hung request (a local model,
+        # especially on CPU, can be far slower than hosted OpenAI).
+        _client = OpenAI(base_url=base_url, api_key=key or "local", max_retries=4,
+                         timeout=120.0 if base_url else 40.0)
     return _client
 
 
 def complete(system: str, user: str, *, json_mode: bool = False, temperature: float = 0.0,
              max_tokens: int = MAX_TOKENS) -> str:
+    local = _is_local()
     kwargs = dict(
         model=MODEL,
         temperature=temperature,
-        seed=0,                 # reproducibility: pin sampling so identical prompts return identically
         max_tokens=max_tokens,  # cost/latency guardrail: cap tokens generated per call
         messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
     )
+    if not local:
+        # reproducibility: pin sampling so identical prompts return identically. Only sent to hosted
+        # OpenAI; many compatible servers reject an unknown `seed` field.
+        kwargs["seed"] = 0
     if json_mode:
         kwargs["response_format"] = {"type": "json_object"}
     t0 = time.perf_counter()
@@ -92,7 +112,21 @@ def complete(system: str, user: str, *, json_mode: bool = False, temperature: fl
     except LLMError:
         raise
     except Exception as e:   # SDK already retried transient errors; surface the final failure cleanly
-        raise LLMError(f"LLM request failed: {type(e).__name__}: {e}") from e
+        # A compatible endpoint may reject response_format; retry once without it, asking for JSON in
+        # the prompt instead, so local models without a JSON mode still work.
+        if local and json_mode:
+            try:
+                kwargs.pop("response_format", None)
+                kwargs["messages"] = [
+                    {"role": "system",
+                     "content": system + "\n\nReturn only valid JSON, with no prose and no code fences."},
+                    {"role": "user", "content": user},
+                ]
+                resp = _get_client().chat.completions.create(**kwargs)
+            except Exception as e2:
+                raise LLMError(f"LLM request failed: {type(e2).__name__}: {e2}") from e2
+        else:
+            raise LLMError(f"LLM request failed: {type(e).__name__}: {e}") from e
     ms = (time.perf_counter() - t0) * 1000
     u = getattr(resp, "usage", None)
     _TRACE.append({
