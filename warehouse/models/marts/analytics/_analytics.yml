@@ -5,9 +5,12 @@ version: 2
 models:
   - name: mart_readmissions
     description: >
-      30-day inpatient readmission flags. One row per index inpatient encounter; is_30d_readmission
-      is true when the same patient is admitted again strictly after discharge and within a 1-30 day
-      window (a same-day transfer / overlapping stay is not a readmission).
+      30-day inpatient readmission flags. One row per index inpatient encounter the patient survived
+      to discharge (died-in-stay admissions are excluded from the denominator, per standard readmission
+      measures); is_30d_readmission is true when the same patient is admitted again strictly after
+      discharge and within a 1-30 day window (a same-day transfer / overlapping stay is not a
+      readmission). The qualifying admission is the EARLIEST post-discharge admission, not merely the
+      next by start order, so an overlapping stay cannot shadow a genuine readmission.
     columns:
       - name: index_encounter_id
         description: "PK — the index inpatient encounter."
@@ -21,7 +24,7 @@ models:
         description: "True if a subsequent inpatient admission occurred within 30 days of discharge."
         data_tests: [not_null]
       - name: days_to_next_admission
-        description: "Days from discharge to the next inpatient admission; null when the next stay overlaps discharge (no clean gap)."
+        description: "Days from discharge to the earliest inpatient admission that starts strictly after discharge; null when the patient has no later inpatient admission. Overlapping/concurrent stays are never counted."
         data_tests:
           - dbt_utils.accepted_range:
               arguments:
