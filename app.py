@@ -1128,7 +1128,7 @@ if result is not None:
 st.markdown("""
 <div class="footer">
   <span>Synthetic data (Synthea) · no PHI</span><span class="dot">·</span>
-  <a href="https://github.com/Ediebah/healthcare-warehouse-agent" target="_blank">GitHub ↗</a>
+  <a href="https://github.com/Ediebah/clinical-insight-agent" target="_blank">GitHub ↗</a>
   <span class="dot">·</span><span>dbt · DuckDB · OpenAI</span>
 </div>
 """, unsafe_allow_html=True)

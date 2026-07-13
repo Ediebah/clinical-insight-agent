@@ -1,6 +1,6 @@
 # Clinical Insight Agent: an AI data scientist over a dbt warehouse
 
-[![CI](https://github.com/Ediebah/healthcare-warehouse-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/Ediebah/healthcare-warehouse-agent/actions/workflows/ci.yml)
+[![CI](https://github.com/Ediebah/clinical-insight-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/Ediebah/clinical-insight-agent/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](pyproject.toml)
 [![Live demo](https://img.shields.io/badge/demo-live-FF4B4B?logo=streamlit&logoColor=white)](https://clinical-insight-agent.streamlit.app)
@@ -32,7 +32,7 @@ The repo ships a slim demo warehouse (`data/healthcare_demo.duckdb`), so the app
 no Java, no Synthea, no dbt build.
 
 ```bash
-git clone https://github.com/Ediebah/healthcare-warehouse-agent && cd healthcare-warehouse-agent
+git clone https://github.com/Ediebah/clinical-insight-agent && cd clinical-insight-agent
 uv venv --python 3.12 && uv pip install -r requirements.txt
 cp agent/.env.example agent/.env       # add OPENAI_API_KEY, or run a free local model (see below)
 .venv/bin/streamlit run app.py
