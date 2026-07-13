@@ -42,13 +42,18 @@ _TRACE_LOG = Path(__file__).resolve().parent.parent / "logs" / "traces.jsonl"
 
 # Defense-in-depth: block obvious prompt-injection before spending any tokens. (The SQL layer is
 # already read-only + validated, so the blast radius is small; this stops instruction-override too.)
+# The ignore/disregard/forget verbs REQUIRE an instruction-ish noun nearby: "ignore the previous
+# quarter" and "forget the denominator" are ordinary analytical phrasings, not overrides.
+_INSTRUCTION_NOUN = r"(instructions?|prompts?|rules?|messages?|directions?|commands?|guidance|guidelines|training|context|system)"
 _INJECTION = re.compile(
-    r"(ignore (all |the )?(previous|above|prior)|disregard (the |your |all )?(previous|instruction|rule)|"
+    r"(ignore (all |the |any |every )?(previous|above|prior|earlier) " + _INSTRUCTION_NOUN + "|"
+    r"disregard (the |your |all )?((previous|above|prior|earlier) )?" + _INSTRUCTION_NOUN + "|"
     r"system prompt|prompt injection|you are now|you must now|new (system )?instructions|"
     r"reveal (your|the) (instructions|prompt|system)|print (your |the )?(instructions|prompt|system)|"
     r"dump (your|the) (instructions|prompt|system)|jailbreak|developer mode|"
     r"override (the |your )?(rules|instructions)|bypass (the |your )?(rules|guard|filter|instructions)|"
-    r"forget (your|the|all)|pretend (to be|you are))", re.I)
+    r"forget ((all |any )?(your|the) |all )?" + _INSTRUCTION_NOUN + "|forget everything|"
+    r"pretend (to be|you are))", re.I)
 
 
 def _looks_like_injection(q: str) -> bool:
@@ -216,12 +221,25 @@ def _verify(question: str, sql: str, df: pd.DataFrame) -> dict:
     return out
 
 
+def _truncation_finding(df) -> guardrails.Finding | None:
+    """A row-capped result must never be reported as a total — flag it as a lower bound."""
+    if df is None or not df.attrs.get("truncated"):
+        return None
+    return guardrails.Finding(
+        "truncated_result", "warn",
+        f"The result hit the row cap: only the first {len(df):,} rows were returned, so every count "
+        "derived from it is a lower bound (at least this many). Aggregate in SQL (GROUP BY / count(*)) "
+        "for exact totals.")
+
+
 def _interpret(question: str, sql: str, df: pd.DataFrame, findings: list[guardrails.Finding]) -> str:
     preview = _preview_csv(df, 30)
     caveats = guardrails.render(findings)
+    total = (f"at least {len(df):,} — TRUNCATED at the row cap, treat every count as a lower bound"
+             if df.attrs.get("truncated") else f"{len(df)}")
     return llm.complete(
         _SYSTEM,
-        f"QUESTION: {question}\n\nSQL:\n{sql}\n\nRESULT ({len(df)} rows total; showing up to 30):\n{preview}\n\n"
+        f"QUESTION: {question}\n\nSQL:\n{sql}\n\nRESULT ({total} rows total; showing up to 30):\n{preview}\n\n"
         f"STATISTICAL CAVEATS (computed deterministically — you must respect these, do not overstate):\n"
         f"{caveats}\n\n"
         "Use the TOTAL row count above (not the shown sample) for any count you state.\n"
@@ -453,6 +471,9 @@ def _run_model(question: str, context: str, spec: dict, result: AgentResult, tab
     except Exception as e:  # noqa: BLE001 — a malformed model spec must not crash the app
         mr = modeling.ModelResult(spec.get("model_type") or "?", spec.get("outcome", ""), 0, "",
                                   error=f"the model spec was missing a required field ({e}).")
+    if df.attrs.get("truncated") and not mr.error:
+        mr.issues.append(f"The cohort hit the {len(df):,}-row cap — the model was fit on a truncated "
+                         "sample, not the full population the SQL matches.")
     # Specification-curve robustness: for an adjusted effect, refit across the covariate multiverse and
     # report whether the headline holds (the garden of forking paths). Advisory — never break the analysis.
     if not mr.error and mr.model_type in ("logistic", "ols", "cox", "survival") and mr.terms:
@@ -629,6 +650,8 @@ def run_analysis(question: str, max_tries: int = MAX_SQL_TRIES,
         result.citations = _citations(sql, retrieved["all_table_names"])
         result.lineage = lineage.for_tables(result.citations, lin_cat)   # provenance of the tables used
         result.findings = guardrails.analyze(df, question, sql)
+        if (tf := _truncation_finding(df)):
+            result.findings.append(tf)
         _check_deadline(start)
         result.verification = _verify(question, sql, df)
         _check_deadline(start)

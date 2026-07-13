@@ -30,6 +30,15 @@ def main() -> int:
     if not CSV_DIR.exists():
         sys.exit(f"CSV dir not found: {CSV_DIR}\nRun the Synthea generate step first.")
 
+    # Fail HARD if any expected CSV is absent (unless --allow-missing). Skipping a missing file
+    # silently leaves the previous generation's table in `raw`, and dbt then builds a warehouse
+    # mixing two Synthea runs — dangling FKs that surface (at best) as puzzling test failures.
+    missing = [f"{name}.csv" for name in TABLES if not (CSV_DIR / f"{name}.csv").exists()]
+    if missing and "--allow-missing" not in sys.argv:
+        sys.exit(f"Missing {len(missing)} expected CSV(s) in {CSV_DIR}: {', '.join(missing)}\n"
+                 "A partial load would silently mix data from two Synthea generations. Re-run the "
+                 "generate step, or pass --allow-missing to load anyway (stale tables are DROPPED).")
+
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect(str(DB_PATH))
     con.execute("CREATE SCHEMA IF NOT EXISTS raw;")
@@ -38,7 +47,8 @@ def main() -> int:
     for name in TABLES:
         csv = CSV_DIR / f"{name}.csv"
         if not csv.exists():
-            print(f"  ! missing {csv.name} — skipping")
+            con.execute(f"DROP TABLE IF EXISTS raw.{name}")      # never keep a stale generation
+            print(f"  ! missing {csv.name} — dropped raw.{name}")
             continue
         # Inline the local path (trusted); all_varchar keeps raw faithful.
         con.execute(

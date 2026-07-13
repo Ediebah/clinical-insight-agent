@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import threading
 import time
 from pathlib import Path
 
@@ -31,7 +33,16 @@ _COST = {
 # Unknown / dated model ids (e.g. a dated snapshot like "gpt-4o-2024-08-06") aren't in _COST. Rather
 # than report a misleading $0, fall back to gpt-4o pricing and flag the estimate as approximate.
 _FALLBACK_COST = _COST["gpt-4o"]
-_TRACE: list[dict] = []
+# Per-THREAD trace: Streamlit serves each browser session on its own thread within one process, so a
+# module-global list would interleave two concurrent runs (one session's reset_trace() wiping the
+# other's in-flight records, cost/latency cross-attributed).
+_TRACE_LOCAL = threading.local()
+
+
+def _trace() -> list[dict]:
+    if not hasattr(_TRACE_LOCAL, "records"):
+        _TRACE_LOCAL.records = []
+    return _TRACE_LOCAL.records
 
 
 class LLMError(Exception):
@@ -39,20 +50,21 @@ class LLMError(Exception):
 
 
 def reset_trace() -> None:
-    _TRACE.clear()
+    _trace().clear()
 
 
 def trace_summary() -> dict:
     local = _is_local()
     known = MODEL in _COST
     ci, co = _COST[MODEL] if known else _FALLBACK_COST
-    pt = sum(t["prompt_tokens"] for t in _TRACE)
-    ct = sum(t["completion_tokens"] for t in _TRACE)
+    records = _trace()
+    pt = sum(t["prompt_tokens"] for t in records)
+    ct = sum(t["completion_tokens"] for t in records)
     return {
-        "calls": len(_TRACE),
+        "calls": len(records),
         "prompt_tokens": pt,
         "completion_tokens": ct,
-        "latency_ms": round(sum(t["ms"] for t in _TRACE)),
+        "latency_ms": round(sum(t["ms"] for t in records)),
         # A local model via OPENAI_BASE_URL is free to run, so report $0 rather than a hosted estimate.
         "est_cost_usd": 0.0 if local else round(pt / 1000 * ci + ct / 1000 * co, 4),
         # True → MODEL is unknown, so est_cost_usd uses the gpt-4o fallback rate above (an
@@ -85,8 +97,10 @@ def _get_client():
         from openai import OpenAI
         # max_retries → the SDK retries transient failures (429 rate-limit, 5xx, timeouts,
         # connection errors) with exponential backoff; timeout caps a hung request (a local model,
-        # especially on CPU, can be far slower than hosted OpenAI).
-        _client = OpenAI(base_url=base_url, api_key=key or "local", max_retries=4,
+        # especially on CPU, can be far slower than hosted OpenAI). Keep retries×timeout modest:
+        # the agent's between-step run deadline cannot interrupt a single in-flight call, so this
+        # product bounds the worst-case hang of one step.
+        _client = OpenAI(base_url=base_url, api_key=key or "local", max_retries=2,
                          timeout=120.0 if base_url else 40.0)
     return _client
 
@@ -129,7 +143,7 @@ def complete(system: str, user: str, *, json_mode: bool = False, temperature: fl
             raise LLMError(f"LLM request failed: {type(e).__name__}: {e}") from e
     ms = (time.perf_counter() - t0) * 1000
     u = getattr(resp, "usage", None)
-    _TRACE.append({
+    _trace().append({
         "ms": ms,
         "prompt_tokens": getattr(u, "prompt_tokens", 0) or 0,
         "completion_tokens": getattr(u, "completion_tokens", 0) or 0,
@@ -137,12 +151,33 @@ def complete(system: str, user: str, *, json_mode: bool = False, temperature: fl
     return resp.choices[0].message.content or ""
 
 
+def _salvage_json(raw: str) -> dict | None:
+    """Extract a JSON object from prose/code fences. Local models often wrap JSON in text even in
+    JSON mode (many OpenAI-compatible servers accept response_format and silently ignore it)."""
+    m = re.search(r"\{.*\}", raw, re.DOTALL)
+    if m:
+        try:
+            out = json.loads(m.group(0))
+            return out if isinstance(out, dict) else None
+        except json.JSONDecodeError:
+            return None
+    return None
+
+
 def complete_json(system: str, user: str, temperature: float = 0.0, retries: int = 2) -> dict:
     last = ""
-    for _ in range(retries + 1):
-        raw = complete(system, user, json_mode=True, temperature=temperature)
+    for attempt in range(retries + 1):
+        # After a parse failure, escalate in the PROMPT: a server that accepts-but-ignores
+        # response_format returns prose without erroring, so resending the identical request
+        # would just fail the same way.
+        sys_msg = system if attempt == 0 else (
+            system + "\n\nReturn ONLY a valid JSON object — no prose, no code fences, no explanation.")
+        raw = complete(sys_msg, user, json_mode=True, temperature=temperature)
         try:
             return json.loads(raw)
         except json.JSONDecodeError:
-            last = raw            # occasionally the model returns prose in JSON mode — try again
+            salvaged = _salvage_json(raw)
+            if salvaged is not None:
+                return salvaged
+            last = raw
     raise LLMError(f"Model did not return valid JSON after {retries + 1} tries.\n---\n{last[:500]}")

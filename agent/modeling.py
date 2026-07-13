@@ -95,6 +95,37 @@ def _reference_terms(d: pd.DataFrame, preds: list[str], event_col: str | None, n
     return refs
 
 
+# Label names whose meaning identifies the event/positive class (or its complement) in a 2-level
+# text column. Deliberately conservative: genuinely ambiguous words ("failed" is the event in
+# reliability data but the non-event in conversion data) are left out, so they fall through to the
+# deterministic alphabetical rule + a loud note rather than a wrong guess.
+_POSITIVE_LABELS = frozenset({
+    "1", "true", "t", "yes", "y", "event", "dead", "died", "deceased", "death", "success",
+    "succeeded", "converted", "cured", "positive", "pos", "case", "responder", "readmitted",
+})
+_NEGATIVE_LABELS = frozenset({
+    "0", "false", "f", "no", "n", "alive", "survived", "censored", "negative", "neg", "none",
+    "healthy", "nonresponder", "non-responder",
+})
+
+
+def _event_label(s: pd.Series) -> str | None:
+    """Which of a 2-level non-numeric column's labels is the event (coded 1)? A recognized
+    positive/negative name wins; otherwise the lexicographically LAST label (case-insensitive) —
+    deterministic, unlike order-of-first-appearance, which flipped with row order."""
+    cats = sorted({str(c) for c in pd.unique(s.dropna())}, key=str.lower)
+    if len(cats) != 2:
+        return None
+    a, b = cats
+    pa, pb = a.lower().strip() in _POSITIVE_LABELS, b.lower().strip() in _POSITIVE_LABELS
+    if pa != pb:
+        return a if pa else b
+    na, nb = a.lower().strip() in _NEGATIVE_LABELS, b.lower().strip() in _NEGATIVE_LABELS
+    if na != nb:
+        return b if na else a
+    return b
+
+
 def _to_binary(s: pd.Series) -> pd.Series:
     if s.dtype == bool:
         return s.astype(int)
@@ -109,7 +140,7 @@ def _to_binary(s: pd.Series) -> pd.Series:
                          f"use a regression model or supply a 0/1 outcome")
     cats = list(pd.unique(s.dropna()))
     if len(cats) == 2:
-        return (s == cats[1]).astype(int)
+        return (s.astype(str) == _event_label(s)).astype(int)
     raise ValueError(f"outcome '{s.name}' is not binary ({len(cats)} levels)")
 
 
@@ -338,6 +369,8 @@ def fit_logistic(df: pd.DataFrame, outcome: str, predictors: list[str]) -> Model
             return ModelResult("logistic", outcome, len(d), "odds ratio",
                                error="No usable predictors remained after data screening (all were "
                                      "constant, collinear, too missing, or high-cardinality/ID-like).")
+        if (bn := _binary_note(d[outcome])):
+            issues.append(bn)
         d[outcome] = _to_binary(d[outcome])
         if d[outcome].nunique() < 2:
             return ModelResult("logistic", outcome, len(d), "odds ratio",
@@ -422,6 +455,8 @@ def fit_cox(df: pd.DataFrame, duration: str, event: str, predictors: list[str]) 
             return ModelResult("cox", duration, len(d), "hazard ratio",
                                error="No usable predictors remained after data screening (all were "
                                      "constant, collinear, too missing, or high-cardinality/ID-like).")
+        if (bn := _binary_note(d[event], role="Event indicator")):
+            issues.append(bn)
         d[event] = _to_binary(d[event])
         d = d[pd.to_numeric(d[duration], errors="coerce") > 0]   # survival durations must be positive
         if len(d) < 2:
@@ -551,15 +586,27 @@ def _is_binary_outcome(y: pd.Series) -> bool:
     return y.nunique(dropna=True) == 2
 
 
-def _binary_note(s: pd.Series) -> str | None:
-    """Warn when a numeric outcome has exactly two distinct values that aren't {0,1}: we treat the HIGHER
-    value as the event/positive class, which silently flips the effect direction if the coding is reversed."""
+def _binary_note(s: pd.Series, role: str = "Outcome") -> str | None:
+    """State how an ambiguous 2-level column was coded, so a flipped direction is never silent.
+    Numeric non-{0,1} (e.g. {1,2}): higher value = event. Text: _event_label's choice — flagged as
+    a guess when neither label name is recognized."""
     if pd.api.types.is_numeric_dtype(s):
         vals = sorted(set(pd.unique(pd.Series(s).dropna())))
         if len(vals) == 2 and set(vals) != {0, 1}:
-            return (f"Outcome is numeric coded {vals[0]:g}/{vals[1]:g}; the higher value ({vals[1]:g}) is "
+            return (f"{role} is numeric coded {vals[0]:g}/{vals[1]:g}; the higher value ({vals[1]:g}) is "
                     "treated as the event. If your coding is reversed the effect direction flips — recode to 0/1.")
-    return None
+        return None
+    cats = sorted({str(c) for c in pd.unique(pd.Series(s).dropna())}, key=str.lower)
+    if len(cats) != 2:
+        return None
+    ev = _event_label(s)
+    other = cats[0] if ev == cats[1] else cats[1]
+    low = {c.lower().strip() for c in cats}
+    if (low & _POSITIVE_LABELS) or (low & _NEGATIVE_LABELS):
+        return f"{role} is text coded '{other}'/'{ev}'; '{ev}' is treated as the event/positive class."
+    return (f"{role} is text coded '{other}'/'{ev}'; '{ev}' (alphabetically last) is treated as the "
+            "event/positive class — nothing in the names says which is which. If that's backwards the "
+            "effect direction flips: recode to 0/1 or rename the levels.")
 
 
 def fit_forest(df: pd.DataFrame, outcome: str, predictors: list[str]) -> ModelResult:
@@ -581,6 +628,8 @@ def fit_forest(df: pd.DataFrame, outcome: str, predictors: list[str]) -> ModelRe
         common = dict(n_estimators=300, random_state=0, n_jobs=-1, min_samples_leaf=5)
         n_splits = 5
         if is_class:
+            if (bn := _binary_note(d[outcome])):
+                issues.append(bn)
             y = _to_binary(d[outcome])
             if y.nunique() < 2:
                 return ModelResult("forest", outcome, len(d), "importance",
@@ -672,6 +721,9 @@ def fit_timeseries(df: pd.DataFrame, time_col: str, value_col: str,
         return ModelResult("timeseries", value_col, 0, "forecast", error=str(e))
 
 
+_UPLIFT_MAX_ROWS = 20000          # cross-fitting stays interactive below this; sampled stratified by arm
+
+
 def fit_uplift(df: pd.DataFrame, outcome: str, treatment: str,
                predictors: list[str] | None = None) -> ModelResult:
     """Causal T-learner: two random forests (treated vs control) estimate the average uplift (ATE) of a
@@ -681,16 +733,31 @@ def fit_uplift(df: pd.DataFrame, outcome: str, treatment: str,
         from sklearn.model_selection import StratifiedKFold
         preds = [p for p in (predictors or []) if p in df.columns and p not in (outcome, treatment)]
         d = _clean(df, [outcome, treatment, *preds])
-        t = _to_binary(d[treatment]).to_numpy()
+        t, t_note = _treatment_indicator(d[treatment])
         if len(np.unique(t)) < 2 or int((t == 1).sum()) < 20 or int((t == 0).sum()) < 20:
             return ModelResult("causal", outcome, len(d), "uplift",
                                error="Treatment needs ≥20 treated and ≥20 control rows.")
         issues = []
-        if len(d) > 20000:                               # keep cross-fitting interactive on large inputs
-            d = d.sample(20000, random_state=0)
-            t = _to_binary(d[treatment]).to_numpy()
-            issues.append("Estimated on a random 20,000-row subsample for tractability.")
+        if t_note:
+            issues.append(t_note)
+        if len(d) > _UPLIFT_MAX_ROWS:                    # keep cross-fitting interactive on large inputs
+            # Stratify by arm so a rare treatment keeps its share, then RE-CHECK the ≥20-per-arm gate:
+            # the pre-sample check alone let a 30-treated/100k cohort shrink to ~6 treated rows.
+            frac = _UPLIFT_MAX_ROWS / len(d)
+            d = d.groupby(d[treatment].astype(str), group_keys=False).sample(frac=frac, random_state=0)
+            t = _treatment_indicator(d[treatment])[0]
+            n1, n0 = int((t == 1).sum()), int((t == 0).sum())
+            if n1 < 20 or n0 < 20:
+                return ModelResult(
+                    "causal", outcome, len(d), "uplift",
+                    error=(f"After subsampling to ~{_UPLIFT_MAX_ROWS:,} rows the treatment arms are too "
+                           f"small to cross-fit (treated={n1}, control={n0}; each needs ≥20). Narrow the "
+                           "cohort in SQL so the full data fits, or use a more common treatment."))
+            issues.append(f"Estimated on a random {len(d):,}-row subsample (stratified by treatment arm) "
+                          "for tractability.")
         is_class = _is_binary_outcome(d[outcome])
+        if is_class and (y_note := _binary_note(d[outcome])):
+            issues.append(y_note)
         y = (_to_binary(d[outcome]) if is_class else d[outcome].astype(float)).to_numpy(dtype=float)
         X = pd.get_dummies(d[preds], drop_first=True) if preds else pd.DataFrame(index=d.index)
         if X.empty:
@@ -759,6 +826,30 @@ def _is_control(arm: str) -> bool:
         return True
     return any(a == w or a.startswith(w + "_") or a.startswith(w + " ") or a.startswith(w + "-")
                for w in _CONTROL_WORDS)
+
+
+def _treatment_indicator(s: pd.Series) -> tuple[np.ndarray, str | None]:
+    """Code a 2-level treatment column as 1 = treated / 0 = control. A recognized control-arm name
+    (_is_control: 'control', 'placebo', 'baseline', ...) becomes the reference; otherwise falls back
+    to _to_binary's deterministic coding. Always returns the mapping note alongside the indicator so
+    the caller can surface it — a silently flipped arm flips the effect sign."""
+    if not pd.api.types.is_numeric_dtype(s) and s.dtype != bool:
+        cats = sorted({str(c) for c in pd.unique(s.dropna())}, key=str.lower)
+        if len(cats) == 2:
+            ctrl = [c for c in cats if _is_control(c)]
+            if len(ctrl) == 1:
+                treated = cats[1] if ctrl[0] == cats[0] else cats[0]
+                return ((s.astype(str) == treated).astype(int).to_numpy(),
+                        f"Treatment coded: '{treated}' = treated vs '{ctrl[0]}' = control "
+                        "(recognized control label).")
+            ev = _event_label(s)
+            other = cats[0] if ev == cats[1] else cats[1]
+            return ((s.astype(str) == ev).astype(int).to_numpy(),
+                    f"Treatment coded: '{ev}' = treated vs '{other}' = control — neither arm name is a "
+                    "recognized control (control/placebo/baseline/...), so the alphabetically last arm "
+                    "was taken as treated. If that's backwards the effect sign flips: recode to 0/1 or "
+                    "rename the arms.")
+    return _to_binary(s).to_numpy(), _binary_note(s, role="Treatment")
 
 
 def fit_experiment(df: pd.DataFrame, group: str, outcome: str, baseline: str | None = None) -> ModelResult:
@@ -1115,6 +1206,10 @@ def calc_sample_size(kind: str = "superiority", outcome_type: str = "proportion"
             if dist <= 0:
                 return _err("the target difference equals the margin — no finite sample size can detect it.")
             var = p_c * (1 - p_c) + p_t * (1 - p_t) / ratio
+            if var <= 0:
+                return _err("both proportions are 0 or 1 — the outcome has no variance, so the "
+                            "normal-approximation sample size is undefined. Use rates strictly "
+                            "between 0 and 1, or an exact/simulation-based method.")
             unit = var / dist ** 2
 
             def _n_ctrl(pw):                             # Blackwelder normal approximation → per-arm control n

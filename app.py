@@ -3,7 +3,7 @@
 Run:  streamlit run app.py     (needs OPENAI_API_KEY in agent/.env, or Streamlit Cloud secrets)
 
 Design: "clinical data terminal" — deep-ink dark, clinical-teal accent, Fraunces display +
-IBM Plex Sans/Mono, custom guardrail badges. Refined, recruiter-facing.
+IBM Plex Sans/Mono, custom guardrail badges.
 """
 from __future__ import annotations
 
@@ -388,7 +388,8 @@ def _dash_data() -> dict:
                            "where c.condition_description like '%(disorder)%' group by 1 order by 2 desc limit 10")
     out["enc_class"] = df("select encounter_class, count(*) n from fct_encounters group by 1 order by 2 desc")
     out["enc_year"] = df('select cast(year(encounter_date) as int) as "year", count(*) as encounters '
-                         "from fct_encounters where year(encounter_date) between 2011 and 2025 group by 1 order by 1")
+                         "from fct_encounters where year(encounter_date) between 2011 and year(current_date) "
+                         "group by 1 order by 1")
     out["cost_class"] = df("select encounter_class, round(avg(total_claim_cost), 0) avg_cost "
                            "from fct_encounters group by 1 order by 2 desc")
     # numeric measures → a five-number summary (real quantiles) + a capped histogram per variable, so the
@@ -709,14 +710,11 @@ if _byod_mode:
     else:
         try:
             from agent import userdata
-            if _up.name.lower().endswith(".csv"):
-                _df = pd.read_csv(_up)
-            else:                                    # .xlsx → flag extra sheets before reading the first one
-                _xl = pd.ExcelFile(_up)
-                if len(_xl.sheet_names) > 1:
-                    st.warning(f"This workbook has {len(_xl.sheet_names)} sheets — only the first "
-                               f"(**{_xl.sheet_names[0]}**) was analyzed.")
-                _df = pd.read_excel(_xl, sheet_name=_xl.sheet_names[0])
+            # bounded parse: row-capped reads + an Excel dimension gate (the 50 MB check above
+            # measures the compressed xlsx, so it alone can't stop a decompression bomb)
+            _df, _notes = userdata.read_upload(_up, _up.name)
+            for _n in _notes:
+                st.warning(_n)
             _orig_rows, _orig_cols = _df.shape       # remember pre-cap size so we can disclose truncation
             _clear_byod()                            # delete the previous upload's temp dir before the new one
             _dbp, _cat, _tbl, _clean = userdata.prepare_upload(_df, _up.name)

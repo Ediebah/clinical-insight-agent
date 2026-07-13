@@ -108,7 +108,9 @@ def run_query(sql: str, max_rows: int = MAX_ROWS, db_path: Path | None = None) -
     path = Path(db_path) if db_path else DB_PATH
     if not path.exists():
         raise QueryError(f"Warehouse not found at {path}. Run the loader + `dbt build` first.")
-    wrapped = f"select * from (\n{cleaned}\n) as _agent_q limit {max_rows}"
+    # Fetch ONE extra row so a capped result is detectable: len(df)==max_rows alone can't distinguish
+    # "exactly max_rows rows" from "truncated", and the agent reports len(df) as the total row count.
+    wrapped = f"select * from (\n{cleaned}\n) as _agent_q limit {max_rows + 1}"
     t0 = time.perf_counter()
     try:
         # read_only stops writes to the DB; enable_external_access=false + no extension autoload stop
@@ -127,6 +129,10 @@ def run_query(sql: str, max_rows: int = MAX_ROWS, db_path: Path | None = None) -
         raise
     except Exception as e:  # noqa: BLE001 — surface the DB message to the self-heal loop
         raise QueryError(str(e)) from e
+    truncated = len(df) > max_rows
+    if truncated:
+        df = df.head(max_rows)
+    df.attrs["truncated"] = truncated                # consumers must treat len(df) as a lower bound
     _audit(cleaned, len(df), (time.perf_counter() - t0) * 1000)
     return df
 

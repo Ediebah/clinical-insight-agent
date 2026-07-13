@@ -225,6 +225,90 @@ def test_cox_flags_ph_violation():
     assert any("proportional-hazards" in i.lower() for i in r.issues)
 
 
+def test_sample_size_rejects_degenerate_proportions():
+    # p=1.0 (or 0.0) in both arms → zero variance → the closed form returns "0 per arm";
+    # that must be an error, not a confident nonsense answer
+    r = modeling.calc_sample_size(kind="noninferiority", outcome_type="proportion",
+                                  p_control=1.0, margin=0.05)
+    assert r.error is not None and "0 or 1" in r.error
+
+
 def test_to_binary():
     assert list(modeling._to_binary(pd.Series([True, False, True]))) == [1, 0, 1]
     assert list(modeling._to_binary(pd.Series([0, 1, 0]))) == [0, 1, 0]
+
+
+def test_to_binary_strings_order_invariant():
+    # order of first appearance must NOT decide the positive class — it silently flipped
+    # effect directions when the first row happened to hold the other level
+    fwd = pd.Series(["cured", "failed", "cured", "failed"])
+    rev = pd.Series(["failed", "cured", "cured", "failed"])
+    assert list(modeling._to_binary(fwd)) == [1, 0, 1, 0]
+    assert list(modeling._to_binary(rev)) == [0, 1, 1, 0]
+
+
+def test_to_binary_recognizes_semantic_labels():
+    assert list(modeling._to_binary(pd.Series(["no", "yes"]))) == [0, 1]
+    assert list(modeling._to_binary(pd.Series(["yes", "no"]))) == [1, 0]
+    assert list(modeling._to_binary(pd.Series(["alive", "dead", "alive"]))) == [0, 1, 0]
+
+
+def test_to_binary_unrecognized_strings_deterministic():
+    # nothing in the names says which is the event → lexicographically LAST level, any row order
+    assert list(modeling._to_binary(pd.Series(["zeta", "alpha"]))) == [1, 0]
+    assert list(modeling._to_binary(pd.Series(["alpha", "zeta"]))) == [0, 1]
+
+
+def test_binary_note_on_string_coding():
+    # a 2-level text outcome must state its mapping loudly (numeric {1,2} already did)
+    note = modeling._binary_note(pd.Series(["cured", "failed"]))
+    assert note is not None and "cured" in note and "failed" in note
+    # unrecognized labels must additionally warn that the direction is a guess
+    note2 = modeling._binary_note(pd.Series(["alpha", "zeta"]))
+    assert note2 is not None and "zeta" in note2
+
+
+def test_experiment_string_outcome_direction():
+    rng = np.random.default_rng(21)
+    # 'cured' is the event; a 'cured' row appearing FIRST must not flip the rates (the old bug
+    # coded the SECOND-appearing level as the event, turning a winning arm into DO NOT SHIP)
+    first = pd.DataFrame({"variant": ["control"], "outcome": ["cured"]})
+    ctrl = pd.DataFrame({"variant": "control",
+                         "outcome": np.where(rng.random(2500) < 0.30, "cured", "failed")})
+    trt = pd.DataFrame({"variant": "treatment",
+                        "outcome": np.where(rng.random(2500) < 0.45, "cured", "failed")})
+    r = modeling.fit_experiment(pd.concat([first, ctrl, trt], ignore_index=True), "variant", "outcome")
+    assert r.error is None
+    rates = {a["arm"]: a["value"] for a in r.arms}
+    assert rates["treatment"] > rates["control"] > 0.2      # cured-rate, not failed-rate
+    assert r.verdict["call"] == "SHIP"
+    assert any("cured" in i for i in r.issues)              # the coding is stated to the user
+
+
+def test_uplift_subsample_preserves_and_rechecks_arms(monkeypatch):
+    # the ≥20-per-arm gate used to run only BEFORE the tractability subsample: a rare treatment
+    # could pass the gate and then fit on a handful of treated rows. The subsample must be
+    # stratified by arm and the gate re-checked afterwards.
+    monkeypatch.setattr(modeling, "_UPLIFT_MAX_ROWS", 200)
+    rng = np.random.default_rng(23)
+    n = 1000
+    df = pd.DataFrame({"y": rng.integers(0, 2, n).astype(float),
+                       "t": np.r_[np.ones(25), np.zeros(n - 25)].astype(int),
+                       "x": rng.normal(0, 1, n)})
+    r = modeling.fit_uplift(df, "y", "t", ["x"])                 # 25 treated → ~5 after subsample
+    assert r.error is not None and "subsampl" in r.error.lower()
+
+
+def test_uplift_string_treatment_control_recognition():
+    rng = np.random.default_rng(22)
+    n = 900
+    x = rng.normal(0, 1, n)
+    treated = rng.integers(0, 2, n)
+    base = 1 / (1 + np.exp(-(0.5 * x)))
+    y = (rng.random(n) < np.clip(base + 0.2 * treated, 0, 1)).astype(int)
+    df = pd.DataFrame({"y": y, "arm": np.where(treated == 1, "drug", "placebo"), "x": x})
+    df = df.sort_values("arm").reset_index(drop=True)       # 'drug' rows first → old code flipped
+    r = modeling.fit_uplift(df, "y", "arm", ["x"])
+    assert r.error is None
+    assert r.terms[0].estimate > 0                          # drug raises y; sign must not flip
+    assert any("drug" in i and "placebo" in i for i in r.issues)   # mapping stated to the user

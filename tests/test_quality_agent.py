@@ -101,6 +101,16 @@ def test_diagnose_names_the_specific_violation(defect_db):
     assert "age" in dx_range.lower() and "-3" in dx_range and "range" in dx_range.lower()
 
 
+def test_diagnose_metric_band_handles_null_value():
+    # avg() over an empty mart returns NULL; diagnose must describe it, not crash on float(None)
+    import pandas as pd
+    check = next(c for c in qa.CHECKS if c.kind == "metric_band")
+    res = qa.CheckResult(check=check, passed=False, summary="value nan",
+                         evidence=pd.DataFrame({"readmission_rate": [None]}))
+    dx = qa.diagnose(res)
+    assert "empty" in dx.lower() or "null" in dx.lower()
+
+
 # ─────────────────────────────── PROPOSE FIX (monkeypatched LLM) ───────────────────────────────
 def test_propose_fix_returns_a_validated_readonly_sql(defect_db, monkeypatch):
     canned = {

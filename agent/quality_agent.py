@@ -263,8 +263,13 @@ def diagnose(result: CheckResult) -> str:
                 f"above the {check.threshold:.0%} completeness threshold. Downstream group-bys / "
                 f"filters on {check.column} will silently drop or miscount these rows.")
     if check.kind == "metric_band":
-        val = float(df.iloc[0, 0])
+        raw = df.iloc[0, 0]
         lo, hi = check.band or (0.0, 1.0)
+        if raw is None or (isinstance(raw, float) and math.isnan(raw)):
+            return (f"{check.name}: the metric query returned NULL — {check.table} is probably empty "
+                    f"(or every {check.column} is NULL), so there is no rate to band-check. Rebuild "
+                    f"the mart / investigate the upstream load before trusting any metric from it.")
+        val = float(raw)
         side = "below" if val < lo else "above"
         return (f"30-day readmission rate is {val:.1%}, {side} the plausible {lo:.0%}–{hi:.0%} band. "
                 f"A swing this large usually signals a modeling / date-window bug (e.g. self-joins or a "

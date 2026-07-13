@@ -125,27 +125,50 @@ def _count_tests(spec: dict) -> int:
     return n
 
 
+_IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _yaml_bound(v) -> str:
+    """Render an accepted_range bound. Must be a real number — a string here could smuggle YAML
+    structure (e.g. '0}\\n config: {pre_hook: ...}') into the schema file. Fail closed."""
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        raise UnsafeModelError(f"range bound {v!r} is not numeric.") from None
+    return str(int(f)) if f == int(f) else repr(f)
+
+
 def _schema_yaml(name: str, spec: dict) -> str:
-    """Render a dbt schema.yml (model + column tests) from a draft spec. Pure — unit-tested."""
+    """Render a dbt schema.yml (model + column tests) from a draft spec. Pure — unit-tested.
+
+    Every LLM-supplied scalar is escaped or validated before interpolation: dbt executes
+    pre_hook/post_hook from schema.yml with a READ-WRITE connection, so unescaped text here would
+    let a hallucinated/injected description defeat the SQL sandbox below. Descriptions are emitted
+    as json.dumps() strings (JSON double-quoted scalars are valid YAML and cannot escape their
+    quotes); column names must be plain SQL identifiers; range bounds must be numeric."""
     col_blocks = []
     for c in spec.get("tests", []):
-        lines = [f"      - name: {c['column']}", "        data_tests:"]
+        col = str(c.get("column", ""))
+        if not _IDENTIFIER.match(col):
+            raise UnsafeModelError(f"column name {col!r} is not a plain SQL identifier.")
+        lines = [f"      - name: {col}", "        data_tests:"]
         for chk in c.get("checks", []):
             if chk in ("not_null", "unique"):
                 lines.append(f"          - {chk}")
         if c.get("values"):
-            vals = ", ".join(json.dumps(v) for v in c["values"])
+            vals = ", ".join(json.dumps(str(v)) for v in c["values"])
             lines += ["          - accepted_values:", "              arguments:",
                       f"                values: [{vals}]"]
         if "min_value" in c or "max_value" in c:
             lines += ["          - dbt_utils.accepted_range:", "              arguments:"]
             if "min_value" in c:
-                lines.append(f"                min_value: {c['min_value']}")
+                lines.append(f"                min_value: {_yaml_bound(c['min_value'])}")
             if "max_value" in c:
-                lines.append(f"                max_value: {c['max_value']}")
+                lines.append(f"                max_value: {_yaml_bound(c['max_value'])}")
         col_blocks.append("\n".join(lines))
+    desc = json.dumps(str(spec.get("description", "Generated model.")))
     return (f"version: 2\n\nmodels:\n  - name: {name}\n"
-            f"    description: \"{spec.get('description', 'Generated model.')}\"\n"
+            f"    description: {desc}\n"
             f"    columns:\n" + "\n".join(col_blocks) + "\n")
 
 
@@ -264,6 +287,10 @@ def build_model(need: str, keep: bool = False) -> int:
             print(f"{attempt}. {label:11} → {table_name}  (pk: {spec.get('pk')}, "
                   f"tests: {_count_tests(spec)})")
 
+            # Remove the previous attempt's run_results.json first: on a timeout (or a crash before
+            # dbt writes it) _failure_text would otherwise read the STALE file and feed the self-heal
+            # loop the wrong error.
+            RUN_RESULTS.unlink(missing_ok=True)
             build = _dbt("build", "--select", table_name)
             error = _failure_text(table_name, build) or ""
             prev_sql = spec["sql"]

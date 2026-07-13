@@ -11,6 +11,7 @@ Themed to the clinical-teal palette.
 from __future__ import annotations
 
 import re
+import threading
 
 import altair as alt
 import numpy as np
@@ -46,16 +47,27 @@ def _apply_palette(p: dict) -> None:
     _BG, _TITLE, _PRINT_ON = p["bg"], p["title"], p is _PRINT
 
 
+# The palette is MODULE STATE, and Streamlit serves each session on its own thread in one process:
+# without a lock, session B's docx export exiting mid-way through session A's would restore the
+# screen palette under A's feet (dark-ink figures on a white page, or vice versa). The lock
+# serializes exports; a concurrent on-screen rebuild can still catch the print palette briefly,
+# which is the residual cost of the palette being global.
+_PRINT_LOCK = threading.Lock()
+
+
 class render_for_print:
     """Context manager: switch the chart palette to the light PRINT theme (white background, dark ink,
     subtle light gridlines) so figures rendered to PNG for the .docx are legible on a white page.
-    Restores the SCREEN palette on exit. Not re-entrant, but the docx render is sequential."""
+    Restores the SCREEN palette on exit. Exports are serialized by a process-wide lock — two
+    concurrent sessions' exports cannot interleave the swap/restore."""
     def __enter__(self):
+        _PRINT_LOCK.acquire()
         _apply_palette(_PRINT)
         return self
 
     def __exit__(self, *exc):
         _apply_palette(_SCREEN)
+        _PRINT_LOCK.release()
         return False
 
 _TIERS = [

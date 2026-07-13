@@ -123,7 +123,13 @@ def main() -> int:
         return 0 if not after else 1
     finally:
         if injected:
-            _dbt("run", "--select", MODEL)   # guarantee a clean warehouse even on error
+            # restore the real warehouse — and VERIFY it: a silently failed rebuild would leave the
+            # injected duplicate row in place, contradicting the "warehouse left clean" guarantee
+            restore = _dbt("run", "--select", MODEL)
+            if restore.returncode != 0:
+                print(f"\n⚠️  RESTORE FAILED: `dbt run --select {MODEL}` exited {restore.returncode} — "
+                      f"the injected duplicate may still be in the warehouse. Re-run:\n"
+                      f"    cd warehouse && ../.venv/bin/dbt run --select {MODEL} --profiles-dir .")
 
 
 if __name__ == "__main__":

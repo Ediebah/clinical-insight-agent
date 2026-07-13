@@ -20,6 +20,36 @@ import pandas as pd
 
 MAX_ROWS = 200_000
 MAX_COLS = 60
+MAX_SHEET_CELLS = 10_000_000     # declared Excel-sheet size gate — parsed BEFORE any cell is read
+
+
+def read_upload(file, name: str) -> tuple[pd.DataFrame, list[str]]:
+    """Parse an uploaded CSV/Excel with bounded work, returning (df, user-facing notes).
+
+    The UI's 50 MB cap measures the file as uploaded — for an xlsx that is the COMPRESSED size, and
+    a small crafted workbook (highly repetitive cells) can inflate to gigabytes when parsed. So for
+    Excel the sheet's declared dimensions are checked read-only before parsing, and both formats
+    read at most MAX_ROWS + 1 rows (the +1 keeps truncation detectable for the caller's notice)."""
+    notes: list[str] = []
+    if str(name).lower().endswith(".csv"):
+        return pd.read_csv(file, nrows=MAX_ROWS + 1), notes
+    import openpyxl
+    wb = openpyxl.load_workbook(file, read_only=True)
+    try:
+        ws = wb.worksheets[0]
+        if len(wb.sheetnames) > 1:
+            notes.append(f"This workbook has {len(wb.sheetnames)} sheets — only the first "
+                         f"(**{wb.sheetnames[0]}**) was analyzed.")
+        cells = (ws.max_row or 0) * (ws.max_column or 0)
+        if cells > MAX_SHEET_CELLS:
+            raise ValueError(
+                f"the first sheet declares {ws.max_row:,} rows × {ws.max_column:,} columns "
+                f"(~{cells:,} cells), over the {MAX_SHEET_CELLS:,}-cell limit — pre-aggregate or "
+                "export a smaller CSV instead.")
+    finally:
+        wb.close()
+    file.seek(0)
+    return pd.read_excel(file, sheet_name=0, nrows=MAX_ROWS + 1), notes
 
 
 _RESERVED = {
