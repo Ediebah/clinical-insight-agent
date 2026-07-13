@@ -277,11 +277,11 @@ def _render_monitoring() -> None:
               .configure_axis(labelColor="#8ea0b0", titleColor="#8ea0b0", gridColor="#1a2531",
                               domainColor="#20303f")
               .configure_view(strokeWidth=0))
-        st.altair_chart(ch, use_container_width=True)
+        st.altair_chart(ch, width="stretch")
         st.markdown("<div class='eyebrow'>Most-asked questions</div>", unsafe_allow_html=True)
         top = dft["question"].value_counts().head(8).reset_index()
         top.columns = ["question", "runs"]
-        st.dataframe(top, use_container_width=True, hide_index=True)
+        st.dataframe(top, width="stretch", hide_index=True)
     else:
         st.info("No agent runs recorded in this deployment yet — run an analysis on the **Analyze** tab and "
                 "usage metrics populate here. (Traces are per-deployment and reset on redeploy.)")
@@ -509,22 +509,22 @@ def _render_dashboard() -> None:
     with c1:
         st.caption("Age group")
         st.altair_chart(vbar(d["age_group"], "age_group", "n",
-                             order=["0-17", "18-39", "40-64", "65-74", "75+"]), use_container_width=True)
+                             order=["0-17", "18-39", "40-64", "65-74", "75+"]), width="stretch")
     with c2:
         st.caption("Sex")
-        st.altair_chart(donut(d["gender"], "gender", "n"), use_container_width=True)
+        st.altair_chart(donut(d["gender"], "gender", "n"), width="stretch")
     with c3:
         st.caption("Race")
-        st.altair_chart(hbar(d["race"], "race", "n", h=200), use_container_width=True)
+        st.altair_chart(hbar(d["race"], "race", "n", h=200), width="stretch")
 
     st.markdown("<div class='eyebrow'>What · clinical</div>", unsafe_allow_html=True)
     c4, c5 = st.columns([3, 2])
     with c4:
         st.caption("Top conditions — disorders, by patients")
-        st.altair_chart(hbar(d["conditions"], "condition", "patients"), use_container_width=True)
+        st.altair_chart(hbar(d["conditions"], "condition", "patients"), width="stretch")
     with c5:
         st.caption("Encounter mix")
-        st.altair_chart(hbar(d["enc_class"], "encounter_class", "n"), use_container_width=True)
+        st.altair_chart(hbar(d["enc_class"], "encounter_class", "n"), width="stretch")
 
     st.markdown("<div class='eyebrow'>Utilization & cost</div>", unsafe_allow_html=True)
     c6, c7 = st.columns(2)
@@ -534,11 +534,11 @@ def _render_dashboard() -> None:
             color=teal, opacity=0.22, line={"color": teal, "strokeWidth": 2}).encode(
             x=alt.X("year:O", title=None, axis=alt.Axis(labelAngle=0)),
             y=alt.Y("encounters:Q", title=None))
-        st.altair_chart(_dash_theme(area, 205), use_container_width=True)
+        st.altair_chart(_dash_theme(area, 205), width="stretch")
     with c7:
         st.caption("Avg cost per encounter, by class")
         st.altair_chart(hbar(d["cost_class"], "encounter_class", "avg_cost", color=blue, fmt="$,.0f"),
-                        use_container_width=True)
+                        width="stretch")
 
     # ---- descriptive statistics, fully visual: annotated distributions + correlation heatmap ----
     st.markdown("<div class='eyebrow'>Distributions · continuous measures</div>", unsafe_allow_html=True)
@@ -578,7 +578,7 @@ def _render_dashboard() -> None:
             with col:
                 r = _byname[name]
                 st.caption(name)
-                st.altair_chart(dist_card(r), use_container_width=True)
+                st.altair_chart(dist_card(r), width="stretch")
                 st.markdown(f"<div class='trace'>{_cap(r)}</div>", unsafe_allow_html=True)
 
     st.markdown("<div class='eyebrow' style='margin-top:1.4rem'>How the measures move together · correlation</div>",
@@ -595,7 +595,7 @@ def _render_dashboard() -> None:
         txt = cbase.mark_text(fontSize=11, fontWeight="bold").encode(
             text=alt.Text("corr:Q", format=".2f"),
             color=alt.condition("abs(datum.corr) > 0.55", alt.value("#0b1219"), alt.value("#9fb0bf")))
-        st.altair_chart(_dash_theme(alt.layer(rects, txt), 34 * len(corder) + 18), use_container_width=True)
+        st.altair_chart(_dash_theme(alt.layer(rects, txt), 34 * len(corder) + 18), width="stretch")
     with hc2:
         st.markdown("<div class='trace' style='margin-top:2rem'>Pearson correlations across patient-level "
                     "measures. Age tracks healthcare expense (r &asymp; 0.5); income moves largely "
@@ -612,7 +612,7 @@ def _render_dashboard() -> None:
             tb[cc] = tb[cc].map(_num)
         tb["n"] = tb["n"].map(lambda v: f"{int(v):,}")
         tb.columns = ["Variable", "N", "Mean", "SD", "Min", "P5", "P25", "Median", "P75", "P95", "Max"]
-        st.dataframe(tb, use_container_width=True, hide_index=True)
+        st.dataframe(tb, width="stretch", hide_index=True)
     st.markdown("<div class='trace'>Computed live over the full warehouse (read-only). Synthetic Synthea data; "
                 "the negative age minimum (Min column) is a generation artifact, exactly the kind of thing a "
                 "first look surfaces before you model.</div>", unsafe_allow_html=True)
@@ -728,7 +728,7 @@ if _byod_mode:
                 st.info(f"Analyzing the first {len(_clean):,} of {_orig_rows:,} rows and "
                         f"{len(_clean.columns)} of {_orig_cols} columns "
                         f"(capped at {userdata.MAX_ROWS:,} rows × {userdata.MAX_COLS} columns).")
-            st.dataframe(_clean.head(8), use_container_width=True)
+            st.dataframe(_clean.head(8), width="stretch")
             st.markdown(f"<div style='color:#8ea0b0;font-size:.85rem'>Ask about: {_cols}</div>",
                         unsafe_allow_html=True)
         except Exception as _e:  # noqa: BLE001
@@ -746,7 +746,7 @@ else:
         for start in range(0, len(_qs), 3):
             cols = st.columns(3)
             for c, ex in zip(cols, _qs[start:start + 3]):
-                if c.button(ex, key=f"ex_{ex}", use_container_width=True):
+                if c.button(ex, key=f"ex_{ex}", width="stretch"):
                     st.session_state.question = ex
 
 st.markdown("<div class='eyebrow'>Your question — ask anything about the data in plain English</div>",
@@ -990,26 +990,26 @@ if result is not None:
                    else ni_plot(result.model) if _mt == "noninferiority"
                    else power_curve_chart(result.model))
             if _dc is not None:
-                st.altair_chart(_dc, use_container_width=True)
+                st.altair_chart(_dc, width="stretch")
         if result.model.get("km"):                       # survival → Kaplan-Meier curves
-            st.altair_chart(survival_plot(result.model["km"]), use_container_width=True)
+            st.altair_chart(survival_plot(result.model["km"]), width="stretch")
         if _mt == "timeseries" and result.model.get("series"):   # time-series → history + forecast
-            st.altair_chart(forecast_chart(result.model["series"]), use_container_width=True)
+            st.altair_chart(forecast_chart(result.model["series"]), width="stretch")
         if _mt == "forest":                              # ML → feature-importance bars
             _imp = importance_chart(result.model)
             if _imp is not None:
-                st.altair_chart(_imp, use_container_width=True)
+                st.altair_chart(_imp, width="stretch")
         # regression/survival/causal/experiment → effect forest (NI already shows it vs the margin)
         _fp = forest_plot(result.model) if _mt != "noninferiority" else None
         if _fp is not None:
-            st.altair_chart(_fp, use_container_width=True)
+            st.altair_chart(_fp, width="stretch")
         st.markdown(_render_model(result.model))
         eyebrow("Interpretation & recommendation")
         st.markdown(result.interpretation)
         _report_button(result, "model")
         if result.dataframe is not None:
             with st.expander(f"analytic data · {result.n_rows} rows"):
-                st.dataframe(result.dataframe, use_container_width=True)
+                st.dataframe(result.dataframe, width="stretch")
         if result.trace:
             t = result.trace
             toks = t.get("prompt_tokens", 0) + t.get("completion_tokens", 0)
@@ -1070,15 +1070,15 @@ if result is not None:
 
     _chart = build_chart(result.dataframe, result_q)
     if _chart is not None:
-        st.altair_chart(_chart, use_container_width=True)
+        st.altair_chart(_chart, width="stretch")
 
     _radar = radar_chart(result.dataframe, result_q)
     if _radar is not None:
         eyebrow("Radar — entities across metrics (normalized)")
-        st.plotly_chart(_radar, use_container_width=True)
+        st.plotly_chart(_radar, width="stretch")
 
     with st.expander(f"data table · {result.n_rows} rows"):
-        st.dataframe(result.dataframe, use_container_width=True)
+        st.dataframe(result.dataframe, width="stretch")
 
     if result.verification:
         v = result.verification
