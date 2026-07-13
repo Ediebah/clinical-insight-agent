@@ -7,3 +7,10 @@ textColor = "#e8eef4"
 
 [client]
 toolbarMode = "minimal"
+
+[server]
+# Pure-Python polling instead of the native watchdog observer: on Streamlit Community Cloud the
+# post-push "Updated app!" hot-reload segfaulted the server process (native file-watcher reacting
+# to the git pull's mass file change), wedging the app until a manual reboot. Polling keeps
+# auto-reload working, locally and on Cloud, without the native crash path.
+fileWatcherType = "poll"
