@@ -69,22 +69,31 @@ def create_lock(params: dict, oc: list[dict], anchor: str | None = None) -> dict
     }
 
 
-def verify(lock: dict | None, params: dict) -> dict:
-    """Compare a run's parameters against a lock. Never raises."""
+def _verify(lock: dict | None, params: dict) -> dict:
+    """Do the actual comparison. Both arguments are caller-supplied and may be any shape at all --
+    the isinstance checks below cover the common malformed cases explicitly (so lock_id/anchor are
+    preserved where they're readable, giving a useful diagnostic instead of a blank one). Anything
+    those checks don't anticipate -- e.g. a circular reference inside lock['params'], which json.dumps
+    rejects as a ValueError rather than a KeyError/TypeError -- is left to raise here; verify() below
+    is the single place that guarantees it can't escape."""
     if not lock:
         return {"status": "EXPLORATORY", "lock_id": None, "drift": [], "anchor": None}
-    try:
-        recorded = lock["lock_id"]
-        # A hand-edited or corrupted lock can carry a "params" that isn't a dict at all (None, a
-        # string, a list ...). canonical() would call .get() on it and raise AttributeError, so check
-        # the shape explicitly before re-hashing rather than widening the except clause to mop it up.
-        if not isinstance(lock.get("params"), dict):
-            return {"status": "INVALID", "lock_id": recorded, "drift": [], "anchor": lock.get("anchor")}
-        # Re-hash the lock's OWN recorded params. If they don't reproduce its stored id, it was edited.
-        if lock_id(lock["params"]) != recorded:
-            return {"status": "INVALID", "lock_id": recorded, "drift": [], "anchor": lock.get("anchor")}
-    except (KeyError, TypeError):
+    if not isinstance(lock, dict):
         return {"status": "INVALID", "lock_id": None, "drift": [], "anchor": None}
+    recorded = lock.get("lock_id")
+    anchor = lock.get("anchor")
+    # A hand-edited or corrupted lock can carry a "params" that isn't a dict at all (None, a string,
+    # a list ...); check the shape explicitly before re-hashing rather than letting it blow up below.
+    if not isinstance(lock.get("params"), dict):
+        return {"status": "INVALID", "lock_id": recorded, "drift": [], "anchor": anchor}
+    # The SECOND argument -- the run's own params, supplied fresh at interim -- is just as capable of
+    # being None/a string/a list as the lock is. Guard it here rather than letting the drift loop
+    # below discover that the hard way.
+    if not isinstance(params, dict):
+        return {"status": "INVALID", "lock_id": recorded, "drift": [], "anchor": anchor}
+    # Re-hash the lock's OWN recorded params. If they don't reproduce its stored id, it was edited.
+    if lock_id(lock["params"]) != recorded:
+        return {"status": "INVALID", "lock_id": recorded, "drift": [], "anchor": anchor}
 
     drift = []
     for k in LOCKED_FIELDS:
@@ -93,7 +102,20 @@ def verify(lock: dict | None, params: dict) -> dict:
         if locked_v != actual_v:
             drift.append({"field": k, "locked": locked_v, "actual": actual_v})
     status = "PRE-SPECIFIED" if not drift else "DRIFTED"
-    return {"status": status, "lock_id": recorded, "drift": drift, "anchor": lock.get("anchor")}
+    return {"status": status, "lock_id": recorded, "drift": drift, "anchor": anchor}
+
+
+def verify(lock: dict | None, params: dict) -> dict:
+    """Compare a run's parameters against a lock. Never raises, on ANY input -- this is a hard
+    contract the rest of the app relies on (mirrors agent/modeling.py's convention of catching
+    everything at a public entry point rather than letting a malformed input crash the Streamlit
+    app). _verify() does the real work and is allowed to blow up; this is the one, obvious place
+    that makes the no-raise contract structurally true rather than reactively patched case by case."""
+    try:
+        return _verify(lock, params)
+    except Exception:  # noqa: BLE001 -- safety net for whatever the isinstance checks in _verify
+        # didn't anticipate; deliberately unconditional so the contract holds for every future input.
+        return {"status": "INVALID", "lock_id": None, "drift": [], "anchor": None}
 
 
 def caveat(prespec: dict) -> str:
