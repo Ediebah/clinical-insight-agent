@@ -59,6 +59,32 @@ def test_verify_rejects_a_tampered_lock():
     assert out["status"] == "INVALID"
 
 
+def test_verify_degrades_gracefully_when_params_is_none():
+    out = prespec.verify({"lock_id": "x", "params": None}, PARAMS)
+    assert out["status"] == "INVALID"
+
+
+def test_verify_degrades_gracefully_when_params_is_a_string():
+    out = prespec.verify({"lock_id": "x", "params": "garbage"}, PARAMS)
+    assert out["status"] == "INVALID"
+
+
+def test_verify_degrades_gracefully_when_params_is_a_list():
+    out = prespec.verify({"lock_id": "x", "params": [1, 2, 3]}, PARAMS)
+    assert out["status"] == "INVALID"
+
+
+def test_verify_degrades_gracefully_when_params_is_an_int():
+    out = prespec.verify({"lock_id": "x", "params": 12345}, PARAMS)
+    assert out["status"] == "INVALID"
+
+
+def test_verify_preserves_lock_id_when_params_is_missing_entirely():
+    out = prespec.verify({"lock_id": "x"}, PARAMS)
+    assert out["status"] == "INVALID"
+    assert out["lock_id"] == "x"
+
+
 def test_create_lock_records_anchor_and_the_honest_limitation():
     lock = prespec.create_lock(PARAMS, OC, anchor="NCT01234567")
     assert lock["anchor"] == "NCT01234567"

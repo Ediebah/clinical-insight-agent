@@ -75,6 +75,11 @@ def verify(lock: dict | None, params: dict) -> dict:
         return {"status": "EXPLORATORY", "lock_id": None, "drift": [], "anchor": None}
     try:
         recorded = lock["lock_id"]
+        # A hand-edited or corrupted lock can carry a "params" that isn't a dict at all (None, a
+        # string, a list ...). canonical() would call .get() on it and raise AttributeError, so check
+        # the shape explicitly before re-hashing rather than widening the except clause to mop it up.
+        if not isinstance(lock.get("params"), dict):
+            return {"status": "INVALID", "lock_id": recorded, "drift": [], "anchor": lock.get("anchor")}
         # Re-hash the lock's OWN recorded params. If they don't reproduce its stored id, it was edited.
         if lock_id(lock["params"]) != recorded:
             return {"status": "INVALID", "lock_id": recorded, "drift": [], "anchor": lock.get("anchor")}
