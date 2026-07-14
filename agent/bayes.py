@@ -87,13 +87,13 @@ def prob_diff_exceeds(kind: str, t: tuple[float, float], c: tuple[float, float],
 def decide(p_tv: float, p_lrv: float, rule: DecisionRule) -> tuple[str, str]:
     """Dual-criterion verdict. p_tv / p_lrv are probabilities of being on the GOOD side of each value."""
     side = "above" if rule.higher_is_better else "below"
-    ev = (f"P({side} TV {rule.tv:.2f}) = {p_tv:.0%}, P({side} LRV {rule.lrv:.2f}) = {p_lrv:.0%}")
+    ev = (f"P({side} TV {rule.tv:g}) = {p_tv:.1%}, P({side} LRV {rule.lrv:g}) = {p_lrv:.1%}")
     if p_tv >= rule.gate_tv and p_lrv >= rule.gate_lrv:
         return "GO", (f"{ev}. Clears both pre-specified gates "
                       f"({rule.gate_tv:.0%} at the TV and {rule.gate_lrv:.0%} at the LRV).")
     if p_lrv < rule.stop_lrv:
         return "STOP", (f"{ev}. The effect is very unlikely to reach even the LRV "
-                        f"({rule.lrv:.2f}), the minimum worth pursuing.")
+                        f"({rule.lrv:g}), the minimum worth pursuing.")
     return "CONSIDER", (f"{ev}. Promising but short of the pre-specified GO gates "
                         f"({rule.gate_tv:.0%} at the TV, {rule.gate_lrv:.0%} at the LRV) -- "
                         "the evidence does not yet justify a commitment.")
@@ -112,7 +112,7 @@ def prior_panel(informed: Prior, rule: DecisionRule) -> list[Prior]:
     conclusion is robust across plausible alternative priors, not an artefact of one choice.
     """
     if informed.kind != "beta":
-        mu, sd = informed.params
+        _, sd = informed.params
         span = abs(rule.tv - rule.lrv) or 1.0
         return [
             informed,

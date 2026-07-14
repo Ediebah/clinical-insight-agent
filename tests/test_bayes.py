@@ -73,7 +73,33 @@ def test_decide_gate_boundaries_are_inclusive():
 
 def test_decide_reason_is_populated():
     call, reason = bayes.decide(0.85, 0.95, RULE)
-    assert call == "GO" and "0.30" in reason and "0.15" in reason
+    # :g is magnitude-safe but strips trailing zeros: 0.30 -> "0.3" (see test below for why
+    # :.2f, which WOULD print "0.30" literally, is the wrong choice).
+    assert call == "GO" and "0.3" in reason and "0.15" in reason
+
+
+def test_decide_reason_renders_thresholds_without_losing_magnitude():
+    # :.2f renders TV=0.001 as "0.00", telling a clinician the target is zero when it isn't.
+    # :g renders every magnitude faithfully. This is the property that motivates using :g.
+    rule = bayes.DecisionRule(tv=0.001, lrv=0.0005)
+    _, reason = bayes.decide(0.85, 0.95, rule)
+    assert "0.001" in reason
+    assert "0.0005" in reason
+    assert "TV 0.00)" not in reason      # the misleading :.2f zero-rendering must not appear
+    assert "LRV 0.00)" not in reason
+
+    big_rule = bayes.DecisionRule(tv=10.0, lrv=5.0)
+    _, big_reason = bayes.decide(0.85, 0.95, big_rule)
+    assert "TV 10)" in big_reason
+
+
+def test_decide_reason_does_not_round_probability_to_100_percent():
+    # :.0% rounds 0.9979 up to "100%", falsely reporting certainty in a tool whose whole
+    # point is honest reporting. :.1% must preserve the distinction.
+    call, reason = bayes.decide(0.9979, 0.95, RULE)
+    assert call == "GO"
+    assert "100%" not in reason
+    assert "99.8%" in reason
 
 
 def test_prior_ess_is_a_plus_b():
