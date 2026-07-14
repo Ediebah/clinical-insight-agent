@@ -116,3 +116,52 @@ def test_prior_panel_spans_skeptical_to_enthusiastic():
     enthusiastic = next(p for p in panel if p.name == "Enthusiastic")
     assert mean(skeptical) <= RULE.lrv            # centred at or below the "not worth pursuing" value
     assert mean(enthusiastic) >= RULE.tv          # centred at or above the target
+
+
+# ── assurance + operating characteristics ─────────────────────────────────────────────────────────
+def _point_prior(theta: float, k: float = 1e6) -> bayes.Prior:
+    """A Beta prior collapsed onto a point mass at theta (huge effective sample size)."""
+    return bayes.Prior("point", "beta", (theta * k, (1 - theta) * k), "point mass")
+
+
+def test_go_grid_is_monotone_in_successes():
+    prior = bayes.Prior("Vague", "beta", (1.0, 1.0), "")
+    go = bayes.go_grid_binary(prior, 60, RULE)
+    assert go.shape == (61,)
+    assert go[0] == 0 and go[-1] == 1                 # 0 successes -> never GO; all successes -> GO
+    assert np.all(np.diff(go) >= 0)                   # more successes can only help
+
+
+def test_assurance_collapses_to_power_under_a_point_prior():
+    """THE key invariant: as the prior tightens onto theta0, assurance -> classical power at theta0."""
+    rule, n, theta0 = bayes.DecisionRule(tv=0.30, lrv=0.15), 80, 0.35
+    a = bayes.assurance(_point_prior(theta0), n, rule)
+    oc = bayes.operating_characteristics(_point_prior(theta0), n, rule, grid=np.array([theta0]))
+    power_at_theta0 = oc[0]["go_rate"]
+    assert a == pytest.approx(power_at_theta0, abs=1e-6)
+
+
+def test_assurance_is_below_power_when_the_prior_has_spread():
+    """The whole point of assurance: averaging over uncertainty is more honest, and lower, than
+    assuming the effect is exactly the value you hope for."""
+    rule, n, theta0 = bayes.DecisionRule(tv=0.30, lrv=0.15), 80, 0.35
+    spread = bayes.Prior("informed", "beta", (7.0, 13.0), "Phase I: 6/18")   # mean 0.35, real spread
+    power = bayes.operating_characteristics(_point_prior(theta0), n, rule,
+                                            grid=np.array([theta0]))[0]["go_rate"]
+    assert bayes.assurance(spread, n, rule) < power
+
+
+def test_operating_characteristics_go_rate_rises_with_the_true_effect():
+    prior = bayes.Prior("Vague", "beta", (1.0, 1.0), "")
+    oc = bayes.operating_characteristics(prior, 80, RULE, grid=np.array([0.05, 0.15, 0.30, 0.60]))
+    rates = [row["go_rate"] for row in oc]
+    assert rates == sorted(rates)
+    assert rates[0] < 0.05 and rates[-1] > 0.90
+
+
+def test_type_i_and_power_are_read_off_the_oc_curve():
+    prior = bayes.Prior("Vague", "beta", (1.0, 1.0), "")
+    oc = bayes.operating_characteristics(prior, 80, RULE)
+    t1, power = bayes.type_i_and_power(oc, RULE)
+    assert 0.0 <= t1 <= 0.20            # GO rate when the effect is only at the LRV
+    assert power > t1                   # GO rate at the TV must exceed it

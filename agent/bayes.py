@@ -131,3 +131,96 @@ def prior_panel(informed: Prior, rule: DecisionRule) -> list[Prior]:
         Prior("Enthusiastic", "beta", enthusiastic,
               f"Centred on the TV ({rule.tv:g}), the hoped-for effect; ESS {ess:g}."),
     ]
+
+
+# ── assurance + operating characteristics ─────────────────────────────────────────────────────────
+def go_grid_binary(prior: Prior, n: int, rule: DecisionRule) -> np.ndarray:
+    """go[x] == 1 iff observing x successes in n trials yields a GO. Computed ONCE, then reused by
+    assurance, the operating characteristics, and the predictive probability -- all three are just
+    different weightings of this same vector."""
+    a, b = prior.params
+    xs = np.arange(n + 1)
+    post_a, post_b = a + xs, b + (n - xs)
+    p_tv = prob_exceeds("beta", post_a, post_b, rule.tv, rule.higher_is_better)
+    p_lrv = prob_exceeds("beta", post_a, post_b, rule.lrv, rule.higher_is_better)
+    return ((p_tv >= rule.gate_tv) & (p_lrv >= rule.gate_lrv)).astype(int)
+
+
+def _go_threshold_normal(prior: Prior, n: int, rule: DecisionRule, sd: float) -> float:
+    """The observed sample mean at which the decision tips to GO. The posterior tail probability is
+    monotone in the sample mean, so a single threshold exists; find it by bisection on a fine grid."""
+    mu0, sd0 = prior.params
+    lo, hi = mu0 - 10 * sd, mu0 + 10 * sd
+    xbars = np.linspace(lo, hi, 4001)
+    pm, ps = np.vectorize(lambda xb: normal_posterior(mu0, sd0, xb, sd, n))(xbars)
+    p_tv = prob_exceeds("normal", pm, ps, rule.tv, rule.higher_is_better)
+    p_lrv = prob_exceeds("normal", pm, ps, rule.lrv, rule.higher_is_better)
+    go = (p_tv >= rule.gate_tv) & (p_lrv >= rule.gate_lrv)
+    if not go.any():
+        return float("inf") if rule.higher_is_better else float("-inf")
+    idx = int(np.argmax(go)) if rule.higher_is_better else int(len(go) - 1 - np.argmax(go[::-1]))
+    return float(xbars[idx])
+
+
+def assurance(prior: Prior, n_planned: int, rule: DecisionRule, sd: float | None = None) -> float:
+    """P(the trial reaches GO), averaging over the prior uncertainty about the true effect.
+
+    This is Bayesian power, and it is the honest number: classical power asks "what is the chance of
+    success IF the effect is exactly X", which is a question nobody can answer. Assurance integrates
+    over what you actually believe about X, and is usually lower.
+
+    Binary: EXACT. assurance = SUM_x go[x] * BetaBinomial(x; n, a, b), because the prior-predictive
+    distribution of the success count under a Beta prior IS the beta-binomial. No integration error.
+    """
+    if prior.kind == "beta":
+        a, b = prior.params
+        go = go_grid_binary(prior, n_planned, rule)
+        xs = np.arange(n_planned + 1)
+        return float(np.sum(stats.betabinom.pmf(xs, n_planned, a, b) * go))
+    if sd is None or sd <= 0:
+        raise ValueError("a continuous endpoint needs a positive known SD")
+    mu0, sd0 = prior.params
+    crit = _go_threshold_normal(prior, n_planned, rule, sd)
+    se = sd / np.sqrt(n_planned)
+    # theta ~ prior; xbar | theta ~ N(theta, se) -> xbar ~ N(mu0, sqrt(sd0^2 + se^2)) marginally
+    marg = float(np.hypot(sd0, se))
+    p = float(stats.norm.sf(crit, loc=mu0, scale=marg))
+    return p if rule.higher_is_better else 1.0 - p
+
+
+def operating_characteristics(prior: Prior, n_planned: int, rule: DecisionRule,
+                              sd: float | None = None, grid=None) -> list[dict]:
+    """The GO rate at each TRUE effect value. FDA's second pillar: show how the design behaves across
+    a plausible range of truths, not just at the value you hope for.
+
+    Read off this curve: the GO rate at the LRV is the type I error (declaring success when the effect
+    is not worth pursuing); the GO rate at the TV is the power.
+    """
+    if grid is None:
+        grid = (np.linspace(0.01, 0.99, 99) if prior.kind == "beta"
+                else np.linspace(rule.lrv - 2 * abs(rule.tv - rule.lrv),
+                                 rule.tv + 2 * abs(rule.tv - rule.lrv), 99))
+    out = []
+    if prior.kind == "beta":
+        go = go_grid_binary(prior, n_planned, rule)
+        xs = np.arange(n_planned + 1)
+        for th in np.asarray(grid, dtype=float):
+            out.append({"theta": float(th),
+                        "go_rate": float(np.sum(stats.binom.pmf(xs, n_planned, th) * go))})
+        return out
+    if sd is None or sd <= 0:
+        raise ValueError("a continuous endpoint needs a positive known SD")
+    crit = _go_threshold_normal(prior, n_planned, rule, sd)
+    se = sd / np.sqrt(n_planned)
+    for th in np.asarray(grid, dtype=float):
+        p = float(stats.norm.sf(crit, loc=th, scale=se))
+        out.append({"theta": float(th), "go_rate": p if rule.higher_is_better else 1.0 - p})
+    return out
+
+
+def type_i_and_power(oc: list[dict], rule: DecisionRule) -> tuple[float, float]:
+    """Type I error = GO rate at the LRV. Power = GO rate at the TV. Nearest grid point."""
+    def _at(target):
+        row = min(oc, key=lambda r: abs(r["theta"] - target))
+        return float(row["go_rate"])
+    return _at(rule.lrv), _at(rule.tv)
