@@ -14,6 +14,7 @@ from dataclasses import dataclass
 
 import numpy as np
 from scipy import stats
+from scipy.optimize import brentq
 
 _GRID = 2001          # quadrature points for the Beta-difference integral
 
@@ -148,18 +149,33 @@ def go_grid_binary(prior: Prior, n: int, rule: DecisionRule) -> np.ndarray:
 
 def _go_threshold_normal(prior: Prior, n: int, rule: DecisionRule, sd: float) -> float:
     """The observed sample mean at which the decision tips to GO. The posterior tail probability is
-    monotone in the sample mean, so a single threshold exists; find it by bisection on a fine grid."""
+    monotone in the sample mean, so a single crossing exists; solve it EXACTLY with brentq rather
+    than a grid search. (A grid sized in raw per-observation SD units, never rescaled by the
+    standard error sd/sqrt(n), silently loses resolution relative to the standard error as n grows
+    -- the search then always lands on the conservative side, biasing assurance/power low, with the
+    bias growing with n. brentq is deterministic and machine-precision: not Monte Carlo.)"""
     mu0, sd0 = prior.params
-    lo, hi = mu0 - 10 * sd, mu0 + 10 * sd
-    xbars = np.linspace(lo, hi, 4001)
-    pm, ps = np.vectorize(lambda xb: normal_posterior(mu0, sd0, xb, sd, n))(xbars)
-    p_tv = prob_exceeds("normal", pm, ps, rule.tv, rule.higher_is_better)
-    p_lrv = prob_exceeds("normal", pm, ps, rule.lrv, rule.higher_is_better)
-    go = (p_tv >= rule.gate_tv) & (p_lrv >= rule.gate_lrv)
-    if not go.any():
-        return float("inf") if rule.higher_is_better else float("-inf")
-    idx = int(np.argmax(go)) if rule.higher_is_better else int(len(go) - 1 - np.argmax(go[::-1]))
-    return float(xbars[idx])
+    se = sd / np.sqrt(n)
+
+    def g(xbar: float) -> float:
+        """Signed margin by which the GO criterion is met at this sample mean. GO iff g >= 0."""
+        pm, ps = normal_posterior(mu0, sd0, xbar, sd, n)
+        p_tv = prob_exceeds("normal", pm, ps, rule.tv, rule.higher_is_better)
+        p_lrv = prob_exceeds("normal", pm, ps, rule.lrv, rule.higher_is_better)
+        return min(p_tv - rule.gate_tv, p_lrv - rule.gate_lrv)
+
+    lo, hi = mu0 - (10 * sd0 + 10 * se), mu0 + (10 * sd0 + 10 * se)
+    if rule.higher_is_better:
+        if g(hi) < 0:
+            return float("inf")     # met nowhere in the bracket -> GO rate 0
+        if g(lo) >= 0:
+            return lo               # met everywhere -> GO rate 1 (far end of the bracket)
+        return float(brentq(g, lo, hi))
+    if g(lo) < 0:
+        return float("-inf")        # met nowhere in the bracket -> GO rate 0
+    if g(hi) >= 0:
+        return hi                   # met everywhere -> GO rate 1 (far end of the bracket)
+    return float(brentq(g, lo, hi))
 
 
 def assurance(prior: Prior, n_planned: int, rule: DecisionRule, sd: float | None = None) -> float:
@@ -197,9 +213,12 @@ def operating_characteristics(prior: Prior, n_planned: int, rule: DecisionRule,
     is not worth pursuing); the GO rate at the TV is the power.
     """
     if grid is None:
-        grid = (np.linspace(0.01, 0.99, 99) if prior.kind == "beta"
+        base = (np.linspace(0.01, 0.99, 99) if prior.kind == "beta"
                 else np.linspace(rule.lrv - 2 * abs(rule.tv - rule.lrv),
                                  rule.tv + 2 * abs(rule.tv - rule.lrv), 99))
+        # the plotted curve should visibly pass through the two thresholds that define the
+        # decision, not just come close to them; union1d also sorts ascending and dedupes.
+        grid = np.union1d(base, [rule.lrv, rule.tv])
     out = []
     if prior.kind == "beta":
         go = go_grid_binary(prior, n_planned, rule)
@@ -218,9 +237,10 @@ def operating_characteristics(prior: Prior, n_planned: int, rule: DecisionRule,
     return out
 
 
-def type_i_and_power(oc: list[dict], rule: DecisionRule) -> tuple[float, float]:
-    """Type I error = GO rate at the LRV. Power = GO rate at the TV. Nearest grid point."""
-    def _at(target):
-        row = min(oc, key=lambda r: abs(r["theta"] - target))
-        return float(row["go_rate"])
-    return _at(rule.lrv), _at(rule.tv)
+def type_i_and_power(prior: Prior, n_planned: int, rule: DecisionRule,
+                     sd: float | None = None) -> tuple[float, float]:
+    """Type I error = GO rate at the LRV. Power = GO rate at the TV. Computed EXACTLY at those two
+    thresholds (not read off the nearest point of a coarser plotting grid, which can be off by
+    several percentage points when the thresholds don't land on a grid line)."""
+    oc = operating_characteristics(prior, n_planned, rule, sd=sd, grid=np.array([rule.lrv, rule.tv]))
+    return oc[0]["go_rate"], oc[1]["go_rate"]

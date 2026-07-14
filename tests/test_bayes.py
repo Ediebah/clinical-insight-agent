@@ -161,7 +161,101 @@ def test_operating_characteristics_go_rate_rises_with_the_true_effect():
 
 def test_type_i_and_power_are_read_off_the_oc_curve():
     prior = bayes.Prior("Vague", "beta", (1.0, 1.0), "")
-    oc = bayes.operating_characteristics(prior, 80, RULE)
-    t1, power = bayes.type_i_and_power(oc, RULE)
+    t1, power = bayes.type_i_and_power(prior, 80, RULE)
     assert 0.0 <= t1 <= 0.20            # GO rate when the effect is only at the LRV
     assert power > t1                   # GO rate at the TV must exceed it
+
+
+# ── DEFECT 1: type_i_and_power must read the EXACT threshold, not the nearest grid point ─────────
+def test_type_i_and_power_are_exact_at_off_grid_thresholds():
+    """tv=0.295 / lrv=0.148 sit strictly between the default grid's hundredths (0.01, 0.02, ...).
+    The reported type I error / power must be the GO rate evaluated EXACTLY at those thresholds,
+    not the value at whatever grid point happens to be nearest -- a few points of error in a
+    reported power figure is not acceptable in a regulatory artifact."""
+    prior = bayes.Prior("Vague", "beta", (1.0, 1.0), "")
+    rule = bayes.DecisionRule(tv=0.295, lrv=0.148)
+    n = 80
+    t1, power = bayes.type_i_and_power(prior, n, rule)
+
+    # independent check: the GO rate at exactly theta, computed straight off go_grid_binary --
+    # bypasses operating_characteristics' own grid machinery entirely.
+    go = bayes.go_grid_binary(prior, n, rule)
+    xs = np.arange(n + 1)
+    want_t1 = float(np.sum(stats.binom.pmf(xs, n, rule.lrv) * go))
+    want_power = float(np.sum(stats.binom.pmf(xs, n, rule.tv) * go))
+
+    assert t1 == pytest.approx(want_t1, abs=1e-9)
+    assert power == pytest.approx(want_power, abs=1e-9)
+
+
+def test_operating_characteristics_default_grid_passes_through_lrv_and_tv():
+    """The plotted OC curve should visibly pass through the two thresholds that define the
+    decision, not just come close to them. The grid must stay sorted ascending."""
+    prior = bayes.Prior("Vague", "beta", (1.0, 1.0), "")
+    rule = bayes.DecisionRule(tv=0.295, lrv=0.148)
+    oc = bayes.operating_characteristics(prior, 80, rule)
+    thetas = [row["theta"] for row in oc]
+    assert thetas == sorted(thetas)
+    assert rule.lrv in thetas
+    assert rule.tv in thetas
+
+
+# ── DEFECT 2: the continuous/normal GO-threshold search is biased and had zero coverage ──────────
+def _mc_normal_assurance(prior, n, rule, sd, seed=0, draws=300_000):
+    """Independent Monte Carlo cross-check of continuous-endpoint assurance, used ONLY in this
+    test file. Draws a true effect from the prior, simulates the sample mean given that effect,
+    then applies the module's own EXACT posterior/tail-probability primitives (normal_posterior's
+    formula, prob_exceeds) to decide GO/no-GO per draw. This bypasses _go_threshold_normal
+    entirely, so it is a genuine independent check on assurance()'s reported number."""
+    rng = np.random.default_rng(seed)
+    mu0, sd0 = prior.params
+    se = sd / np.sqrt(n)
+    theta = rng.normal(mu0, sd0, size=draws)
+    xbar = rng.normal(theta, se, size=draws)
+    prec0, prec_d = 1.0 / sd0 ** 2, n / sd ** 2
+    var = 1.0 / (prec0 + prec_d)
+    post_mean = var * (prec0 * mu0 + prec_d * xbar)
+    post_sd = np.full_like(xbar, np.sqrt(var))
+    p_tv = bayes.prob_exceeds("normal", post_mean, post_sd, rule.tv, rule.higher_is_better)
+    p_lrv = bayes.prob_exceeds("normal", post_mean, post_sd, rule.lrv, rule.higher_is_better)
+    go = (p_tv >= rule.gate_tv) & (p_lrv >= rule.gate_lrv)
+    return float(np.mean(go))
+
+
+NORMAL_RULE = bayes.DecisionRule(tv=2.0, lrv=0.5, gate_tv=0.80, gate_lrv=0.90, stop_lrv=0.10, higher_is_better=True)
+NORMAL_PRIOR = bayes.Prior("informed", "normal", (1.5, 1.0), "informed prior, mean 1.5")
+NORMAL_SD = 5.0
+
+
+@pytest.mark.parametrize("n", [100, 2000])
+def test_assurance_normal_matches_monte_carlo(n):
+    """Cross-check against an independent MC simulation (allowed in tests; the shipped module has
+    none). n=2000 is the case that exposes the old grid-search bias in _go_threshold_normal: its
+    resolution is fixed in raw observation-SD units and is never rescaled by the shrinking
+    standard error, so the reported assurance drifts systematically low as n grows."""
+    code = bayes.assurance(NORMAL_PRIOR, n, NORMAL_RULE, sd=NORMAL_SD)
+    mc = _mc_normal_assurance(NORMAL_PRIOR, n, NORMAL_RULE, NORMAL_SD)
+    assert code == pytest.approx(mc, abs=0.005)
+
+
+def test_assurance_normal_collapses_to_classical_power_under_a_point_prior():
+    """Continuous-endpoint analogue of test_assurance_collapses_to_power_under_a_point_prior:
+    as the prior tightens onto a point mass at mu0, assurance -> the GO rate assuming the true
+    effect IS mu0 (operating_characteristics evaluated at that single point), mirroring the exact
+    invariant that guards the binary path."""
+    rule = bayes.DecisionRule(tv=1.0, lrv=0.3, gate_tv=0.80, gate_lrv=0.90, stop_lrv=0.10, higher_is_better=True)
+    n, sd, mu0 = 500, 5.0, 1.5
+    tight = bayes.Prior("point", "normal", (mu0, 0.01), "point mass")
+    a = bayes.assurance(tight, n, rule, sd=sd)
+    oc = bayes.operating_characteristics(tight, n, rule, sd=sd, grid=np.array([mu0]))
+    assert a == pytest.approx(oc[0]["go_rate"], abs=1e-6)
+
+
+def test_assurance_normal_lower_is_better_direction():
+    """A treatment that genuinely LOWERS the outcome (higher_is_better=False) should register high
+    assurance when its effect comfortably clears the thresholds on the low side. This direction of
+    the continuous branch had zero test coverage before this fix."""
+    rule = bayes.DecisionRule(tv=-1.0, lrv=-0.3, gate_tv=0.80, gate_lrv=0.90, stop_lrv=0.10, higher_is_better=False)
+    prior = bayes.Prior("informed", "normal", (-1.5, 0.5), "treatment lowers the outcome")
+    a = bayes.assurance(prior, 200, rule, sd=3.0)
+    assert a > 0.7
