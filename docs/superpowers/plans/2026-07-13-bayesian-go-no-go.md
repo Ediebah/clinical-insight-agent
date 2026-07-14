@@ -975,12 +975,23 @@ In `agent/modeling.py`, in the `ModelResult` dataclass, add one line after the `
 
 Append to `agent/modeling.py` (after `calc_sample_size`):
 
+**Required imports.** Add these to the TOP of `agent/modeling.py`, with the existing imports (there is
+no circular-import risk: neither `bayes` nor `prespec` imports `modeling`). `fit_interim` in Task 6
+also needs `scipy.stats` for the credible interval, so add it now:
+
+```python
+import numpy as np
+import pandas as pd
+from scipy import stats
+
+from . import bayes as _bayes
+from . import prespec as _prespec
+```
+
+Then append the rest to the END of the file, after `calc_sample_size`:
+
 ```python
 # ── Bayesian go/no-go ─────────────────────────────────────────────────────────────────────────────
-from . import bayes as _bayes          # noqa: E402
-from . import prespec as _prespec      # noqa: E402
-
-
 def _build_prior(endpoint_type, tv, lrv, prior_successes, prior_n, prior_a, prior_b,
                  prior_mu, prior_sd) -> _bayes.Prior:
     """The informed prior, from a previous study if the question supplied one, else weakly informative."""
@@ -1333,16 +1344,9 @@ def fit_interim(df: pd.DataFrame, outcome: str, n_planned=None, tv=None, lrv=Non
         return _err(str(e))
 ```
 
-**Required import.** `agent/modeling.py` imports numpy at module level (line 14) but NOT scipy — the
-existing code imports `scipy.stats` lazily inside the functions that need it. `fit_interim` uses
-`stats.beta.ppf` for the credible interval, so add this line directly under `import numpy as np`:
-
-```python
-import numpy as np
-from scipy import stats
-```
-
-Verify with: `grep -n "^from scipy import stats" agent/modeling.py` (expect one hit at line ~15).
+**Imports.** `from scipy import stats` and the `_bayes` / `_prespec` imports were added to the top of
+`agent/modeling.py` in Task 5. Verify they are present before starting:
+`grep -n "^from scipy import stats\|^from . import bayes" agent/modeling.py` (expect two hits).
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
