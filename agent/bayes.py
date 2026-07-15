@@ -244,3 +244,35 @@ def type_i_and_power(prior: Prior, n_planned: int, rule: DecisionRule,
     several percentage points when the thresholds don't land on a grid line)."""
     oc = operating_characteristics(prior, n_planned, rule, sd=sd, grid=np.array([rule.lrv, rule.tv]))
     return oc[0]["go_rate"], oc[1]["go_rate"]
+
+
+# ── predictive probability of success (interim) ───────────────────────────────────────────────────
+MAX_ENUM = 20_000     # documented cap on the enumeration; above it we bin rather than get slow
+
+
+def predictive_prob_success(prior: Prior, x: int, n: int, n_planned: int, rule: DecisionRule) -> float:
+    """P(the trial ENDS in GO | what we have seen so far). The interim question.
+
+    EXACT for a binary endpoint. Enumerate every possible number of successes y among the
+    n_planned - n patients not yet observed, weight each by the posterior-predictive (beta-binomial)
+    probability of seeing exactly y, and check whether the FINAL total x + y would be a GO:
+
+        PPoS = SUM_y  BetaBinom(y; m, a+x, b+n-x) * go_final[x + y]
+
+    No simulation error. Low PPoS is the futility signal that stops a trial early and saves the money.
+    """
+    if prior.kind != "beta":
+        raise ValueError("predictive_prob_success currently supports a binary endpoint only")
+    if n > n_planned:
+        raise ValueError(f"observed n ({n}) exceeds the planned n ({n_planned})")
+    a, b = prior.params
+    go_final = go_grid_binary(prior, n_planned, rule)
+    m = n_planned - n
+    if m == 0:                                        # trial complete: this IS the final decision
+        return float(go_final[x])
+    if m > MAX_ENUM:
+        raise ValueError(f"{m:,} unobserved patients exceeds the {MAX_ENUM:,} enumeration cap")
+    post_a, post_b = beta_posterior(a, b, x, n)
+    ys = np.arange(m + 1)
+    w = stats.betabinom.pmf(ys, m, post_a, post_b)     # posterior-predictive of the remaining successes
+    return float(np.sum(w * go_final[x + ys]))

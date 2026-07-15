@@ -298,3 +298,39 @@ def test_assurance_normal_lower_is_better_direction():
     a = bayes.assurance(prior, n, rule, sd=sd)
     mc = _mc_normal_assurance(prior, n, rule, sd, seed=200, draws=300_000)
     assert a == pytest.approx(mc, abs=0.005)
+
+
+# ── predictive probability of success ─────────────────────────────────────────────────────────────
+def test_predictive_prob_matches_a_brute_force_simulation():
+    """The shipped code enumerates exactly. The TEST simulates, as an independent cross-check."""
+    prior = bayes.Prior("Vague", "beta", (1.0, 1.0), "")
+    x, n, n_planned = 12, 40, 100
+    exact = bayes.predictive_prob_success(prior, x, n, n_planned, RULE)
+
+    rng = np.random.default_rng(7)
+    a, b = bayes.beta_posterior(1.0, 1.0, x, n)
+    go_final = bayes.go_grid_binary(prior, n_planned, RULE)
+    theta = rng.beta(a, b, 200_000)                       # draw the truth from the current posterior
+    future = rng.binomial(n_planned - n, theta)           # simulate the rest of the trial
+    sim = float(np.mean(go_final[x + future]))
+    assert exact == pytest.approx(sim, abs=0.005)
+
+
+def test_predictive_prob_is_one_when_the_trial_has_already_won():
+    """Enough successes banked that every possible completion is a GO."""
+    prior = bayes.Prior("Vague", "beta", (1.0, 1.0), "")
+    assert bayes.predictive_prob_success(prior, 38, 40, 50, RULE) == pytest.approx(1.0, abs=1e-9)
+
+
+def test_predictive_prob_is_near_zero_under_futility():
+    """Far below the LRV with little enrollment left: this trial is not coming back."""
+    prior = bayes.Prior("Vague", "beta", (1.0, 1.0), "")
+    assert bayes.predictive_prob_success(prior, 1, 60, 70, RULE) < 0.01
+
+
+def test_predictive_prob_at_full_enrollment_is_the_final_decision():
+    """No patients left to observe -> the predictive probability degenerates to the final GO/no-GO."""
+    prior = bayes.Prior("Vague", "beta", (1.0, 1.0), "")
+    go = bayes.go_grid_binary(prior, 50, RULE)
+    for x in (5, 20, 35):
+        assert bayes.predictive_prob_success(prior, x, 50, 50, RULE) == pytest.approx(float(go[x]))
