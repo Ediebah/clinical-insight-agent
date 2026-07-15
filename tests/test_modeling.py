@@ -312,3 +312,68 @@ def test_uplift_string_treatment_control_recognition():
     assert r.error is None
     assert r.terms[0].estimate > 0                          # drug raises y; sign must not flip
     assert any("drug" in i and "placebo" in i for i in r.issues)   # mapping stated to the user
+
+
+# ── Bayesian go/no-go: design stage ───────────────────────────────────────────────────────────────
+def test_assurance_verdict_flips_from_go_to_stop_as_the_bar_rises():
+    # a strongly positive Phase I (16/20) against a modest bar -> GO
+    go = modeling.calc_assurance(n_planned=100, tv=0.30, lrv=0.15,
+                                 prior_successes=16, prior_n=20)
+    assert go.error is None and go.verdict["call"] == "GO"
+    # the same evidence against a bar nobody could clear -> STOP
+    stop = modeling.calc_assurance(n_planned=100, tv=0.99, lrv=0.98,
+                                   prior_successes=16, prior_n=20)
+    assert stop.verdict["call"] == "STOP"
+
+
+def test_assurance_reports_the_prior_and_its_provenance():
+    r = modeling.calc_assurance(n_planned=100, tv=0.30, lrv=0.15, prior_successes=8, prior_n=20)
+    assert r.error is None
+    joined = " ".join(r.issues)
+    assert "Beta(9" in joined and "8" in joined and "20" in joined     # Beta(1,1) + 8/20 -> Beta(9,13)
+
+
+def test_assurance_flags_a_fragile_verdict_when_the_skeptical_prior_flips_it():
+    # engineered so the informed prior says GO but a skeptic is not yet convinced
+    r = modeling.calc_assurance(n_planned=40, tv=0.30, lrv=0.15, prior_successes=14, prior_n=20)
+    joined = " ".join(r.issues).lower()
+    assert "fragile" in joined or "holds" in joined            # the panel always reports one or the other
+    assert any(row["prior"] == "Skeptical" for row in r.robustness["panel"])
+
+
+def test_assurance_emits_operating_characteristics():
+    r = modeling.calc_assurance(n_planned=100, tv=0.30, lrv=0.15, prior_successes=8, prior_n=20)
+    assert 0.0 <= r.robustness["type_i_error"] <= 1.0
+    assert 0.0 <= r.robustness["power"] <= 1.0
+    joined = " ".join(r.issues).lower()
+    assert "type i error" in joined
+
+
+def test_assurance_flags_a_prior_stronger_than_the_planned_data():
+    # a 200-observation prior against a 20-patient trial: the prior is doing the work
+    r = modeling.calc_assurance(n_planned=20, tv=0.30, lrv=0.15, prior_successes=70, prior_n=200)
+    assert any("prior" in i.lower() and "more" in i.lower() for i in r.issues)
+
+
+def test_assurance_attaches_a_valid_lock():
+    from agent import prespec
+    r = modeling.calc_assurance(n_planned=100, tv=0.30, lrv=0.15, prior_successes=8, prior_n=20)
+    lock = r.prespec["lock"]
+    assert prespec.verify(lock, lock["params"])["status"] == "PRE-SPECIFIED"
+
+
+def test_assurance_device_performance_goal_collapses_to_go_no_go():
+    # tv == lrv == the performance goal: the CONSIDER band vanishes
+    r = modeling.calc_assurance(n_planned=150, tv=0.85, lrv=0.85, prior_successes=88, prior_n=100)
+    assert r.error is None and r.verdict["call"] in ("GO", "STOP", "CONSIDER")
+    assert r.robustness["framing"] == "single_arm"
+
+
+def test_assurance_rejects_an_lrv_above_the_tv():
+    r = modeling.calc_assurance(n_planned=100, tv=0.15, lrv=0.30, prior_successes=8, prior_n=20)
+    assert r.error is not None and "lrv" in r.error.lower()
+
+
+def test_assurance_rejects_out_of_range_proportions():
+    r = modeling.calc_assurance(n_planned=100, tv=1.4, lrv=0.15, prior_successes=8, prior_n=20)
+    assert r.error is not None
