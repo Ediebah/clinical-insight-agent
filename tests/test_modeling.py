@@ -472,3 +472,20 @@ def test_interim_at_full_enrollment_reports_the_final_decision():
     r = modeling.fit_interim(_interim_df(30, 50), "responded", n_planned=50, tv=0.30, lrv=0.15)
     assert r.error is None
     assert any("complete" in i.lower() or "final" in i.lower() for i in r.issues)
+
+
+def test_render_carries_the_go_no_go_verdict_and_survives_bayes_robustness():
+    """render() feeds _interpret_model: it must carry the verdict for the LLM to lead with, and it
+    must not KeyError on the go/no-go robustness dict, which has no 'summary' (the spec-curve shape)."""
+    r = modeling.calc_assurance(n_planned=100, tv=0.30, lrv=0.15, prior_successes=8, prior_n=20)
+    assert r.error is None
+    text = modeling.render(r)
+    assert "GO" in text
+    assert "PRIOR SENSITIVITY" in text
+
+
+def test_render_carries_the_interim_verdict():
+    df = pd.DataFrame({"responded": [1] * 12 + [0] * 28})
+    r = modeling.fit_interim(df, "responded", n_planned=100, tv=0.30, lrv=0.15)
+    assert r.error is None
+    assert "VERDICT" in modeling.render(r)

@@ -1373,12 +1373,26 @@ def render(r: ModelResult) -> str:
             tag = " (control)" if a.get("is_baseline") else (" ←" if a.get("is_winner") else "")
             val = f"{a['value'] * 100:.1f}%" if binm else f"{a['value']:.2f}"
             lines.append(f"  {a['arm']:16} n={a['n']:,}  {val}{tag}")
+    if r.model_type in ("assurance", "interim") and r.verdict:
+        lines.append(f"  VERDICT: {r.verdict.get('call')} — {r.verdict.get('reason')}")
+        for k in ("assurance", "power", "predictive_prob", "posterior_mean"):
+            if r.verdict.get(k) is not None:
+                lines.append(f"  {k}: {r.verdict[k]:.1%}")
+        panel = r.robustness.get("panel") or []
+        if panel:
+            lines.append("  PRIOR SENSITIVITY: " + "; ".join(
+                f"{row['prior']} -> {row['call']} (assurance {row['assurance']:.0%})" for row in panel))
+        if r.robustness.get("type_i_error") is not None:
+            lines.append(f"  OPERATING CHARACTERISTICS: type I error {r.robustness['type_i_error']:.1%}, "
+                         f"power {r.robustness['power']:.1%}")
+        if r.prespec.get("status"):
+            lines.append(f"  PRE-SPECIFICATION: {r.prespec['status']}")
     for t in r.terms:
         ci = "" if np.isnan(t.ci_low) else f"  95% CI [{t.ci_low:.3f}, {t.ci_high:.3f}]"
         p = "" if np.isnan(t.p) else f"  p={t.p:.4f}" + (" *" if t.p < 0.05 else "")
         cnt = (f"  n={t.n:,}" + (f", events={t.events:,}" if t.events is not None else "")) if t.n is not None else ""
         lines.append(f"  {t.name:22} {r.effect_label}={t.estimate:.3f}{cnt}{ci}{p}")
-    if r.robustness:
+    if r.robustness.get("summary"):          # spec-curve shape only; the go/no-go dict has no summary
         lines.append(f"  ROBUSTNESS: {r.robustness['summary']}")
     for iss in r.issues:
         lines.append(f"  ! {iss}")
