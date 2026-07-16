@@ -1766,8 +1766,8 @@ def _fit_interim_two_arm(df, outcome, group, control, n_planned, tv, lrv,
         issues = [_prespec.caveat(ps), f"Prior: {prov}"]
         if (n_t + n_c) >= int(n_planned):
             issues.append("Enrolment is complete, so this is the FINAL decision, not a prediction.")
-        m_t, m_c = n_planned_t - n_t, n_planned_c - n_c
-        if (m_t + 1) * (m_c + 1) > _bayes.MAX_ENUM_DIFF:
+        rem_t, rem_c = n_planned_t - n_t, n_planned_c - n_c   # remaining patients (thinning keys on these)
+        if (rem_t + 1) * (rem_c + 1) > _bayes.MAX_ENUM_DIFF:
             issues.append("The predictive probability was grid-binned: the planned enrolment exceeds the "
                           "exact-enumeration cap, so the PPoS is a close deterministic approximation, "
                           "not the exact sum.")
