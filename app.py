@@ -881,7 +881,7 @@ def _render_model(m: dict) -> str:
                              f"[{v.get('diff_ci_low', 0):+.1%}, {v.get('diff_ci_high', 0):+.1%}]")
                 lines += ["", "| arm | posterior rate | 95% CrI | n |", "|---|---|---|---|"]
                 for a in m["arms"]:
-                    tag = " · control" if a.get("is_baseline") else ""
+                    tag = " · control" if a.get("is_baseline") and str(a["arm"]).lower() != "control" else ""
                     lines.append(f"| `{a['arm']}`{tag} | {a['value']:.1%} "
                                  f"| [{a['ci_low']:.1%}, {a['ci_high']:.1%}] | {a['n']:,} |")
             else:

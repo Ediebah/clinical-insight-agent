@@ -375,7 +375,7 @@ def build_docx(result, *, when: _dt.datetime | None = None) -> bytes:
                     pt.rows[0].cells[j].text = h
                 for a in m["arms"]:
                     c = pt.add_row().cells
-                    tag = " (control)" if a.get("is_baseline") else ""
+                    tag = " (control)" if a.get("is_baseline") and str(a["arm"]).lower() != "control" else ""
                     c[0].text = f"{a['arm']}{tag}"; c[1].text = f"{a['value']:.1%}"
                     c[2].text = f"[{a['ci_low']:.1%}, {a['ci_high']:.1%}]"; c[3].text = f"{a['n']:,}"
             else:

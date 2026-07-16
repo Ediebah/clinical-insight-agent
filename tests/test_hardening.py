@@ -264,3 +264,6 @@ def test_report_renders_a_two_arm_interim(tmp_path):
     xml = zipfile.ZipFile(io.BytesIO(blob)).read("word/document.xml").decode()
     assert "treatment" in xml and "control" in xml           # the per-arm table
     assert "Predictive probability of success" in xml
+    assert "Posterior risk difference (t - c)" in xml         # the new two-arm key line
+    assert "Per-arm posterior response rates" in xml          # the per-arm table caption
+    assert "95% CrI" in xml                                   # the per-arm table header
