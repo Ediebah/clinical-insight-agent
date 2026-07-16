@@ -356,6 +356,13 @@ def _route(question: str, context: str) -> dict:
         "and the prior as `prior_successes` + `prior_n` if a previous study is mentioned. If the "
         "question gives no TV/LRV, use the LRV/TV from any stated goal, else tv=0.30, lrv=0.15 for a "
         "response-rate endpoint and SAY SO in the hypothesis.\n"
+        "For a RANDOMIZED / two-arm interim (treatment vs a concurrent control or placebo, e.g. '18/40 "
+        "on the drug vs 10/38 on control') set `framing`='two_arm', `group`=the arm column, `control`=the "
+        "control arm's value, and express `tv`/`lrv` as RISK DIFFERENCES treatment-minus-control (e.g. a "
+        "15-point benefit hoped for -> tv 0.15; any benefit is the floor -> lrv 0). analytic_sql returns "
+        "one row per subject with the arm column + a binary outcome; when counts are stated directly, "
+        "synthesize each arm's rows with range() (e.g. `SELECT 'treatment' AS arm, 1 AS responded FROM "
+        "range(18) UNION ALL ...`). n_planned is the TOTAL planned enrolment across both arms.\n"
         "  'causal'      the EFFECT / IMPACT of a specific binary intervention or exposure (on a drug vs "
         "not, insured vs not, had-procedure vs not) on an outcome, adjusting for confounders → T-learner "
         "uplift. Needs `outcome`, a binary `treatment`, and `predictors` (the confounders). Binarize the "
@@ -412,7 +419,9 @@ def _fit_model(spec: dict, df) -> modeling.ModelResult:
             df, spec["outcome"], n_planned=spec.get("n_planned"), tv=spec.get("tv"),
             lrv=spec.get("lrv"), higher_is_better=spec.get("higher_is_better", True),
             prior_successes=spec.get("prior_successes"), prior_n=spec.get("prior_n"),
-            framing=spec.get("framing", "single_arm"))
+            prior_a=spec.get("prior_a"), prior_b=spec.get("prior_b"),
+            framing=spec.get("framing", "single_arm"),
+            group=spec.get("group"), control=spec.get("control"))
     return modeling.ModelResult(mt or "?", spec.get("outcome", ""), 0, "", error=f"unknown model_type: {mt}")
 
 
