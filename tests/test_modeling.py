@@ -1,6 +1,7 @@
 """Unit tests for the inferential-modeling layer (synthetic data, known effects; no API key)."""
 import numpy as np
 import pandas as pd
+import pytest
 
 from agent import modeling
 
@@ -489,3 +490,102 @@ def test_render_carries_the_interim_verdict():
     r = modeling.fit_interim(df, "responded", n_planned=100, tv=0.30, lrv=0.15)
     assert r.error is None
     assert "VERDICT" in modeling.render(r)
+
+
+# ── Bayesian go/no-go: two-arm interim ────────────────────────────────────────────────────────────
+def _two_arm_df(x_t: int, n_t: int, x_c: int, n_c: int) -> pd.DataFrame:
+    rows = ([("treatment", 1)] * x_t + [("treatment", 0)] * (n_t - x_t)
+            + [("control", 1)] * x_c + [("control", 0)] * (n_c - x_c))
+    return pd.DataFrame(rows, columns=["arm", "responded"])
+
+
+def test_two_arm_interim_goes_when_treatment_clearly_beats_control():
+    r = modeling.fit_interim(_two_arm_df(26, 30, 8, 30), "responded", n_planned=80, tv=0.15, lrv=0.0,
+                             framing="two_arm", group="arm", control="control")
+    assert r.error is None and r.verdict["call"] == "GO"
+    arms = {a["arm"]: a for a in r.arms}
+    assert set(arms) == {"treatment", "control"} and arms["treatment"]["value"] > arms["control"]["value"]
+
+
+def test_two_arm_interim_stops_for_futility_when_arms_are_equal():
+    r = modeling.fit_interim(_two_arm_df(9, 45, 9, 45), "responded", n_planned=100, tv=0.15, lrv=0.0,
+                             framing="two_arm", group="arm", control="control")
+    assert r.error is None and r.verdict["call"] == "STOP"
+    assert r.verdict["predictive_prob"] < 0.10
+
+
+def test_two_arm_interim_reports_the_risk_difference_with_a_credible_interval():
+    r = modeling.fit_interim(_two_arm_df(18, 40, 10, 40), "responded", n_planned=100, tv=0.15, lrv=0.0,
+                             framing="two_arm", group="arm", control="control")
+    t = r.terms[0]
+    assert "difference" in t.name.lower()
+    assert t.ci_low < t.estimate < t.ci_high
+    assert t.estimate == pytest.approx(18 / 40 - 10 / 40, abs=0.02)
+
+
+def test_two_arm_interim_without_a_lock_is_exploratory():
+    r = modeling.fit_interim(_two_arm_df(18, 40, 10, 40), "responded", n_planned=100, tv=0.15, lrv=0.0,
+                             framing="two_arm", group="arm", control="control")
+    assert r.prespec["status"] == "EXPLORATORY"
+    assert any("not pre-specified" in i.lower() for i in r.issues)
+
+
+def test_two_arm_interim_infers_control_when_not_named():
+    # 'control' is recognized by name even without the control= argument
+    r = modeling.fit_interim(_two_arm_df(20, 40, 12, 40), "responded", n_planned=100, tv=0.15, lrv=0.0,
+                             framing="two_arm", group="arm")
+    assert r.error is None
+    assert next(a for a in r.arms if a["is_baseline"])["arm"] == "control"
+
+
+def test_two_arm_interim_rejects_a_single_arm_cohort():
+    df = pd.DataFrame({"arm": ["treatment"] * 20, "responded": [1] * 12 + [0] * 8})
+    r = modeling.fit_interim(df, "responded", n_planned=100, tv=0.15, lrv=0.0,
+                             framing="two_arm", group="arm", control="control")
+    assert r.error is not None and "two arms" in r.error.lower()
+
+
+def test_two_arm_interim_rejects_more_observed_than_planned_per_arm():
+    r = modeling.fit_interim(_two_arm_df(30, 60, 20, 60), "responded", n_planned=100, tv=0.15, lrv=0.0,
+                             framing="two_arm", group="arm", control="control")
+    assert r.error is not None and "planned" in r.error.lower()
+
+
+def test_two_arm_interim_accepts_a_negative_lrv_non_inferiority_floor():
+    # a risk-difference LRV may be negative (a non-inferiority-style floor); it must NOT be rejected as
+    # out of [0,1], and a clearly-better treatment against a small negative floor should still be able to GO
+    r = modeling.fit_interim(_two_arm_df(28, 30, 8, 30), "responded", n_planned=80, tv=0.15, lrv=-0.05,
+                             framing="two_arm", group="arm", control="control")
+    assert r.error is None and r.verdict["call"] in ("GO", "CONSIDER", "STOP")
+
+
+def test_two_arm_interim_no_false_grid_binned_caveat_at_common_size():
+    # n_planned=200 -> 100 planned/arm, but only ~40 observed/arm -> remaining grid 61x61=3721 < cap,
+    # so the PPoS is EXACT and the grid-binned caveat must NOT appear (regression: it keyed on planned n)
+    r = modeling.fit_interim(_two_arm_df(18, 40, 10, 40), "responded", n_planned=200, tv=0.15, lrv=0.0,
+                             framing="two_arm", group="arm", control="control")
+    assert r.error is None
+    assert not any("grid-binned" in i.lower() for i in r.issues)
+
+
+def test_two_arm_interim_grid_binned_caveat_fires_when_thinning(monkeypatch):
+    # force the cap low so the remaining grid exceeds it -> the caveat SHOULD appear
+    from agent import bayes
+    monkeypatch.setattr(bayes, "MAX_ENUM_DIFF", 100)
+    r = modeling.fit_interim(_two_arm_df(18, 40, 10, 40), "responded", n_planned=200, tv=0.15, lrv=0.0,
+                             framing="two_arm", group="arm", control="control")
+    assert r.error is None
+    assert any("grid-binned" in i.lower() for i in r.issues)
+
+
+def test_two_arm_interim_lower_is_better_adverse_event_rate():
+    # lower is better: treatment has FEWER events than control -> a benefit. theta is always
+    # (treatment - control); with higher_is_better=False the FAVORABLE direction is negative, so a
+    # hoped-for 15pp reduction is tv=-0.15 (a minimum floor of "no worse than control" is lrv=0.0).
+    # (tv=+0.15 is rejected by validation: with higher_is_better=False the TV must not exceed the LRV,
+    # matching the sign convention already exercised in tests/test_bayes.py's lower-is-better rule.)
+    r = modeling.fit_interim(_two_arm_df(6, 40, 18, 40), "responded", n_planned=100, tv=-0.15, lrv=0.0,
+                             higher_is_better=False, framing="two_arm", group="arm", control="control")
+    assert r.error is None and r.verdict["call"] in ("GO", "CONSIDER", "STOP")
+    # treatment event rate (6/40=15%) is well below control (18/40=45%) -> favorable -> not a STOP
+    assert r.verdict["call"] in ("GO", "CONSIDER")

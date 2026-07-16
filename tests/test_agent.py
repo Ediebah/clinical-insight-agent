@@ -82,3 +82,15 @@ def test_fit_model_dispatches_interim():
             "tv": 0.30, "lrv": 0.15}
     mr = agent._fit_model(spec, df)
     assert mr.model_type == "interim" and mr.error is None
+
+
+def test_fit_model_dispatches_two_arm_interim():
+    import pandas as pd
+    rows = ([("treatment", 1)] * 18 + [("treatment", 0)] * 22
+            + [("control", 1)] * 10 + [("control", 0)] * 30)
+    df = pd.DataFrame(rows, columns=["arm", "responded"])
+    spec = {"model_type": "interim", "outcome": "responded", "n_planned": 100,
+            "tv": 0.15, "lrv": 0.0, "framing": "two_arm", "group": "arm", "control": "control"}
+    mr = agent._fit_model(spec, df)
+    assert mr.model_type == "interim" and mr.error is None
+    assert {a["arm"] for a in mr.arms} == {"treatment", "control"}

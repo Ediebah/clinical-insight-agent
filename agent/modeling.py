@@ -1387,6 +1387,9 @@ def render(r: ModelResult) -> str:
                          f"power {r.robustness['power']:.1%}")
         if r.prespec.get("status"):
             lines.append(f"  PRE-SPECIFICATION: {r.prespec['status']}")
+        for a in r.arms:                                   # two-arm interim: per-arm posteriors
+            tag = " (control)" if a.get("is_baseline") and str(a["arm"]).lower() != "control" else ""
+            lines.append(f"  {a['arm']:16} n={a['n']:,}  rate={a['value']:.1%}{tag}")
     for t in r.terms:
         ci = "" if np.isnan(t.ci_low) else f"  95% CI [{t.ci_low:.3f}, {t.ci_high:.3f}]"
         p = "" if np.isnan(t.p) else f"  p={t.p:.4f}" + (" *" if t.p < 0.05 else "")
@@ -1551,12 +1554,24 @@ def calc_assurance(endpoint_type: str = "proportion", framing: str = "single_arm
         return _err(str(e))
 
 
+def _diff_credible_interval(post_t, post_c, higher_is_better: bool) -> tuple[float, float, float]:
+    """Posterior mean and 95% credible interval of the risk difference rate_t - rate_c. The difference
+    posterior's CDF F(v) = P(d <= v) is built on a fixed grid via the tested prob_diff_exceeds quadrature,
+    then inverted for the 2.5th and 97.5th percentiles. Deterministic; no simulation."""
+    grid = np.linspace(-1.0, 1.0, 801)
+    cdf = np.array([1.0 - _bayes.prob_diff_exceeds("beta", post_t, post_c, float(v), True) for v in grid])
+    lo = float(np.interp(0.025, cdf, grid))
+    hi = float(np.interp(0.975, cdf, grid))
+    mean = post_t[0] / (post_t[0] + post_t[1]) - post_c[0] / (post_c[0] + post_c[1])
+    return float(mean), lo, hi
+
+
 def fit_interim(df: pd.DataFrame, outcome: str, n_planned=None, tv=None, lrv=None,
                 gate_tv: float = 0.80, gate_lrv: float = 0.90, stop_lrv: float = 0.10,
                 higher_is_better: bool = True,
                 prior_successes=None, prior_n=None, prior_a=None, prior_b=None,
                 lock=None, endpoint_type: str = "proportion",
-                framing: str = "single_arm") -> ModelResult:
+                framing: str = "single_arm", group=None, control=None) -> ModelResult:
     """Interim Bayesian go/no-go: given the patients seen so far, will this trial end in GO?
 
     The predictive probability of success is the futility signal that stops a trial early and saves
@@ -1573,6 +1588,10 @@ def fit_interim(df: pd.DataFrame, outcome: str, n_planned=None, tv=None, lrv=Non
         tv, lrv = float(tv), float(lrv)
         if endpoint_type != "proportion":
             return _err("the interim analysis currently supports a binary endpoint only.")
+        if framing == "two_arm":
+            return _fit_interim_two_arm(df, outcome, group, control, n_planned, tv, lrv,
+                                        gate_tv, gate_lrv, stop_lrv, higher_is_better,
+                                        prior_a, prior_b, lock)
         if higher_is_better and lrv > tv:
             return _err("the LRV must not exceed the TV.")
         if not (0 <= tv <= 1 and 0 <= lrv <= 1):
@@ -1641,6 +1660,118 @@ def fit_interim(df: pd.DataFrame, outcome: str, n_planned=None, tv=None, lrv=Non
             issues.append(f"The prior carries an effective sample size of {_bayes.prior_ess(prior):.0f}, "
                           f"more than the {n_obs:,} subjects observed so far: the prior is currently "
                           "doing more work than the data.")
+        mr.issues = issues
+        return mr
+    except Exception as e:  # noqa: BLE001 — never raise into the app
+        return _err(str(e))
+
+
+def _fit_interim_two_arm(df, outcome, group, control, n_planned, tv, lrv,
+                         gate_tv, gate_lrv, stop_lrv, higher_is_better,
+                         prior_a, prior_b, lock) -> ModelResult:
+    """Interim go/no-go for a randomized two-arm binary trial. Decides on the risk difference
+    (treatment - control) with the dual-criterion rule and the exact two-arm predictive probability."""
+    def _err(msg):
+        return ModelResult("interim", outcome or "go/no-go", 0,
+                           "posterior risk difference (95% credible interval)", error=msg)
+    try:
+        if not group:
+            return _err("a two-arm interim needs the arm column (group).")
+        if n_planned is None or tv is None or lrv is None:
+            return _err("a two-arm interim needs the planned total enrolment, a TV, and an LRV.")
+        n_planned, tv, lrv = int(n_planned), float(tv), float(lrv)
+        if not (-1.0 <= tv <= 1.0 and -1.0 <= lrv <= 1.0):
+            return _err("the two-arm TV and LRV are risk differences and must be between -1 and 1 "
+                        "(express a 15-point benefit as 0.15).")
+        if higher_is_better and lrv > tv:
+            return _err("the LRV must not exceed the TV.")
+        if not higher_is_better and tv > lrv:
+            return _err("with a lower-is-better endpoint the TV must not exceed the LRV.")
+        d = _clean(df, [group, outcome])
+        if group not in d.columns or outcome not in d.columns or len(d) == 0:
+            return _err("no observed subjects to analyse.")
+        d[group] = d[group].astype(str)
+        arms = sorted(d[group].unique())
+        if len(arms) != 2:
+            return _err(f"a two-arm interim needs exactly two arms; found {len(arms)}.")
+        base = control if control in arms else next((a for a in arms if _is_control(a)), None)
+        if base is None:
+            base = max(arms, key=lambda a: int((d[group] == a).sum()))   # fallback: the larger arm
+        trt = next(a for a in arms if a != base)
+
+        rule = _bayes.DecisionRule(tv=tv, lrv=lrv, gate_tv=float(gate_tv), gate_lrv=float(gate_lrv),
+                                   stop_lrv=float(stop_lrv), higher_is_better=bool(higher_is_better))
+        if prior_a is not None and prior_b is not None:
+            pa, pb = float(prior_a), float(prior_b)
+            prov = f"Supplied prior Beta({pa:g}, {pb:g}) on each arm."
+        else:
+            pa, pb = 1.0, 1.0
+            prov = "Uniform Beta(1,1) on each arm (no prior study supplied)."
+        prior_t = _bayes.Prior("arm prior", "beta", (pa, pb), prov)
+        prior_c = _bayes.Prior("arm prior", "beta", (pa, pb), prov)
+
+        n_planned_t = n_planned_c = int(n_planned) // 2
+        summ = {}
+        for arm in (trt, base):
+            y = _to_binary(d.loc[d[group] == arm, outcome])
+            summ[arm] = (int(len(y)), int(y.sum()))
+        if summ[trt][0] > n_planned_t or summ[base][0] > n_planned_c:
+            return _err(f"an arm's observed n exceeds its planned enrolment ({n_planned_t} per arm at "
+                        "1:1 allocation): this is a final analysis, not an interim.")
+
+        (n_t, x_t), (n_c, x_c) = summ[trt], summ[base]
+        post_t = _bayes.beta_posterior(pa, pb, x_t, n_t)
+        post_c = _bayes.beta_posterior(pa, pb, x_c, n_c)
+        p_tv = float(_bayes.prob_diff_exceeds("beta", post_t, post_c, tv, higher_is_better))
+        p_lrv = float(_bayes.prob_diff_exceeds("beta", post_t, post_c, lrv, higher_is_better))
+        call, reason = _bayes.decide(p_tv, p_lrv, rule)
+        ppos = _bayes.predictive_prob_success_diff(prior_t, prior_c, x_t, n_t, x_c, n_c,
+                                                   n_planned_t, n_planned_c, rule)
+
+        params = {"endpoint_type": "proportion", "framing": "two_arm", "n_planned": int(n_planned),
+                  "tv": tv, "lrv": lrv, "gate_tv": gate_tv, "gate_lrv": gate_lrv,
+                  "stop_lrv": stop_lrv, "higher_is_better": higher_is_better,
+                  "prior_a": pa, "prior_b": pb, "prior_mu": None, "prior_sd": None}
+        ps = _prespec.verify(lock, params)
+
+        mean_d, lo_d, hi_d = _diff_credible_interval(post_t, post_c, higher_is_better)
+        m_t = post_t[0] / (post_t[0] + post_t[1])
+        m_c = post_c[0] / (post_c[0] + post_c[1])
+        t_lo, t_hi = stats.beta.ppf([0.025, 0.975], post_t[0], post_t[1])
+        c_lo, c_hi = stats.beta.ppf([0.025, 0.975], post_c[0], post_c[1])
+
+        mr = ModelResult("interim", outcome, n_t + n_c, "posterior risk difference (95% credible interval)",
+                         [Term("risk difference (treatment - control)", float(mean_d), float(lo_d),
+                               float(hi_d), float("nan"))],
+                         fit_stat=f"{x_t}/{n_t} treatment vs {x_c}/{n_c} control · "
+                                  f"{int(n_planned) - n_t - n_c} still to enrol · PPoS={ppos:.1%}",
+                         note="Interim two-arm Bayesian go/no-go on the risk difference. The predictive "
+                              "probability of success is the chance the trial ends in GO at full enrolment. "
+                              "Synthetic data.")
+        mr.arms = [{"arm": trt, "n": n_t, "value": float(m_t), "ci_low": float(t_lo),
+                    "ci_high": float(t_hi), "is_baseline": False, "is_winner": False},
+                   {"arm": base, "n": n_c, "value": float(m_c), "ci_low": float(c_lo),
+                    "ci_high": float(c_hi), "is_baseline": True, "is_winner": False}]
+        if ppos < rule.stop_lrv:
+            call = "STOP"
+            reason = (f"Predictive probability of success is only {ppos:.1%}: even at full enrolment "
+                      f"({int(n_planned):,}), the treatment is very unlikely to clear its pre-specified "
+                      "margin over control. Stop for futility.")
+        mr.verdict = {"call": call, "reason": reason, "predictive_prob": round(ppos, 4),
+                      "posterior_diff": round(float(mean_d), 4),
+                      "diff_ci_low": round(float(lo_d), 4), "diff_ci_high": round(float(hi_d), 4)}
+        mr.prespec = {"status": ps["status"], "lock": lock, "drift": ps["drift"]}
+        mr.robustness = {"framing": "two_arm"}
+
+        issues = [_prespec.caveat(ps), f"Prior: {prov}"]
+        if (n_t + n_c) >= int(n_planned):
+            issues.append("Enrolment is complete, so this is the FINAL decision, not a prediction.")
+        rem_t, rem_c = n_planned_t - n_t, n_planned_c - n_c   # remaining patients (thinning keys on these)
+        if (rem_t + 1) * (rem_c + 1) > _bayes.MAX_ENUM_DIFF:
+            issues.append("The predictive probability was grid-binned: the planned enrolment exceeds the "
+                          "exact-enumeration cap, so the PPoS is a close deterministic approximation, "
+                          "not the exact sum.")
+        issues.append("Two-arm decision support on the risk difference; not a regulatory submission analysis.")
         mr.issues = issues
         return mr
     except Exception as e:  # noqa: BLE001 — never raise into the app
