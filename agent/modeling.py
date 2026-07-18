@@ -44,6 +44,7 @@ class ModelResult:
     robustness: dict = field(default_factory=dict)  # specification-curve multiverse summary (adjusted models)
     prespec: dict = field(default_factory=dict)     # pre-specification lock status {status, lock, drift}
     issues: list = field(default_factory=list)   # flagged statistical issues (strings)
+    leaderboard: list = field(default_factory=list)  # model-selection ranking [{model,metric,score,std,is_winner}]
     fit_stat: str = ""
     note: str = ""
     error: str | None = None
@@ -679,6 +680,151 @@ def fit_forest(df: pd.DataFrame, outcome: str, predictors: list[str]) -> ModelRe
         return mr
     except Exception as e:  # noqa: BLE001
         return ModelResult("forest", outcome, 0, "importance", error=str(e))
+
+
+def _gb_importance(outcome: str, preds: list[str], X, y, is_class: bool, scoring: str) -> list:
+    """Permutation-importance Terms for a HistGradientBoosting winner, mirroring fit_forest's importance
+    block (imputer fit on the train split only, importance measured on the held-out split — no leakage)."""
+    from sklearn.ensemble import HistGradientBoostingClassifier, HistGradientBoostingRegressor
+    from sklearn.impute import SimpleImputer
+    from sklearn.inspection import permutation_importance
+    from sklearn.model_selection import train_test_split
+    from sklearn.pipeline import Pipeline
+    est = HistGradientBoostingClassifier(random_state=0) if is_class else \
+        HistGradientBoostingRegressor(random_state=0)
+    Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.3, random_state=0,
+                                          stratify=y if is_class else None)
+    pipe = Pipeline([("impute", SimpleImputer(strategy="median")), ("model", est)])
+    pipe.fit(Xtr, ytr)
+    pi = permutation_importance(pipe, Xte, yte, n_repeats=12, random_state=0, scoring=scoring)
+    means = pd.Series(pi.importances_mean, index=X.columns)
+    terms = []
+    for p in preds:
+        cols = [c for c in X.columns if c == p or c.startswith(f"{p}_")]
+        terms.append(Term(p, float(means[cols].sum()) if cols else 0.0,
+                          float("nan"), float("nan"), float("nan")))
+    terms.sort(key=lambda t: t.estimate, reverse=True)
+    return terms
+
+
+def compare_models(df: pd.DataFrame, outcome: str, predictors: list[str],
+                   task: str | None = None) -> ModelResult:
+    """Fit a panel of candidate models, cross-validate each, and pick the best-fitting one.
+
+    The agent does not hard-code a model. For a prediction target it fits several models, scores each by
+    the same cross-validated metric, and returns a transparent leaderboard plus the winning model's own
+    interpretable output. This is what lets an uploaded dataset get the model that fits IT, not a default.
+    Zero extra dependencies: every candidate already ships with scikit-learn.
+
+        classification  ->  logistic regression | random forest | gradient boosting   (ranked by CV AUC)
+        regression      ->  linear regression   | random forest | gradient boosting   (ranked by CV R²)
+
+    Deterministic: every split and estimator is seeded, so the leaderboard is reproducible run to run.
+    """
+    try:
+        from sklearn.ensemble import (
+            HistGradientBoostingClassifier,
+            HistGradientBoostingRegressor,
+            RandomForestClassifier,
+            RandomForestRegressor,
+        )
+        from sklearn.impute import SimpleImputer
+        from sklearn.linear_model import LinearRegression, LogisticRegression
+        from sklearn.model_selection import KFold, StratifiedKFold, cross_val_score
+        from sklearn.pipeline import Pipeline
+        from sklearn.preprocessing import StandardScaler
+
+        preds0 = [p for p in predictors if p in df.columns and p != outcome]
+        d, preds, issues = _prepare(df, [outcome], preds0, impute=False)   # impute inside each CV pipeline
+        if len(d) < 40 or len(preds) < 2:
+            return ModelResult("model_selection", outcome, len(d), "cross-validated skill",
+                               error="Need ≥40 rows and ≥2 predictors to compare models.")
+
+        X = pd.get_dummies(d[preds], drop_first=True)
+        is_class = _is_binary_outcome(d[outcome]) if task is None else (task == "classification")
+        imp = ("impute", SimpleImputer(strategy="median"))
+
+        if is_class:
+            if (bn := _binary_note(d[outcome])):
+                issues.append(bn)
+            y = _to_binary(d[outcome])
+            if y.nunique() < 2:
+                return ModelResult("model_selection", outcome, len(d), "cross-validated AUC",
+                                   error="Outcome has no variation (all one class).")
+            minority = int(y.value_counts().min())
+            if minority < 5:
+                return ModelResult("model_selection", outcome, len(d), "cross-validated AUC",
+                                   error=f"Outcome too rare to compare models — only {minority} in the "
+                                         "smaller class; need ≥5.")
+            n_splits = min(5, minority)
+            if minority < 20:
+                issues.append(f"Rare outcome ({minority} in the smaller class): scores use {n_splits} folds "
+                              "and are unstable — read the ranking with caution.")
+            scoring, metric = "roc_auc", "AUC"
+            cv = StratifiedKFold(n_splits, shuffle=True, random_state=0)
+            candidates = {
+                "logistic regression": Pipeline([imp, ("scale", StandardScaler()),
+                                                 ("m", LogisticRegression(max_iter=1000,
+                                                                          class_weight="balanced"))]),
+                "random forest": Pipeline([imp, ("m", RandomForestClassifier(
+                    n_estimators=300, random_state=0, n_jobs=-1, min_samples_leaf=5,
+                    class_weight="balanced"))]),
+                "gradient boosting": Pipeline([imp, ("m", HistGradientBoostingClassifier(random_state=0))]),
+            }
+        else:
+            y = d[outcome].astype(float)
+            n_splits = 5
+            scoring, metric = "r2", "R²"
+            cv = KFold(5, shuffle=True, random_state=0)
+            candidates = {
+                "linear regression": Pipeline([imp, ("scale", StandardScaler()),
+                                               ("m", LinearRegression())]),
+                "random forest": Pipeline([imp, ("m", RandomForestRegressor(
+                    n_estimators=300, random_state=0, n_jobs=-1, min_samples_leaf=5))]),
+                "gradient boosting": Pipeline([imp, ("m", HistGradientBoostingRegressor(random_state=0))]),
+            }
+
+        board = []
+        for name, pipe in candidates.items():
+            s = cross_val_score(pipe, X, y, cv=cv, scoring=scoring)
+            board.append({"model": name, "metric": metric, "score": float(s.mean()), "std": float(s.std())})
+        board.sort(key=lambda r: (r["score"], r["model"]), reverse=True)     # deterministic tie-break
+        for i, row in enumerate(board):
+            row["is_winner"] = (i == 0)
+        winner = board[0]["model"]
+
+        # the winner's own interpretable output (delegates to the existing single-model fitters)
+        if winner == "logistic regression":
+            det = fit_logistic(df, outcome, preds)
+            wterms, wissues, weffect = det.terms, det.issues, "odds ratio"
+        elif winner == "linear regression":
+            det = fit_ols(df, outcome, preds)
+            wterms, wissues, weffect = det.terms, det.issues, "coefficient"
+        elif winner == "random forest":
+            det = fit_forest(df, outcome, preds)
+            wterms, wissues, weffect = det.terms, det.issues, "importance"
+        else:
+            wterms, wissues, weffect = _gb_importance(outcome, preds, X, y, is_class, scoring), [], "importance"
+
+        mr = ModelResult("model_selection", outcome, len(d), weffect, terms=wterms,
+                         fit_stat=f"{winner} · {metric}={board[0]['score']:.3f}±{board[0]['std']:.3f} "
+                                  f"({n_splits}-fold CV)",
+                         note="Model selection: candidate models were cross-validated on this data and the "
+                              "best-scoring one chosen; its own output is shown. A marginally higher score "
+                              "does not always justify a less interpretable model — when scores are close, "
+                              "prefer the simpler one.")
+        mr.leaderboard = board
+        runner = board[1] if len(board) > 1 else None
+        mr.verdict = {"winner": winner, "metric": metric, "score": round(board[0]["score"], 4),
+                      "effect": weffect,
+                      "reason": (f"{winner} had the best {n_splits}-fold cross-validated {metric} "
+                                 f"({board[0]['score']:.3f})"
+                                 + (f", ahead of {runner['model']} ({runner['score']:.3f})." if runner else "."))}
+        mr.issues = issues + list(wissues)
+        mr.robustness = {"task": "classification" if is_class else "regression"}
+        return mr
+    except Exception as e:  # noqa: BLE001
+        return ModelResult("model_selection", outcome, 0, "cross-validated skill", error=str(e))
 
 
 def fit_timeseries(df: pd.DataFrame, time_col: str, value_col: str,
@@ -1390,6 +1536,13 @@ def render(r: ModelResult) -> str:
         for a in r.arms:                                   # two-arm interim: per-arm posteriors
             tag = " (control)" if a.get("is_baseline") and str(a["arm"]).lower() != "control" else ""
             lines.append(f"  {a['arm']:16} n={a['n']:,}  rate={a['value']:.1%}{tag}")
+    if r.model_type == "model_selection" and r.leaderboard:
+        if r.verdict:
+            lines.append(f"  PICKED: {r.verdict.get('winner')} — {r.verdict.get('reason')}")
+        lines.append("  LEADERBOARD (cross-validated):")
+        for row in r.leaderboard:
+            tag = " ←" if row.get("is_winner") else ""
+            lines.append(f"    {row['model']:20} {row['metric']}={row['score']:.3f}±{row['std']:.3f}{tag}")
     for t in r.terms:
         ci = "" if np.isnan(t.ci_low) else f"  95% CI [{t.ci_low:.3f}, {t.ci_high:.3f}]"
         p = "" if np.isnan(t.p) else f"  p={t.p:.4f}" + (" *" if t.p < 0.05 else "")

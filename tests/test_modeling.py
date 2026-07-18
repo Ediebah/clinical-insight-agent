@@ -665,3 +665,52 @@ def test_two_arm_assurance_lower_is_better_adverse_event():
                                 prior_successes=6, prior_n=20)
     assert r.error is None and r.verdict["call"] in ("GO", "CONSIDER", "STOP")
     assert r.robustness["framing"] == "two_arm"
+
+
+def test_compare_models_classification_ranks_and_picks_a_winner():
+    rng = np.random.default_rng(0)
+    n = 400
+    x1, x2, noise = rng.normal(0, 1, n), rng.normal(0, 1, n), rng.normal(0, 1, n)
+    y = (rng.random(n) < 1 / (1 + np.exp(-(1.5 * x1 - 1.0 * x2)))).astype(int)
+    df = pd.DataFrame({"y": y, "x1": x1, "x2": x2, "noise": noise})
+
+    r = modeling.compare_models(df, "y", ["x1", "x2", "noise"])
+    assert r.error is None and r.model_type == "model_selection"
+    names = {row["model"] for row in r.leaderboard}
+    assert names == {"logistic regression", "random forest", "gradient boosting"}
+    scores = [row["score"] for row in r.leaderboard]
+    assert scores == sorted(scores, reverse=True)                 # ranked best-first
+    assert sum(row["is_winner"] for row in r.leaderboard) == 1    # exactly one winner
+    assert r.verdict["winner"] == r.leaderboard[0]["model"]
+    assert r.terms and "CV" in r.fit_stat                         # winner's own interpretable output
+
+
+def test_compare_models_is_deterministic():
+    rng = np.random.default_rng(1)
+    n = 300
+    x = rng.normal(0, 1, n)
+    y = (rng.random(n) < 1 / (1 + np.exp(-(1.3 * x)))).astype(int)
+    df = pd.DataFrame({"y": y, "x": x, "z": rng.normal(0, 1, n)})
+    a = modeling.compare_models(df, "y", ["x", "z"])
+    b = modeling.compare_models(df, "y", ["x", "z"])
+    assert [r["score"] for r in a.leaderboard] == [r["score"] for r in b.leaderboard]
+    assert a.verdict["winner"] == b.verdict["winner"]
+
+
+def test_compare_models_regression_uses_r2_panel():
+    rng = np.random.default_rng(2)
+    n = 400
+    x1, x2, noise = rng.normal(0, 1, n), rng.normal(0, 1, n), rng.normal(0, 1, n)
+    y = 2.0 * x1 - 1.0 * x2 + rng.normal(0, 0.5, n)               # continuous target -> regression
+    df = pd.DataFrame({"y": y, "x1": x1, "x2": x2, "noise": noise})
+    r = modeling.compare_models(df, "y", ["x1", "x2", "noise"])
+    assert r.error is None and r.robustness["task"] == "regression"
+    assert {row["model"] for row in r.leaderboard} == {"linear regression", "random forest",
+                                                       "gradient boosting"}
+    assert all(row["metric"] == "R²" for row in r.leaderboard)
+
+
+def test_compare_models_rejects_too_little_data():
+    df = _logit_data(n=20)
+    r = modeling.compare_models(df, "y", ["x", "g"])
+    assert r.error is not None

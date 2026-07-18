@@ -12,6 +12,8 @@ ground truth.
 | `heart_disease_validation.py` | logistic regression + random forest | UCI Cleveland heart disease | `ca` OR 3.07, AUC 0.90 |
 | `heart_failure_survival.py` | Cox PH + Kaplan-Meier | UCI Heart Failure Clinical Records | ejection-fraction HR 0.95, creatinine HR 1.36 |
 | `bayesian_interim_futility.py` | Bayesian interim go/no-go | Chen & Chen (2019), phase II worked example | predictive probability 0.105 |
+| `ml_breast_cancer.py` | random forest (machine learning) | Wisconsin Diagnostic Breast Cancer | cross-validated AUC 0.99 |
+| `model_selection.py` | **model-selection engine** (compares models, picks the best) | all three datasets above | the engine lands on each publication's own model |
 
 ## 1. Logistic regression — the dataset
 
@@ -103,6 +105,49 @@ At the interim look of **8 responders in 25**, the paper reports a predictive pr
 **0.105** — 13 or more of the remaining 25 would be needed to reach the winning boundary of 21/50. The
 agent's own interim entry point (`modeling.fit_interim`, the call the app makes for a *"continue or
 stop?"* question) returns **0.1045**, the same number to three decimals.
+
+## 4. Machine learning — the dataset
+
+`breast_cancer.csv` — the Wisconsin Diagnostic Breast Cancer dataset (569 fine-needle-aspirate samples,
+30 features), a benchmark the ML literature has classified for decades.
+
+- Source: [UCI Machine Learning Repository, Breast Cancer Wisconsin (Diagnostic)](https://archive.ics.uci.edu/dataset/17/breast+cancer+wisconsin+diagnostic)
+- Origin: Wolberg W., Street W., Mangasarian O. (1995); bundled in scikit-learn as `load_breast_cancer`.
+- The target `malignant` is 1 for a malignant tumour, 0 for benign.
+
+Run it:
+
+```bash
+.venv/bin/python examples/ml_breast_cancer.py
+```
+
+The agent's random forest (`modeling.fit_forest`) reaches a cross-validated **AUC of 0.99**, inside the
+long-reported 0.96–0.99 band for this benchmark, and its top permutation-importance features are the
+settled tumour markers — `worst_area` and `mean_concave_points` (size and concavity).
+
+## 5. Model selection — the engine picks the best-fitting model
+
+The agent does not hard-code a model. `modeling.compare_models` fits several candidates, cross-validates
+each by the same metric, and keeps the winner — returning a transparent leaderboard. So an uploaded
+dataset gets the model that fits **it**, not a default.
+
+```bash
+.venv/bin/python examples/model_selection.py
+```
+
+On three datasets whose right model is already settled, the engine independently lands on the
+**publication's own choice**:
+
+| Dataset | Leaderboard (5-fold CV AUC) | Engine picks | Matches the literature |
+|---|---|---|---|
+| Heart disease | logistic **0.909** · forest 0.903 · boosting 0.870 | logistic regression | the classic model for this data |
+| Heart failure | **forest 0.773** · logistic 0.769 · boosting 0.722 | random forest | Chicco & Jurman (2020) compared models and chose the random forest |
+| Breast cancer | logistic **0.994** · boosting 0.993 · forest 0.992 | logistic regression | a benchmark every strong classifier clears |
+
+The heart-failure result is the clearest: the engine reproduces the paper's *model comparison*, picking
+the random forest with serum creatinine and ejection fraction as the top features — exactly the paper's
+headline. This is the same `compare_models` call the app makes when you upload data and ask for the best
+predictor.
 
 ## Why it matters
 

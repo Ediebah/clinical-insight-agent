@@ -283,6 +283,7 @@ def _persist_trace(question: str, trace: dict | None, error: str | None) -> None
 # No trailing \b — must match inflections (predict-s, adjust-ing, associat-ed, correlat-ion).
 _MODEL_HINT = re.compile(
     r"\b(predict|risk factor|feature importance|most (important|predictive)|driver|associat|correlat|"
+    r"best (model|classifier|predictor)|which model|compare model|model selection|"
     r"adjust|controlling for|confound|odds|hazard|survival|time.to|effect of|impact of|independent of|"
     r"regression|proportion of variance|forecast|projection|trend|over time|seasonal|"
     r"causal|treatment effect|uplift|a/b|ab test|experiment|variant|conversion|"
@@ -316,6 +317,11 @@ def _route(question: str, context: str) -> dict:
         "  'association' two variables `var_a`, `var_b` (t-test / chi-square / correlation).\n"
         "  'forest'      'which factors most predict X / strongest risk factors / feature importance' → "
         "random forest. Needs `outcome` (binary or continuous) + several `predictors`.\n"
+        "  'best_model'  'which model best predicts X / build the best model / pick the model that fits "
+        "the data best / compare models / model selection' → cross-validates logistic-or-linear, random "
+        "forest, and gradient boosting and keeps the winner, returning a leaderboard. Needs `outcome` "
+        "(binary or continuous) + several `predictors`. Prefer over 'forest' when the user wants a "
+        "PREDICTIVE MODEL or the BEST/right model, not only feature importance.\n"
         "  'timeseries'  'forecast / trend over time' → needs `time_col`, `value_col`, `periods` (int, "
         "e.g. 12), `seasonal_periods` (12 for monthly). analytic_sql MUST aggregate to ONE ROW PER PERIOD "
         "(e.g. date_trunc('month', encounter_date) AS period, count(*) AS encounters), keep only COMPLETE "
@@ -414,6 +420,8 @@ def _fit_model(spec: dict, df) -> modeling.ModelResult:
         return modeling.test_association(df, spec["var_a"], spec["var_b"])
     if mt == "forest":
         return modeling.fit_forest(df, spec["outcome"], spec.get("predictors", []))
+    if mt in ("best_model", "compare", "compare_models"):
+        return modeling.compare_models(df, spec["outcome"], spec.get("predictors", []))
     if mt == "timeseries":
         return modeling.fit_timeseries(df, spec["time_col"], spec["value_col"],
                                        int(spec.get("periods") or 12),
