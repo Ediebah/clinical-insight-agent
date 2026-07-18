@@ -20,7 +20,7 @@ does none of that. I built it as a clinical data scientist working in biostatist
 Everything runs on synthetic EHR data, so there is no PHI and the whole project is public and reproducible.
 
 Live demo: [clinical-insight-agent.streamlit.app](https://clinical-insight-agent.streamlit.app).
-CI runs on every push: `dbt build`, 108 data tests, 267 unit tests, and the guardrail eval.
+CI runs on every push: `dbt build`, 108 data tests, 272 unit tests, and the guardrail eval.
 
 ![Demo: a plain-English question is typed and run; the agent states a hypothesis, writes and executes read-only SQL, renders KPI cards and a confidence-interval chart, and the statistical guardrail flags confounding and a missing denominator before the findings.](assets/demo.gif)
 
@@ -69,21 +69,32 @@ warehouse from scratch, see [Run it locally](#run-it-locally-full-rebuild).
   warehouse is failing a critical integrity test, so a broken pipeline can't quietly feed corrupt metrics
   into an analysis.
 - Built to run in production: the SQL engine is read-only, there is a live monitoring tab, an eval suite,
-  267 unit tests in CI, a Dockerfile, upload-your-own-data, and a Word-report export.
+  272 unit tests in CI, a Dockerfile, upload-your-own-data, and a Word-report export.
 
 ---
 
 ## Validated on real public data
 
 The demo runs on synthetic data, which has no ground truth to check the statistics against. So the
-agent's own models are also run on a real, decades-analysed dataset and checked against the published
-literature. On the UCI Cleveland heart-disease data (Detrano et al., 1989), the logistic model recovers
-the settled coronary-artery-disease risk factors with the right directions and significance (number of
-diseased vessels OR 3.07, male sex OR 3.92, asymptomatic chest pain as the highest-risk category, ST
-depression OR 1.70, max heart rate inverse), and the random forest reaches a cross-validated **AUC of
-0.90**, inside the published 0.84–0.91 band. It is the same `agent/modeling.py` code the app runs, and
-the reproduction is **CI-enforced** (`tests/test_validation.py`), so a change that quietly breaks the
-modeling is caught against real ground truth. Details and a runnable script: [`examples/`](examples/).
+agent's own models are also run on real, already-analysed data and checked against the published
+literature, across three of its methods:
+
+- **Logistic regression + random forest** — UCI Cleveland heart-disease data (Detrano et al., 1989):
+  the logistic model recovers the settled coronary-artery-disease risk factors (diseased vessels OR
+  3.07, male sex OR 3.92, asymptomatic chest pain as the highest-risk category, ST depression OR 1.70,
+  max heart rate inverse), and the random forest reaches a cross-validated **AUC of 0.90**, inside the
+  published 0.84–0.91 band.
+- **Cox regression + Kaplan-Meier** — UCI Heart Failure Clinical Records (Chicco & Jurman, 2020): the
+  Cox model recovers ejection fraction (**HR 0.95** per %) and serum creatinine (**HR 1.36**) as the
+  headline mortality predictors — the same two the paper singles out — and the survival curves separate
+  reduced- from preserved-ejection-fraction patients.
+- **Bayesian interim go/no-go** — the published worked example of Chen & Chen (2019): at an 8/25
+  interim look the agent's `fit_interim` returns a predictive probability of success of **0.105**, the
+  value the paper reports.
+
+It is the same `agent/modeling.py` code the app runs, and every reproduction is **CI-enforced**
+(`tests/test_validation.py`), so a change that quietly breaks the modeling is caught against real
+ground truth. Details and runnable scripts: [`examples/`](examples/).
 
 ---
 
@@ -273,7 +284,7 @@ and 6 named metrics with their statistical caveats is generated from the dbt art
 readable to the agent, and a deterministic token-overlap RAG retrieves over it with no embedding calls.
 
 ### Engineering
-- 267 keyless `pytest` unit tests covering the guardrail statistics, SQL validation and security, retrieval,
+- 272 keyless `pytest` unit tests covering the guardrail statistics, SQL validation and security, retrieval,
   charts, agent helpers, modeling, condition-vocabulary grounding, data lineage, and the data-quality gate,
   plus `ruff` and a coverage gate, all run in CI.
 - GitHub Actions CI on every push: Synthea, then DuckDB, then `dbt build` (108 tests), then a catalog
@@ -318,7 +329,7 @@ cp agent/.env.example agent/.env      # then put your OPENAI_API_KEY in agent/.e
 # 4. Run the agent (CLI) + the checks
 .venv/bin/python -m agent.agent "Which conditions are most prevalent in patients 75 and older?"
 .venv/bin/python -m agent.agent "How does survival differ for heart attack patients?"   # → Myocardial infarction cohort
-.venv/bin/pytest                           # 267 keyless unit tests   (ruff check . to lint)
+.venv/bin/pytest                           # 272 keyless unit tests   (ruff check . to lint)
 .venv/bin/python -m agent.guardrail_eval   # guardrail precision/recall (no key)
 .venv/bin/python -m agent.eval_retrieval   # retrieval precision/recall/MRR (no key)
 .venv/bin/python -m agent.eval             # answer accuracy (needs a key)
@@ -370,7 +381,7 @@ overridable with `OPENAI_MODEL`). CI runs on GitHub Actions; the app is packaged
 │   ├── charts.py, llm.py, observe.py, build_catalog.py
 │   └── eval*.py, guardrail_eval.py, eval_dataset.py   the eval suite + GOLD set
 ├── warehouse/                   the dbt project (staging → core → analytics marts + tests + docs)
-├── tests/                       267 keyless pytest unit tests
+├── tests/                       272 keyless pytest unit tests
 ├── scripts/load_raw.py          Synthea CSV → DuckDB raw
 ├── .github/workflows/ci.yml     Synthea → DuckDB → dbt build → catalog → guardrail eval
 ├── Dockerfile, DEPLOY.md
