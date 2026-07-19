@@ -14,6 +14,9 @@ independent literatures are pinned here:
     Data: ``examples/heart_failure.csv``.
   * Bayesian interim go/no-go — reproduces the published predictive-probability futility calculation
     of Chen & Chen (2019), a single-arm phase II worked example, to within 0.001.
+  * Machine learning (random forest) — Wisconsin Diagnostic Breast Cancer (Wolberg et al., 1995). The
+    cross-validated AUC lands in the long-reported ~0.97-0.99 band and the top permutation-importance
+    features are the settled tumour markers (size and concavity). Data: ``examples/breast_cancer.csv``.
 """
 import re
 from pathlib import Path
@@ -136,3 +139,62 @@ def test_interim_final_success_boundary_matches_the_paper():
     rule = bayes.DecisionRule(tv=0.30, lrv=0.30, gate_tv=0.95, gate_lrv=0.95, stop_lrv=0.0)
     go = bayes.go_grid_binary(prior, 50, rule)
     assert next(r for r in range(51) if go[r] == 1) == 21
+
+
+# ── Machine learning: random forest on Wisconsin Breast Cancer (WDBC benchmark) ────────────────────
+_BC_CSV = Path(__file__).resolve().parent.parent / "examples" / "breast_cancer.csv"
+
+
+def _bc() -> pd.DataFrame:
+    return pd.read_csv(_BC_CSV)
+
+
+def test_breast_cancer_dataset_is_present_and_well_formed():
+    d = _bc()
+    assert len(d) == 569
+    assert "malignant" in d.columns and d["malignant"].isin([0, 1]).all()
+    assert len([c for c in d.columns if c != "malignant"]) == 30
+
+
+def test_random_forest_reaches_the_reported_breast_cancer_discrimination():
+    d = _bc()
+    features = [c for c in d.columns if c != "malignant"]
+    rf = modeling.fit_forest(d, "malignant", features)
+    assert rf.error is None
+    auc = float(re.search(r"AUC=([\d.]+)", rf.fit_stat).group(1))
+    assert 0.96 <= auc <= 1.0                                      # WDBC classifiers reach ~0.97-0.99
+    top3 = [t.name for t in rf.terms[:3]]                          # settled markers: size + concavity
+    assert any(k in name for name in top3 for k in ("area", "radius", "perimeter", "concave"))
+
+
+# ── Model selection: the engine compares models and picks the publication's model ──────────────────
+_HF_PREDICTORS_FULL = ["age", "ejection_fraction", "serum_creatinine", "serum_sodium",
+                       "high_blood_pressure", "sex", "anaemia", "diabetes",
+                       "creatinine_phosphokinase", "platelets", "smoking"]
+
+
+def test_model_selection_heart_disease_reproduces_the_classic_logistic():
+    r = modeling.compare_models(_data(), "heart_disease", _PREDICTORS)
+    assert r.error is None and len(r.leaderboard) == 3
+    lr = next(row for row in r.leaderboard if row["model"] == "logistic regression")
+    assert 0.84 <= lr["score"] <= 0.93                       # the classic model reproduces its band
+    assert 0.84 <= r.leaderboard[0]["score"] <= 1.0          # the winner is at least as good
+
+
+def test_model_selection_heart_failure_matches_chicco_jurman():
+    r = modeling.compare_models(_hf(), "DEATH_EVENT", _HF_PREDICTORS_FULL)
+    assert r.error is None
+    assert r.leaderboard[0]["score"] >= 0.70                 # reaches the reported discrimination
+    assert "random forest" in [row["model"] for row in r.leaderboard[:2]]   # the paper's chosen model
+    # the paper's headline: serum creatinine + ejection fraction dominate (winner-independent check)
+    rf = modeling.fit_forest(_hf(), "DEATH_EVENT", _HF_PREDICTORS_FULL)
+    top3 = [t.name for t in rf.terms[:3]]
+    assert "serum_creatinine" in top3 and "ejection_fraction" in top3
+
+
+def test_model_selection_breast_cancer_every_candidate_is_strong():
+    d = _bc()
+    r = modeling.compare_models(d, "malignant", [c for c in d.columns if c != "malignant"])
+    assert r.error is None
+    assert all(row["score"] >= 0.96 for row in r.leaderboard)   # WDBC is a benchmark all three clear
+    assert r.leaderboard[0]["score"] >= 0.98                     # and the winner clears 0.98
