@@ -1,0 +1,736 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Clinical Insight Agent: an AI data scientist over a dbt warehouse</title>
+  <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="An AI agent that runs end-to-end data science over a dbt-modeled healthcare warehouse: it picks the model each clinical question needs - regression, survival, causal, non-inferiority, forecasting, Bayesian go/no-go - checks the assumptions, and reports the caveats a text-to-SQL tool skips.">
+  <style>
+    :root{
+      --bg:#F5F7F9; --surface:#FFFFFF; --surface-2:#EDF1F5; --ink:#10171E; --muted:#556676;
+      --hairline:#DBE2EA; --accent:#0E8C86; --accent-ink:#0A6C67; --accent-soft:rgba(14,140,134,.09);
+      --go:#2E9E6B; --consider:#B58620; --stop:#BE4E48;
+      --shadow:0 1px 2px rgba(16,23,30,.05), 0 10px 34px rgba(16,23,30,.07);
+      --serif:"Iowan Old Style","Palatino Linotype","Charter",Georgia,Cambria,serif;
+      --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+      --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+      --maxw:74rem; --measure:65ch;
+    }
+    @media (prefers-color-scheme:dark){
+      :root{
+        --bg:#0B1015; --surface:#121A22; --surface-2:#18222C; --ink:#E7EDF3; --muted:#8A9AA8;
+        --hairline:#243141; --accent:#2FBDB6; --accent-ink:#54D2CC; --accent-soft:rgba(47,189,182,.13);
+        --go:#43B57E; --consider:#D6A63C; --stop:#D6655D;
+        --shadow:0 1px 2px rgba(0,0,0,.35), 0 12px 44px rgba(0,0,0,.4);
+      }
+    }
+    :root[data-theme="light"]{
+      --bg:#F5F7F9; --surface:#FFFFFF; --surface-2:#EDF1F5; --ink:#10171E; --muted:#556676;
+      --hairline:#DBE2EA; --accent:#0E8C86; --accent-ink:#0A6C67; --accent-soft:rgba(14,140,134,.09);
+      --go:#2E9E6B; --consider:#B58620; --stop:#BE4E48;
+      --shadow:0 1px 2px rgba(16,23,30,.05), 0 10px 34px rgba(16,23,30,.07);
+    }
+    :root[data-theme="dark"]{
+      --bg:#0B1015; --surface:#121A22; --surface-2:#18222C; --ink:#E7EDF3; --muted:#8A9AA8;
+      --hairline:#243141; --accent:#2FBDB6; --accent-ink:#54D2CC; --accent-soft:rgba(47,189,182,.13);
+      --go:#43B57E; --consider:#D6A63C; --stop:#D6655D;
+      --shadow:0 1px 2px rgba(0,0,0,.35), 0 12px 44px rgba(0,0,0,.4);
+    }
+
+    *{box-sizing:border-box}
+    body{
+      margin:0; background:var(--bg); color:var(--ink); font-family:var(--sans);
+      font-size:clamp(1rem,.96rem + .2vw,1.0625rem); line-height:1.65;
+      -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+    }
+    .wrap{max-width:var(--maxw); margin-inline:auto; padding-inline:clamp(1.25rem,5vw,3rem)}
+    a{color:var(--accent-ink); text-decoration:none}
+    a:focus-visible,button:focus-visible{outline:2px solid var(--accent); outline-offset:3px; border-radius:3px}
+
+    .eyebrow{
+      font-family:var(--mono); font-size:.72rem; letter-spacing:.16em; text-transform:uppercase;
+      color:var(--accent-ink); font-weight:600;
+    }
+    h1,h2,h3{font-family:var(--serif); font-weight:600; text-wrap:balance; line-height:1.12; letter-spacing:-.01em}
+    p{max-width:var(--measure)}
+
+    /* ---- top bar ---- */
+    header.bar{position:sticky; top:0; z-index:20; background:color-mix(in srgb,var(--bg) 86%,transparent);
+      backdrop-filter:blur(10px); border-bottom:1px solid var(--hairline)}
+    .bar-in{display:flex; align-items:center; justify-content:space-between; gap:1rem; padding-block:.85rem}
+    .mark{display:flex; align-items:center; gap:.6rem; font-family:var(--mono); font-size:.82rem; letter-spacing:.02em; color:var(--ink)}
+    .mark .dot{width:.62rem; height:.62rem; border-radius:2px; background:var(--accent); box-shadow:0 0 0 3px var(--accent-soft)}
+    .bar-links{display:flex; gap:1.4rem; font-family:var(--mono); font-size:.8rem}
+    .bar-links a{color:var(--muted)} .bar-links a:hover{color:var(--ink)}
+    @media (max-width:38rem){ .bar-links a.hide-sm{display:none} }
+
+    /* ---- hero ---- */
+    .hero{position:relative; padding-block:clamp(3rem,7vw,6rem) clamp(2.5rem,5vw,4rem); overflow:hidden}
+    .hero-cover{position:absolute; inset:0; width:100%; height:100%; z-index:0; pointer-events:none}
+    .hero-scrim{position:absolute; inset:0; z-index:1; pointer-events:none;
+      background:
+        linear-gradient(90deg, var(--bg) 12%, color-mix(in srgb,var(--bg) 55%,transparent) 52%, transparent 78%),
+        linear-gradient(0deg, var(--bg) 2%, transparent 42%)}
+    .hero-grid{position:relative; z-index:2; display:grid; grid-template-columns:1.05fr .95fr; gap:clamp(2rem,5vw,4rem); align-items:center}
+    @media (max-width:56rem){ .hero-grid{grid-template-columns:1fr; gap:2.5rem} }
+    h1{font-size:clamp(2.1rem,1.4rem + 3.4vw,3.5rem); margin:.9rem 0 0}
+    .lede{font-size:clamp(1.05rem,1rem + .35vw,1.2rem); color:var(--muted); margin-top:1.15rem}
+    .lede strong{color:var(--ink); font-weight:600}
+    .cta{display:flex; flex-wrap:wrap; gap:.8rem; margin-top:1.9rem}
+    .btn{display:inline-flex; align-items:center; gap:.55rem; font-family:var(--mono); font-size:.86rem; font-weight:600;
+      padding:.7rem 1.1rem; border-radius:8px; border:1px solid transparent; transition:transform .12s ease, background .15s ease, border-color .15s ease}
+    .btn.primary{background:var(--accent); color:#fff}
+    :root[data-theme="light"] .btn.primary,:root:not([data-theme]) .btn.primary{color:#fff}
+    .btn.primary:hover{transform:translateY(-1px); background:var(--accent-ink)}
+    .btn.ghost{border-color:var(--hairline); color:var(--ink); background:var(--surface)}
+    .btn.ghost:hover{border-color:var(--accent); transform:translateY(-1px)}
+    .arrow{transition:transform .15s ease}
+    .btn:hover .arrow{transform:translate(2px,-2px)}
+
+    /* ---- instrument card ---- */
+    .panel{background:var(--surface); border:1px solid var(--hairline); border-radius:14px; box-shadow:var(--shadow); overflow:hidden}
+    .panel-head{display:flex; align-items:center; justify-content:space-between; padding:.9rem 1.1rem; border-bottom:1px solid var(--hairline);
+      font-family:var(--mono); font-size:.74rem; letter-spacing:.1em; text-transform:uppercase; color:var(--muted)}
+    .verdict{display:inline-flex; align-items:center; gap:.5rem; font-family:var(--mono); font-weight:700; letter-spacing:.06em;
+      font-size:.82rem; padding:.28rem .6rem; border-radius:6px; color:var(--go); background:color-mix(in srgb,var(--go) 14%,transparent)}
+    .verdict .led{width:.5rem; height:.5rem; border-radius:50%; background:var(--go); box-shadow:0 0 0 3px color-mix(in srgb,var(--go) 22%,transparent)}
+    .panel-body{padding:1.1rem 1.1rem 1.25rem}
+    .readout{display:flex; align-items:baseline; gap:.6rem; flex-wrap:wrap}
+    .readout .big{font-family:var(--mono); font-weight:700; font-size:clamp(2rem,1.4rem+2.4vw,2.9rem); letter-spacing:-.02em;
+      font-variant-numeric:tabular-nums; color:var(--ink)}
+    .readout .cap{font-family:var(--mono); font-size:.74rem; letter-spacing:.08em; text-transform:uppercase; color:var(--muted)}
+    canvas#curve{display:block; width:100%; height:150px; margin-top:.4rem}
+    .axis{display:flex; justify-content:space-between; font-family:var(--mono); font-size:.68rem; color:var(--muted); letter-spacing:.04em; margin-top:.2rem}
+    .gates{display:flex; gap:1.1rem; margin-top:.9rem; flex-wrap:wrap}
+    .gate{font-family:var(--mono); font-size:.72rem; color:var(--muted)}
+    .gate b{color:var(--ink); font-weight:600}
+
+    /* ---- section scaffolding ---- */
+    section{padding-block:clamp(2.75rem,6vw,4.75rem); border-top:1px solid var(--hairline)}
+    .sec-head{display:flex; align-items:baseline; gap:1rem; margin-bottom:2rem; flex-wrap:wrap}
+    .sec-head h2{font-size:clamp(1.55rem,1.2rem+1.6vw,2.15rem); margin:0}
+    .sec-head p{margin:.2rem 0 0; color:var(--muted)}
+
+    /* ---- 2x2 coverage matrix ---- */
+    .matrix{display:grid; grid-template-columns:auto 1fr 1fr; gap:1px; background:var(--hairline);
+      border:1px solid var(--hairline); border-radius:14px; overflow:hidden}
+    .matrix>div{background:var(--surface); padding:1.15rem 1.25rem}
+    .m-corner{background:var(--surface-2)!important}
+    .m-col,.m-row{font-family:var(--mono); font-size:.74rem; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); display:flex; align-items:center}
+    .m-col{background:var(--surface-2)!important; justify-content:center; text-align:center}
+    .m-row{background:var(--surface-2)!important; writing-mode:horizontal-tb}
+    .cell .q{font-family:var(--serif); font-size:1.12rem; color:var(--ink); display:block; margin-bottom:.4rem; line-height:1.2}
+    .cell .d{color:var(--muted); font-size:.94rem; margin:0; max-width:34ch}
+    .cell .tag{display:inline-block; font-family:var(--mono); font-size:.68rem; letter-spacing:.06em; color:var(--accent-ink);
+      background:var(--accent-soft); padding:.16rem .45rem; border-radius:5px; margin-top:.7rem}
+    @media (max-width:52rem){
+      .matrix{grid-template-columns:1fr 1fr}
+      .m-corner,.m-row{display:none}
+      .cell{border-radius:0}
+    }
+    @media (max-width:34rem){ .matrix{grid-template-columns:1fr} }
+
+    /* ---- rigor list ---- */
+    .rigor{display:grid; grid-template-columns:repeat(auto-fit,minmax(18rem,1fr)); gap:1px; background:var(--hairline); border:1px solid var(--hairline); border-radius:14px; overflow:hidden}
+    .rigor>div{background:var(--surface); padding:1.3rem 1.35rem}
+    .rigor h3{font-size:1.08rem; margin:.55rem 0 .4rem}
+    .rigor p{font-size:.92rem; color:var(--muted); margin:0}
+    .rnum{font-family:var(--mono); font-size:.72rem; letter-spacing:.1em; color:var(--accent-ink); font-weight:600}
+
+    /* ---- method chips (the wider agent) ---- */
+    .suite{display:grid; grid-template-columns:1.1fr 1.9fr; gap:clamp(1.5rem,4vw,3rem); align-items:start}
+    @media (max-width:52rem){ .suite{grid-template-columns:1fr; gap:1.5rem} }
+    .suite .blurb p{margin:0; color:var(--muted)}
+    .chips{display:flex; flex-wrap:wrap; gap:.55rem}
+    .chip{font-family:var(--mono); font-size:.78rem; letter-spacing:.01em; color:var(--ink); background:var(--surface);
+      border:1px solid var(--hairline); border-radius:7px; padding:.42rem .7rem; white-space:nowrap}
+    .chip.here{color:#fff; background:var(--accent); border-color:var(--accent)}
+    :root[data-theme="dark"] .chip.here{color:#06110F}
+    .chip .mut{color:var(--muted)}
+    .chip.here .mut{color:rgba(255,255,255,.72)}
+    :root[data-theme="dark"] .chip.here .mut{color:rgba(6,17,15,.6)}
+
+    /* ---- "see it work" result cards ---- */
+    .demos{display:grid; grid-template-columns:repeat(auto-fit,minmax(15rem,1fr)); gap:1rem; margin-top:1.7rem}
+    .demo{background:var(--surface); border:1px solid var(--hairline); border-radius:14px; box-shadow:var(--shadow);
+      padding:1.15rem 1.2rem 1.25rem; margin:0; display:flex; flex-direction:column; gap:.45rem}
+    .demo .ask{font-family:var(--mono); font-size:.66rem; letter-spacing:.14em; text-transform:uppercase; color:var(--accent-ink); font-weight:600}
+    .demo .q{font-family:var(--serif); font-size:1.05rem; color:var(--ink); margin:0; line-height:1.25; min-height:2.55em}
+    .demo canvas{display:block; width:100%; height:132px; margin-top:.15rem}
+    .demo .out{display:flex; flex-direction:column; gap:.4rem; margin-top:.35rem; padding-top:.75rem; border-top:1px solid var(--hairline)}
+    .demo .ov{font-family:var(--mono); font-size:.85rem; font-weight:700; color:var(--ink); font-variant-numeric:tabular-nums; letter-spacing:-.01em}
+    .demo .tag{align-self:flex-start; font-family:var(--mono); font-size:.66rem; letter-spacing:.05em; color:var(--accent-ink);
+      background:var(--accent-soft); padding:.18rem .5rem; border-radius:5px}
+
+    /* ---- the run: pipeline steps ---- */
+    .flow{display:grid; grid-template-columns:repeat(6,1fr); gap:1px; background:var(--hairline); border:1px solid var(--hairline); border-radius:14px; overflow:hidden}
+    @media (max-width:64rem){ .flow{grid-template-columns:repeat(3,1fr)} }
+    @media (max-width:40rem){ .flow{grid-template-columns:1fr} }
+    .step{background:var(--surface); padding:1.1rem 1.15rem 1.2rem; display:flex; flex-direction:column; gap:.3rem}
+    .step .n{font-family:var(--mono); font-size:.7rem; font-weight:600; letter-spacing:.1em; color:var(--accent-ink)}
+    .step h3{font-size:1rem; margin:.1rem 0}
+    .step p{font-size:.85rem; color:var(--muted); margin:0}
+
+    /* ---- model selection: leaderboard ---- */
+    .pick{display:grid; grid-template-columns:1fr 1fr; gap:clamp(1.5rem,4vw,3rem); align-items:center}
+    @media (max-width:52rem){ .pick{grid-template-columns:1fr; gap:1.5rem} }
+    .pick .blurb p{margin:0; color:var(--muted)}
+    .pick .blurb cite{font-style:normal}
+    .board{background:var(--surface); border:1px solid var(--hairline); border-radius:14px; box-shadow:var(--shadow); padding:1.1rem 1.2rem 1.2rem}
+    .board .cap{font-family:var(--mono); font-size:.68rem; letter-spacing:.1em; text-transform:uppercase; color:var(--muted)}
+    canvas#mini-leaderboard{display:block; width:100%; height:150px; margin-top:.35rem}
+    .board .foot{font-family:var(--mono); font-size:.72rem; color:var(--muted); margin-top:.4rem}
+    .board .foot b{color:var(--accent-ink)}
+
+    /* ---- self-healing: three-step loop ---- */
+    .heal{display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--hairline); border:1px solid var(--hairline); border-radius:14px; overflow:hidden}
+    @media (max-width:40rem){ .heal{grid-template-columns:1fr} }
+
+    /* ---- validation table ---- */
+    .vscroll{overflow-x:auto; border:1px solid var(--hairline); border-radius:14px; box-shadow:var(--shadow); background:var(--surface)}
+    table.vtable{border-collapse:collapse; width:100%; min-width:40rem}
+    table.vtable th,table.vtable td{text-align:left; padding:1rem 1.15rem; border-bottom:1px solid var(--hairline); vertical-align:top}
+    table.vtable thead th{font-family:var(--mono); font-size:.7rem; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); font-weight:600; background:var(--surface-2)}
+    table.vtable tbody tr:last-child td{border-bottom:0}
+    table.vtable .meth{font-family:var(--serif); font-size:1.05rem; color:var(--ink)}
+    table.vtable .src{color:var(--muted); font-size:.9rem}
+    table.vtable .src cite{font-style:normal}
+    table.vtable .repro{font-family:var(--mono); font-size:.82rem; color:var(--accent-ink); font-variant-numeric:tabular-nums; white-space:nowrap}
+    .note{display:flex; gap:1.1rem; align-items:flex-start; margin-top:1.4rem; background:var(--surface); border:1px solid var(--hairline);
+      border-left:3px solid var(--accent); border-radius:12px; padding:1.15rem 1.4rem}
+    .note .k{font-family:var(--mono); font-size:.72rem; letter-spacing:.1em; text-transform:uppercase; color:var(--accent-ink); font-weight:600; white-space:nowrap; padding-top:.15rem}
+    .note p{margin:0; color:var(--muted)} .note p b{color:var(--ink); font-weight:600}
+
+    /* ---- footer ---- */
+    footer{border-top:1px solid var(--hairline); padding-block:2.5rem 3rem; color:var(--muted)}
+    .foot-grid{display:flex; justify-content:space-between; gap:2rem; flex-wrap:wrap; align-items:flex-end}
+    .foot-links{display:flex; gap:1.5rem; font-family:var(--mono); font-size:.82rem; flex-wrap:wrap}
+    .foot-links a{color:var(--ink)} .foot-links a:hover{color:var(--accent-ink)}
+    .sig{font-family:var(--mono); font-size:.78rem; color:var(--muted)}
+    .sig b{color:var(--ink); font-weight:600}
+
+    @media (prefers-reduced-motion:reduce){ *{animation:none!important; transition:none!important} }
+  </style>
+</head>
+<body>
+<header class="bar">
+  <div class="wrap bar-in">
+    <span class="mark"><span class="dot"></span>clinical-insight-agent</span>
+    <nav class="bar-links">
+      <a class="hide-sm" href="https://clinical-insight-agent.streamlit.app">live app</a>
+      <a href="https://github.com/Ediebah/clinical-insight-agent">source</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="hero">
+    <canvas class="hero-cover" aria-hidden="true"></canvas>
+    <div class="hero-scrim"></div>
+    <div class="wrap hero-grid">
+      <div>
+        <span class="eyebrow">Statistical judgment, not text-to-SQL</span>
+        <h1>An AI data scientist over a dbt-modeled healthcare warehouse.</h1>
+        <p class="lede">Ask a clinical question in plain English and it picks the model the question actually needs
+          &mdash; adjusted regression, survival, causal effects, non-inferiority, forecasting, or a Bayesian go/no-go
+          &mdash; prepares the data, checks the assumptions, and <strong>runs a statistical guardrail and reports the
+          caveats a text-to-SQL tool skips. Every number is computed, not generated.</strong></p>
+        <div class="cta">
+          <a class="btn primary" href="https://clinical-insight-agent.streamlit.app">Open the live app <span class="arrow">&#8599;</span></a>
+          <a class="btn ghost" href="https://github.com/Ediebah/clinical-insight-agent">Read the source <span class="arrow">&#8599;</span></a>
+        </div>
+      </div>
+
+      <div class="panel" aria-label="Example decision output">
+        <div class="panel-head">
+          <span>assurance &middot; design stage</span>
+          <span class="verdict"><span class="led"></span>GO</span>
+        </div>
+        <div class="panel-body">
+          <div class="readout">
+            <span class="big">88.8%</span>
+            <span class="cap">probability of success</span>
+          </div>
+          <canvas id="curve" aria-hidden="true"></canvas>
+          <div class="axis"><span>planned enrolment &rarr;</span><span>assurance</span></div>
+          <div class="gates">
+            <span class="gate">TV gate <b>0.80</b></span>
+            <span class="gate">LRV gate <b>0.90</b></span>
+            <span class="gate">power @ TV <b>flagged if &lt; 80%</b></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <section>
+    <div class="wrap">
+      <div class="sec-head">
+        <h2>Four decisions, one engine</h2>
+        <p>Plan a trial before it runs, and monitor it once it does, for a single arm or a controlled comparison.</p>
+      </div>
+      <div class="matrix">
+        <div class="m-corner"></div>
+        <div class="m-col">Single-arm</div>
+        <div class="m-col">Two-arm &middot; vs control</div>
+
+        <div class="m-row">Design<br>stage</div>
+        <div class="cell">
+          <span class="q">Should we invest in Phase II?</span>
+          <p class="d">Assurance: the probability the trial ends in GO, averaged over the prior, against a fixed performance goal.</p>
+          <span class="tag">assurance + operating characteristics</span>
+        </div>
+        <div class="cell">
+          <span class="q">Is a controlled trial worth running?</span>
+          <p class="d">Assurance on the risk difference versus a known control rate, with an assurance-vs-n curve to size the enrolment.</p>
+          <span class="tag">risk-difference &middot; planning curve</span>
+        </div>
+
+        <div class="m-row">Interim</div>
+        <div class="cell">
+          <span class="q">Stop for futility?</span>
+          <p class="d">The predictive probability the trial reaches GO at full enrolment, given the patients seen so far.</p>
+          <span class="tag">predictive probability of success</span>
+        </div>
+        <div class="cell">
+          <span class="q">Continue the drug vs control?</span>
+          <p class="d">The same call on the risk difference, from an exact joint beta-binomial predictive over both arms.</p>
+          <span class="tag">two-arm &middot; exact, no simulation</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="sec-head">
+        <h2>Built to be trusted</h2>
+        <p>A decision tool earns its verdict on the method, not the interface.</p>
+      </div>
+      <div class="rigor">
+        <div>
+          <span class="rnum">01</span>
+          <h3>Closed form, no Monte Carlo</h3>
+          <p>Every quantity is conjugate Beta-Binomial, computed exactly. The tool is bit-reproducible and never returns a different verdict on re-run.</p>
+        </div>
+        <div>
+          <span class="rnum">02</span>
+          <h3>A dual-criterion rule</h3>
+          <p>A Target Value you hope for and a Lower Reference Value that is the minimum worth pursuing (Lalonde), so a device performance goal is the degenerate case.</p>
+        </div>
+        <div>
+          <span class="rnum">03</span>
+          <h3>Robustness that means something</h3>
+          <p>The design is flagged under-powered when power at the target falls below 80%, and a prior-sensitivity panel shows how the answer moves across a vague, a skeptical, and an enthusiastic prior.</p>
+        </div>
+        <div>
+          <span class="rnum">04</span>
+          <h3>A pre-specification lock</h3>
+          <p>Hashes the prior, thresholds, and planned n, so an interim run is stamped pre-specified or drifted. It states its own limit plainly: a hash proves integrity, not that it predated the data.</p>
+        </div>
+        <div>
+          <span class="rnum">05</span>
+          <h3>Grounded in guidance</h3>
+          <p>The risk-difference dual criterion and simulated operating characteristics align with FDA's 2026 draft Bayesian guidance and the go/no-go literature (Lalonde; BOP2-DC).</p>
+        </div>
+        <div>
+          <span class="rnum">06</span>
+          <h3>Plain-English routing</h3>
+          <p>Ask "is it worth running?" or "continue or stop?" and the agent picks the right model, writes the query, checks the assumptions, and reports the caveats a text-to-SQL bot skips.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="sec-head">
+        <h2>One agent, many methods</h2>
+        <p>The go/no-go layer is one call in a full data scientist. The same agent picks and fits the model any clinical question needs.</p>
+      </div>
+      <div class="suite">
+        <div class="blurb">
+          <p>Ask in plain English and it routes to the right method, prepares the data, checks the model's
+            assumptions, corrects for multiple comparisons, and reports the caveats a text-to-SQL tool skips.
+            Every number is computed with <span style="color:var(--ink)">statsmodels</span> or
+            <span style="color:var(--ink)">scikit-learn</span>, not generated.</p>
+        </div>
+        <div class="chips">
+          <span class="chip here">Bayesian go/no-go <span class="mut">&middot; this page</span></span>
+          <span class="chip">Adjusted regression</span>
+          <span class="chip">Survival &middot; Cox / Kaplan-Meier</span>
+          <span class="chip">Causal effect &middot; AIPW / T-learner</span>
+          <span class="chip">A/B ship-decision &middot; FDR</span>
+          <span class="chip">Non-inferiority</span>
+          <span class="chip">Forecasting</span>
+          <span class="chip">Feature importance</span>
+          <span class="chip">Power &amp; sample size</span>
+        </div>
+      </div>
+
+      <div class="demos">
+        <figure class="demo">
+          <span class="ask">Ask</span>
+          <p class="q">What predicts heart disease, adjusting for the rest?</p>
+          <canvas id="mini-forest" aria-hidden="true"></canvas>
+          <div class="out"><span class="ov">diseased vessels &nbsp;OR 3.07</span><span class="tag">logistic + forest &middot; AUC 0.90</span></div>
+        </figure>
+        <figure class="demo">
+          <span class="ask">Ask</span>
+          <p class="q">Does ejection fraction predict survival?</p>
+          <canvas id="mini-km" aria-hidden="true"></canvas>
+          <div class="out"><span class="ov">reduced-EF 0.50 vs 0.74</span><span class="tag">Cox + Kaplan-Meier &middot; HR 0.95</span></div>
+        </figure>
+        <figure class="demo">
+          <span class="ask">Ask</span>
+          <p class="q">Is variant B better than A? Do we ship it?</p>
+          <canvas id="mini-ab" aria-hidden="true"></canvas>
+          <div class="out"><span class="ov">+3.1pp &nbsp;95% CI [0.4, 5.8]</span><span class="tag">A/B ship-decision &middot; SHIP</span></div>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="sec-head">
+        <h2>It picks the model that fits your data</h2>
+        <p>The agent doesn't hard-code a model. It cross-validates several and keeps the winner &mdash; so an upload gets the model that fits it, not a default.</p>
+      </div>
+      <div class="pick">
+        <div class="blurb">
+          <p>Ask for the best predictor and the agent fits logistic regression, a random forest, and gradient
+            boosting, scores each by cross-validated AUC, and returns a leaderboard with the winner. On the
+            UCI heart-failure data it picks the <b style="color:var(--ink)">random forest</b> &mdash; the same
+            model <cite>Chicco &amp; Jurman (2020)</cite> chose when they compared models, with serum creatinine
+            and ejection fraction as the top predictors.</p>
+        </div>
+        <div class="board">
+          <div class="cap">heart failure &middot; 5-fold cross-validated AUC</div>
+          <canvas id="mini-leaderboard" aria-hidden="true"></canvas>
+          <div class="foot">engine picked <b>random forest</b> &mdash; matching the publication</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="sec-head">
+        <h2>How a question becomes an answer</h2>
+        <p>One plain-English question runs an entire analysis. The UI shows every step, with the cost and latency of the run.</p>
+      </div>
+      <div class="flow">
+        <div class="step"><span class="n">01</span><h3>Retrieve schema</h3><p>Pulls the right tables and metric definitions from the semantic catalog.</p></div>
+        <div class="step"><span class="n">02</span><h3>Plan the approach</h3><p>States a hypothesis and picks the model the question actually needs.</p></div>
+        <div class="step"><span class="n">03</span><h3>Write &amp; fix SQL</h3><p>Runs read-only SQL, and repairs it when a query errors, returns nothing, or comes back all zeros.</p></div>
+        <div class="step"><span class="n">04</span><h3>Statistical guardrail</h3><p>Confidence intervals, FDR correction, and checks for confounding and Simpson's paradox.</p></div>
+        <div class="step"><span class="n">05</span><h3>Self-review</h3><p>Critiques its own answer and the assumptions behind the model it chose.</p></div>
+        <div class="step"><span class="n">06</span><h3>Report</h3><p>The result, its caveats, and the tables it used &mdash; exportable to a Word report.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="sec-head">
+        <h2>It keeps its own pipeline honest</h2>
+        <p>A pre-flight health check refuses to run on a broken warehouse, and a live monitoring tab watches the data. When a dbt test fails, the agent repairs the pipeline itself.</p>
+      </div>
+      <div class="heal">
+        <div class="step"><span class="n">DETECT</span><h3>A dbt test fails</h3><p>An integrity or freshness test goes red on build &mdash; a broken column, a null key, a drifted row count.</p></div>
+        <div class="step"><span class="n">DIAGNOSE</span><h3>Find the root cause</h3><p>The agent traces the failure back through the dbt lineage to the model and column at fault.</p></div>
+        <div class="step"><span class="n">REPAIR</span><h3>Fix and re-run to green</h3><p>It proposes and applies the fix, rebuilds, and confirms the test passes &mdash; the self-healing loop.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="sec-head">
+        <h2>Validated on real public data</h2>
+        <p>The demo runs on synthetic data, which has no ground truth. So the agent's own models are run on real,
+          already-analysed datasets and checked against the published literature, across four of its methods &mdash;
+          and its model-selection engine lands on each publication's own model.</p>
+      </div>
+      <div class="vscroll">
+        <table class="vtable">
+          <thead>
+            <tr><th>Method</th><th>Real-world source</th><th>What the agent reproduces</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="meth">Logistic regression<br>+ random forest</td>
+              <td class="src">UCI Cleveland heart disease<br><cite>Detrano et al., 1989</cite></td>
+              <td class="repro">diseased-vessels OR 3.07<br>cross-validated AUC 0.90</td>
+            </tr>
+            <tr>
+              <td class="meth">Cox proportional hazards<br>+ Kaplan-Meier</td>
+              <td class="src">UCI Heart Failure Clinical Records<br><cite>Chicco &amp; Jurman, 2020</cite></td>
+              <td class="repro">ejection-fraction HR 0.95<br>serum-creatinine HR 1.36</td>
+            </tr>
+            <tr>
+              <td class="meth">Bayesian interim<br>go/no-go</td>
+              <td class="src">Single-arm phase II worked example<br><cite>Chen &amp; Chen, 2019</cite></td>
+              <td class="repro">predictive probability 0.105<br>at the 8/25 interim look</td>
+            </tr>
+            <tr>
+              <td class="meth">Machine learning<br>(random forest)</td>
+              <td class="src">Wisconsin Diagnostic Breast Cancer<br><cite>Wolberg et al., 1995</cite></td>
+              <td class="repro">cross-validated AUC 0.99<br>settled tumour markers on top</td>
+            </tr>
+            <tr>
+              <td class="meth">Model selection<br>(compare &amp; pick)</td>
+              <td class="src">all three cohorts above<br><cite>logistic / forest / boosting</cite></td>
+              <td class="repro">picks each paper's own model<br>random forest for heart failure</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note">
+        <span class="k">How it holds</span>
+        <p>Each reproduction runs the <b>same <code>agent/modeling.py</code> code the live app uses</b>, and each is
+          enforced in CI (<code>tests/test_validation.py</code>): the odds and hazard ratios keep their established
+          magnitude and direction, the AUC stays inside the published band, and the predictive probability stays
+          within 0.001 of the paper's value. A change that quietly breaks the modeling is caught against real ground
+          truth, not synthetic data.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap foot-grid">
+    <div>
+      <div class="eyebrow" style="margin-bottom:.6rem">Clinical Insight Agent</div>
+      <div class="sig">An AI data scientist over a dbt-modeled healthcare warehouse.<br>Built by <b>Divine Ediebah</b>, a clinical data scientist working in biostatistics and ML.</div>
+    </div>
+    <nav class="foot-links">
+      <a href="https://clinical-insight-agent.streamlit.app">Live app</a>
+      <a href="https://github.com/Ediebah/clinical-insight-agent">GitHub</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var reduce = matchMedia('(prefers-reduced-motion:reduce)').matches;
+  function css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+  function hexA(hex,a){
+    hex=css(hex).replace('#',''); if(hex.length===3){hex=hex.split('').map(function(x){return x+x}).join('')}
+    var n=parseInt(hex,16); return 'rgba('+((n>>16)&255)+','+((n>>8)&255)+','+(n&255)+','+a+')';
+  }
+
+  /* ---- hero cover: a family of Beta posterior densities, prior sharpening into posterior ---- */
+  var cover = document.querySelector('.hero-cover');
+  // (a,b) pairs: broad prior -> progressively sharper, right-shifting posteriors
+  var BETAS = [[1.6,3.0],[2.2,3.0],[3.4,3.4],[5,4],[8,4.4],[12,4.6],[17,4.8]];
+  function lbeta(a,b){ return gln(a)+gln(b)-gln(a+b); }
+  function gln(x){ // Lanczos log-gamma
+    var g=[76.18009172947146,-86.50532032941677,24.01409824083091,-1.231739572450155,0.1208650973866179e-2,-0.5395239384953e-5];
+    var xx=x, y=x, tmp=x+5.5; tmp-=(x+0.5)*Math.log(tmp); var ser=1.000000000190015;
+    for(var j=0;j<6;j++){ y+=1; ser+=g[j]/y; } return -tmp+Math.log(2.5066282746310005*ser/xx);
+  }
+  function betaPdf(x,a,b){ if(x<=0||x>=1) return 0; return Math.exp((a-1)*Math.log(x)+(b-1)*Math.log(1-x)-lbeta(a,b)); }
+
+  function drawCover(progress){
+    if(!cover) return;
+    var ctx=cover.getContext('2d');
+    var dpr=Math.max(1,window.devicePixelRatio||1);
+    var w=cover.clientWidth, h=cover.clientHeight;
+    if(!w||!h) return;
+    cover.width=w*dpr; cover.height=h*dpr; ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.clearRect(0,0,w,h);
+    var padT=h*0.12, padB=h*0.06, base=h-padB;
+    // shared vertical scale so the sharpest curve just fits
+    var peak=0; BETAS.forEach(function(ab){ for(var t=0;t<=1;t+=0.01){ peak=Math.max(peak,betaPdf(t,ab[0],ab[1])); } });
+    var yscale=(base-padT)/peak;
+    BETAS.forEach(function(ab,idx){
+      var reveal=Math.min(1,Math.max(0,(progress-idx*0.06)/0.5));
+      if(reveal<=0) return;
+      var a=ab[0], b=ab[1];
+      var strong=idx/(BETAS.length-1);          // sharper = more foregrounded
+      var alpha=(0.05+0.16*strong)*reveal;
+      ctx.beginPath();
+      var N=180, started=false;
+      for(var i=0;i<=N*reveal;i++){
+        var xx=i/N, y=base - betaPdf(xx,a,b)*yscale;
+        var X=xx*w;
+        if(!started){ ctx.moveTo(X,y); started=true; } else { ctx.lineTo(X,y); }
+      }
+      ctx.strokeStyle=hexA('--accent',alpha); ctx.lineWidth=1+1.1*strong; ctx.lineJoin='round'; ctx.stroke();
+    });
+  }
+
+  /* ---- instrument panel: the animated assurance curve ---- */
+  var c=document.getElementById('curve');
+  function drawCurve(progress){
+    if(!c) return;
+    var ctx=c.getContext('2d');
+    var dpr=Math.max(1,window.devicePixelRatio||1);
+    var w=c.clientWidth, h=c.clientHeight;
+    c.width=w*dpr; c.height=h*dpr; ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.clearRect(0,0,w,h);
+    var padL=6,padR=6,padT=10,padB=6;
+    var accent=css('--accent'), hair=css('--hairline');
+    function f(x){ return 0.06 + 0.9*(x/(x+0.16)); }
+    var gy=padT+(1-0.80)*(h-padT-padB);
+    ctx.strokeStyle=hair; ctx.lineWidth=1; ctx.setLineDash([3,4]);
+    ctx.beginPath(); ctx.moveTo(padL,gy); ctx.lineTo(w-padR,gy); ctx.stroke(); ctx.setLineDash([]);
+    var N=120, lim=Math.floor(N*progress);
+    function px(i){ return padL+(i/N)*(w-padL-padR); }
+    function py(i){ return padT+(1-f(i/N))*(h-padT-padB); }
+    if(lim>1){
+      var grad=ctx.createLinearGradient(0,padT,0,h);
+      grad.addColorStop(0,hexA('--accent',.22)); grad.addColorStop(1,hexA('--accent',0));
+      ctx.beginPath(); ctx.moveTo(px(0),h-padB);
+      for(var i=0;i<=lim;i++){ ctx.lineTo(px(i),py(i)); }
+      ctx.lineTo(px(lim),h-padB); ctx.closePath(); ctx.fillStyle=grad; ctx.fill();
+    }
+    ctx.beginPath(); ctx.moveTo(px(0),py(0));
+    for(var j=1;j<=lim;j++){ ctx.lineTo(px(j),py(j)); }
+    ctx.strokeStyle=accent; ctx.lineWidth=2.25; ctx.lineJoin='round'; ctx.stroke();
+    if(lim>0){
+      ctx.beginPath(); ctx.arc(px(lim),py(lim),3.4,0,7); ctx.fillStyle=accent; ctx.fill();
+      ctx.beginPath(); ctx.arc(px(lim),py(lim),3.4,0,7); ctx.strokeStyle=css('--surface'); ctx.lineWidth=1.5; ctx.stroke();
+    }
+  }
+
+  /* ---- small method visuals, each animates when scrolled into view ---- */
+  function fit(cv){
+    var ctx=cv.getContext('2d'), dpr=Math.max(1,window.devicePixelRatio||1), w=cv.clientWidth, h=cv.clientHeight;
+    cv.width=w*dpr; cv.height=h*dpr; ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,w,h);
+    return {ctx:ctx,w:w,h:h};
+  }
+  var MONO='9px ui-monospace,"SF Mono",Menlo,monospace';
+
+  // logistic odds-ratio forest (heart disease): risk (>1) red, protective (<1) green, log scale, OR=1 reference
+  function drawForest(cv,p){
+    var s=fit(cv); if(!s.w) return; var ctx=s.ctx,w=s.w,h=s.h;
+    var rows=[{l:'vessels',or:3.07,lo:1.6,hi:5.9},{l:'male sex',or:3.92,lo:1.5,hi:10.3},
+              {l:'ST dep.',or:1.70,lo:1.14,hi:2.55},{l:'max HR',or:0.98,lo:0.965,hi:0.996}];
+    var padL=w*0.30, padR=10, padT=6, padB=15, lo=Math.log(0.5), hi=Math.log(13);
+    function X(or){ return padL+(Math.log(or)-lo)/(hi-lo)*(w-padL-padR); }
+    var go=css('--go'), stop=css('--stop'), muted=css('--muted'), hair=css('--hairline');
+    ctx.strokeStyle=hair; ctx.lineWidth=1; ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(X(1),padT); ctx.lineTo(X(1),h-padB); ctx.stroke(); ctx.setLineDash([]);
+    ctx.font=MONO; ctx.fillStyle=muted; ctx.textAlign='center'; ctx.textBaseline='top';
+    ctx.fillText('OR 1', X(1), h-padB+3);
+    var n=rows.length, gap=(h-padT-padB)/n;
+    rows.forEach(function(r,i){
+      var y=padT+gap*(i+0.5), col=r.or>1?stop:go, a=Math.max(0,Math.min(1,p*1.35-i*0.14));
+      if(a<=0) return; ctx.globalAlpha=a;
+      ctx.fillStyle=muted; ctx.textAlign='right'; ctx.textBaseline='middle'; ctx.font=MONO;
+      ctx.fillText(r.l, padL-8, y);
+      ctx.strokeStyle=col; ctx.lineWidth=1.6;
+      ctx.beginPath(); ctx.moveTo(X(r.lo),y); ctx.lineTo(X(r.hi),y);
+      ctx.moveTo(X(r.lo),y-3); ctx.lineTo(X(r.lo),y+3); ctx.moveTo(X(r.hi),y-3); ctx.lineTo(X(r.hi),y+3); ctx.stroke();
+      ctx.fillStyle=col; ctx.beginPath(); ctx.arc(X(r.or),y,3.2,0,7); ctx.fill();
+      ctx.globalAlpha=1;
+    });
+  }
+
+  // Kaplan-Meier survival (heart failure): preserved-EF vs reduced-EF, revealed left-to-right
+  function drawKM(cv,p){
+    var s=fit(cv); if(!s.w) return; var ctx=s.ctx,w=s.w,h=s.h;
+    var padL=6,padR=30,padT=8,padB=16, ymin=0.35;
+    function X(t){ return padL+t*(w-padL-padR); }
+    function Y(sv){ return padT+(1-(sv-ymin)/(1-ymin))*(h-padT-padB); }
+    var accent=css('--accent'), stop=css('--stop'), muted=css('--muted'), hair=css('--hairline');
+    ctx.strokeStyle=hair; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(padL,h-padB); ctx.lineTo(w-padR,h-padB); ctx.stroke();
+    function curve(k,color){
+      var N=100, lim=Math.floor(N*p);
+      ctx.strokeStyle=color; ctx.lineWidth=2; ctx.lineJoin='round'; ctx.beginPath();
+      for(var i=0;i<=lim;i++){ var t=i/N, sv=Math.exp(k*t), x=X(t), y=Y(sv); i?ctx.lineTo(x,y):ctx.moveTo(x,y); }
+      ctx.stroke();
+      if(lim>=N){ var sv=Math.exp(k); ctx.fillStyle=color; ctx.font=MONO; ctx.textAlign='left'; ctx.textBaseline='middle';
+        ctx.fillText(sv.toFixed(2), X(1)+4, Y(sv)); }
+    }
+    curve(Math.log(0.74), accent);
+    curve(Math.log(0.50), stop);
+    ctx.fillStyle=muted; ctx.font=MONO; ctx.textAlign='left'; ctx.textBaseline='top';
+    ctx.fillText('follow-up →', padL, h-padB+4);
+  }
+
+  // A/B lift with 95% CI against the no-lift line: whole interval clears 0 -> SHIP
+  function drawAB(cv,p){
+    var s=fit(cv); if(!s.w) return; var ctx=s.ctx,w=s.w,h=s.h;
+    var padL=10,padR=10,padT=20,padB=20, xmin=-2,xmax=8;
+    function X(v){ return padL+(v-xmin)/(xmax-xmin)*(w-padL-padR); }
+    var y=padT+(h-padT-padB)*0.5, hair=css('--hairline'), go=css('--go'), muted=css('--muted');
+    ctx.strokeStyle=hair; ctx.lineWidth=1; ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(X(0),padT); ctx.lineTo(X(0),h-padB); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle=muted; ctx.font=MONO; ctx.textAlign='center'; ctx.textBaseline='top';
+    ctx.fillText('0 · no lift', X(0), h-padB+4);
+    var lo=0.4,hi=5.8,pt=3.1, cl=pt+(lo-pt)*p, ch=pt+(hi-pt)*p;
+    ctx.strokeStyle=go; ctx.lineCap='round'; ctx.lineWidth=2.5;
+    ctx.beginPath(); ctx.moveTo(X(cl),y); ctx.lineTo(X(ch),y); ctx.stroke();
+    ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(X(cl),y-5); ctx.lineTo(X(cl),y+5); ctx.moveTo(X(ch),y-5); ctx.lineTo(X(ch),y+5); ctx.stroke();
+    ctx.fillStyle=go; ctx.beginPath(); ctx.arc(X(pt),y,4,0,7); ctx.fill();
+    ctx.globalAlpha=p; ctx.fillStyle=go; ctx.font='600 '+MONO; ctx.textAlign='center'; ctx.textBaseline='bottom';
+    ctx.fillText('+3.1pp  [0.4, 5.8]', X(pt), y-9); ctx.globalAlpha=1;
+  }
+
+  var miniRedraw=[];
+  function animateInView(cv, drawFn, dur){
+    if(!cv) return; var ran=false;
+    function run(){ if(ran) return; ran=true;
+      var s=null; function st(t){ if(s===null)s=t; var p=Math.min(1,(t-s)/dur); drawFn(cv,1-Math.pow(1-p,3)); if(p<1) requestAnimationFrame(st); }
+      requestAnimationFrame(st);
+    }
+    miniRedraw.push(function(){ if(ran) drawFn(cv,1); });
+    if(reduce){ ran=true; drawFn(cv,1); return; }
+    if('IntersectionObserver' in window){
+      var io=new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting){ run(); io.disconnect(); } }); },{threshold:.3});
+      io.observe(cv);
+    } else { run(); }
+  }
+  // model-selection leaderboard: three candidates ranked by cross-validated AUC, winner in accent
+  function drawLeaderboard(cv,p){
+    var s=fit(cv); if(!s.w) return; var ctx=s.ctx,w=s.w,h=s.h;
+    var rows=[{m:'random forest',auc:0.773,win:true},{m:'logistic regression',auc:0.769},
+              {m:'gradient boosting',auc:0.722}];
+    var padL=w*0.40, padR=54, padT=12, padB=14, x0=0.5, x1=0.85;
+    function X(v){ return padL+(v-x0)/(x1-x0)*(w-padL-padR); }
+    var accent=css('--accent'), hair=css('--hairline'), muted=css('--muted'), ink=css('--ink'),
+        surf2=css('--surface-2'), ai=css('--accent-ink');
+    var n=rows.length, gap=(h-padT-padB)/n, bh=Math.min(18, gap*0.5);
+    ctx.textBaseline='middle';
+    rows.forEach(function(r,i){
+      var y=padT+gap*(i+0.5), len=(X(r.auc)-padL)*Math.max(0,Math.min(1,p*1.25-i*0.12));
+      ctx.textAlign='right'; ctx.font=MONO; ctx.fillStyle=r.win?ink:muted;
+      ctx.fillText(r.m, padL-8, y);
+      ctx.fillStyle=surf2; ctx.fillRect(padL, y-bh/2, X(x1)-padL, bh);
+      ctx.fillStyle=r.win?accent:hair; ctx.fillRect(padL, y-bh/2, len, bh);
+      if(p>0.55){
+        ctx.textAlign='left'; ctx.fillStyle=r.win?ai:muted; ctx.font=(r.win?'600 ':'')+MONO;
+        ctx.fillText(r.auc.toFixed(3)+(r.win?'  ←':''), X(x1)+6, y);
+      }
+    });
+  }
+
+  animateInView(document.getElementById('mini-forest'),      drawForest,      1000);
+  animateInView(document.getElementById('mini-km'),          drawKM,          1150);
+  animateInView(document.getElementById('mini-ab'),          drawAB,           950);
+  animateInView(document.getElementById('mini-leaderboard'), drawLeaderboard, 1050);
+
+  function renderStatic(){ drawCover(1); drawCurve(1); miniRedraw.forEach(function(f){ f(); }); }
+
+  var start=null, dur=1250;
+  function step(t){
+    if(start===null) start=t;
+    var p=Math.min(1,(t-start)/dur), eased=1-Math.pow(1-p,3);
+    drawCover(eased); drawCurve(eased);
+    if(p<1) requestAnimationFrame(step);
+  }
+  if(reduce){ renderStatic(); } else { requestAnimationFrame(step); }
+
+  var rt; addEventListener('resize', function(){ clearTimeout(rt); rt=setTimeout(renderStatic,120); });
+  // redraw on the viewer's light/dark toggle (data-theme is stamped on <html>)
+  new MutationObserver(renderStatic).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+})();
+</script>
+</body>
+</html>
