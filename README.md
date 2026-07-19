@@ -20,7 +20,7 @@ does none of that. I built it as a clinical data scientist working in biostatist
 Everything runs on synthetic EHR data, so there is no PHI and the whole project is public and reproducible.
 
 Live demo: [clinical-insight-agent.streamlit.app](https://clinical-insight-agent.streamlit.app).
-CI runs on every push: `dbt build`, 108 data tests, 288 unit tests, and the guardrail eval.
+CI runs on every push: `dbt build`, 108 data tests, 291 unit tests, and the guardrail eval.
 
 ![Demo: a plain-English question is typed and run; the agent states a hypothesis, writes and executes read-only SQL, renders KPI cards and a confidence-interval chart, and the statistical guardrail flags confounding and a missing denominator before the findings.](assets/demo.gif)
 
@@ -75,7 +75,7 @@ warehouse from scratch, see [Run it locally](#run-it-locally-full-rebuild).
   warehouse is failing a critical integrity test, so a broken pipeline can't quietly feed corrupt metrics
   into an analysis.
 - Built to run in production: the SQL engine is read-only, there is a live monitoring tab, an eval suite,
-  288 unit tests in CI, a Dockerfile, upload-your-own-data, and a Word-report export.
+  291 unit tests in CI, a Dockerfile, upload-your-own-data, and a Word-report export.
 
 ---
 
@@ -303,7 +303,7 @@ and 6 named metrics with their statistical caveats is generated from the dbt art
 readable to the agent, and a deterministic token-overlap RAG retrieves over it with no embedding calls.
 
 ### Engineering
-- 288 keyless `pytest` unit tests covering the guardrail statistics, SQL validation and security, retrieval,
+- 291 keyless `pytest` unit tests covering the guardrail statistics, SQL validation and security, retrieval,
   charts, agent helpers, modeling, condition-vocabulary grounding, data lineage, and the data-quality gate,
   plus `ruff` and a coverage gate, all run in CI.
 - GitHub Actions CI on every push: Synthea, then DuckDB, then `dbt build` (108 tests), then a catalog
@@ -348,7 +348,7 @@ cp agent/.env.example agent/.env      # then put your OPENAI_API_KEY in agent/.e
 # 4. Run the agent (CLI) + the checks
 .venv/bin/python -m agent.agent "Which conditions are most prevalent in patients 75 and older?"
 .venv/bin/python -m agent.agent "How does survival differ for heart attack patients?"   # → Myocardial infarction cohort
-.venv/bin/pytest                           # 288 keyless unit tests   (ruff check . to lint)
+.venv/bin/pytest                           # 291 keyless unit tests   (ruff check . to lint)
 .venv/bin/python -m agent.guardrail_eval   # guardrail precision/recall (no key)
 .venv/bin/python -m agent.eval_retrieval   # retrieval precision/recall/MRR (no key)
 .venv/bin/python -m agent.eval             # answer accuracy (needs a key)
@@ -400,7 +400,7 @@ overridable with `OPENAI_MODEL`). CI runs on GitHub Actions; the app is packaged
 │   ├── charts.py, llm.py, observe.py, build_catalog.py
 │   └── eval*.py, guardrail_eval.py, eval_dataset.py   the eval suite + GOLD set
 ├── warehouse/                   the dbt project (staging → core → analytics marts + tests + docs)
-├── tests/                       288 keyless pytest unit tests
+├── tests/                       291 keyless pytest unit tests
 ├── scripts/load_raw.py          Synthea CSV → DuckDB raw
 ├── .github/workflows/ci.yml     Synthea → DuckDB → dbt build → catalog → guardrail eval
 ├── Dockerfile, DEPLOY.md

@@ -923,6 +923,64 @@ def _render_model(m: dict) -> str:
         if m.get("note"):
             lines.append(f"\n_{m['note']}_")
         return "\n".join(lines)
+    if m.get("model_type") == "model_selection":                     # leaderboard + the winner's own output
+        v = m.get("verdict", {})
+        lines = [head, ""]
+        if v.get("winner"):
+            lines.append(f"**Picked `{v['winner']}`** — {v.get('reason', '')}")
+        board = m.get("leaderboard") or []
+        if board:
+            metric = board[0].get("metric", "score")
+            has_comp = any(row.get("components") for row in board)
+            cols = ["model", metric] + (["components"] if has_comp else [])
+            lines += ["", "| " + " | ".join(cols) + " |", "|" + "|".join(["---"] * len(cols)) + "|"]
+            for row in board:
+                win = " ✅" if row.get("is_winner") else ""
+                cell = [f"`{row['model']}`{win}", f"{row['score']:.3f} ± {row.get('std', 0):.3f}"]
+                if has_comp:
+                    comp = row.get("components") or {}
+                    cell.append(" · ".join(f"{k} {vv:.3f}" for k, vv in comp.items()) if comp else "—")
+                lines.append("| " + " | ".join(cell) + " |")
+        if m.get("terms"):
+            eff = v.get("effect", m.get("effect_label", "estimate"))
+            lines += ["", f"**Winning model — {eff}:**", "", f"| term | {eff} |", "|---|---|"]
+            for t in m["terms"][:12]:
+                lines.append(f"| `{t['name']}` | {t['estimate']:.3f} |")
+        if m.get("issues"):
+            lines.append("")
+            lines += [f"- ⚠️ {iss}" for iss in m["issues"]]
+        if m.get("note"):
+            lines.append(f"\n_{m['note']}_")
+        return "\n".join(lines)
+    if m.get("model_type") == "decision_curve":                      # net benefit across thresholds
+        v = m.get("verdict", {})
+        lines = [head, "", f"- **model**: `{v.get('model', '')}`",
+                 f"- **clinically useful across thresholds**: {v.get('useful_range', '—')} "
+                 f"(prevalence {v.get('prevalence', 0):.0%})", "",
+                 "| threshold | net benefit (model) | treat-all | treat-none |", "|---|---|---|---|"]
+        for s in m.get("series", []):
+            if round(s["threshold"] * 100) % 10 == 0:
+                lines.append(f"| {s['threshold']:.0%} | {s['nb_model']:.3f} | {s['nb_all']:.3f} | 0.000 |")
+        if m.get("note"):
+            lines.append(f"\n_{m['note']}_")
+        return "\n".join(lines)
+    if m.get("model_type") == "failure_analysis":                    # calibration + error breakdown
+        v = m.get("verdict", {})
+        lines = [head, "",
+                 f"- **errors (0.5 cut)**: {v.get('false_positives', 0)} false positives, "
+                 f"{v.get('false_negatives', 0)} false negatives",
+                 f"- **max calibration gap**: {v.get('max_calibration_gap', 0):.0%}"]
+        w = v.get("worst_segment")
+        if w:
+            lines.append(f"- **worst subgroup**: `{w['feature']}={w['level']}` — misclassified "
+                         f"{w['error_rate']:.0%} (n={w['n']})")
+        if m.get("series"):
+            lines += ["", "**Calibration by risk decile**", "", "| predicted | observed | n |", "|---|---|---|"]
+            for s in m["series"]:
+                lines.append(f"| {s['predicted']:.2f} | {s['observed']:.2f} | {s['n']:,} |")
+        if m.get("note"):
+            lines.append(f"\n_{m['note']}_")
+        return "\n".join(lines)
     terms = m["terms"]
     has_ci = any(t["ci_low"] == t["ci_low"] for t in terms)          # drop columns that don't apply
     has_p = any(t["p"] == t["p"] for t in terms)                     # (e.g. forest importance: neither)
@@ -946,7 +1004,7 @@ def _render_model(m: dict) -> str:
             row.append("—" if pv != pv else f"{pv:.4f}" + (" ✳️" if pv < 0.05 else ""))
         lines.append("| " + " | ".join(row) + " |")
     rb = m.get("robustness")
-    if rb:
+    if rb and rb.get("verdict"):          # spec-curve robustness only; other shapes (e.g. {"task": ...}) skip
         icon = {"robust": "✅", "mostly robust": "◐", "fragile": "⚠️"}.get(rb.get("verdict"), "•")
         lines += ["", f"{icon} **Specification robustness — {rb['verdict']}.** Refitting {rb['label']} "
                   f"across {rb['n_specs']} defensible covariate sets (unadjusted, fully adjusted, "
