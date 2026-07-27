@@ -69,6 +69,13 @@ _FAITHFUL_KEYS = {
     "missing_denominator": ("denominator", "base rate", "sample size", "group size"),
     "wide_ci": ("confidence", "interval", "ci", "wide"),
     "multiple_comparisons": ("multiple", "correction", "bonferroni", "fdr", "false positive"),
+    # kinds added when the guardrail moved to `caveat` — an unmapped kind can never be scored
+    # faithful, so it would silently drag this metric down as new checks start firing
+    "boundary_rate": ("interval", "ci", "0%", "100%", "certain", "wilson"),
+    "winners_curse": ("small", "sample", "artifact", "rank", "interval", "chance"),
+    "mean_contrasts": ("difference", "confidence", "ci", "interval", "mean", "significant"),
+    "missing_data": ("missing", "incomplete", "null", "absent"),
+    "session_multiplicity": ("multiple", "looking", "spurious", "hypothes", "confirm"),
 }
 
 

@@ -35,6 +35,11 @@ jobs:
           ruff check .
           pytest --cov=agent --cov-report=term-missing
 
+      # The extracted guardrail library, tested on its own. It has no healthcare, dbt or warehouse
+      # dependency, so it runs before any of the warehouse setup below and fails fast if broken.
+      - name: caveat package tests (standalone, no warehouse)
+        run: pytest packages/caveat/tests -q
+
       - name: Generate a small, reproducible Synthea dataset
         # Pinned release (NOT master-branch-latest, a moving target that can break CI with no code
         # change and silently varies the generated data over time). Bump deliberately.
