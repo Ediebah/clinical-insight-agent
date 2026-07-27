@@ -13,6 +13,9 @@ from __future__ import annotations
 
 import datetime as _dt
 import json
+import os
+import re
+import time
 from pathlib import Path
 
 import pandas as pd
@@ -22,6 +25,40 @@ from .eval_dataset import GOLD as CASES
 from .warehouse import run_query
 
 HISTORY = Path(__file__).resolve().parent / "eval_history.jsonl"
+
+# --- throttling ------------------------------------------------------------------------------
+# An eval sweep is dozens of large prompts back to back and will trip a tokens-per-minute tier.
+# Deliberately NOT handled in llm.complete(): the app's per-run deadline cannot interrupt an
+# in-flight call (see llm.py), so longer retries there would worsen the worst-case hang for an
+# interactive user. A batch sweep can afford to wait; a person staring at Streamlit cannot.
+TRANSIENT = re.compile(r"rate.?limit|429|timed? ?out|overloaded|temporarily unavailable|"
+                       r"connection|50[234]", re.I)
+_RETRY_HINT = re.compile(r"try again in ([\d.]+)s")
+PACE_SECONDS = float(os.getenv("EVAL_PACE", "0"))
+
+
+def backoff_sleep(message: str, delay: float) -> float:
+    """Wait per the server's own hint when the 429 body carries one, else `delay`. Returns the
+    next delay (doubled, capped) so callers can keep it in a local."""
+    hint = _RETRY_HINT.search(message or "")
+    time.sleep(min(float(hint.group(1)) + 1.0, 60.0) if hint else delay)
+    return min(delay * 2, 60.0)
+
+
+def _run_with_backoff(question: str, tries: int = 5):
+    """run_analysis swallows llm.LLMError into result.error (agent.py, `except llm.LLMError`), so a
+    throttled call is indistinguishable from a wrong answer and silently DEFLATES accuracy — a
+    rate-limited sweep would read as an agent regression. Retry the transient ones."""
+    delay = 8.0
+    res = None
+    for attempt in range(tries):
+        if PACE_SECONDS:
+            time.sleep(PACE_SECONDS)
+        res = run_analysis(question)
+        if not res.error or not TRANSIENT.search(res.error) or attempt == tries - 1:
+            return res
+        delay = backoff_sleep(res.error, delay)
+    return res
 
 # keywords that indicate the interpretation honored a given guardrail finding kind
 _FAITHFUL_KEYS = {
@@ -37,6 +74,34 @@ _FAITHFUL_KEYS = {
 
 def _reference(case) -> float:
     return float(run_query(case.reference_sql).iloc[0, 0])
+
+
+def _previous_cases(path: Path | None = None) -> dict[str, bool]:
+    """Per-case outcomes from the most recent run that logged them ({} if none / pre-`cases` format).
+
+    `path` defaults to HISTORY at CALL time (not import time) so tests can redirect it, and so
+    agent.route_eval can reuse this against its own history file.
+    """
+    path = path or HISTORY
+    if not path.exists():
+        return {}
+    for line in reversed(path.read_text().splitlines()):
+        if not line.strip():
+            continue
+        try:
+            rec = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(rec.get("cases"), dict):
+            return rec["cases"]
+    return {}
+
+
+def _diff_cases(cases: dict[str, bool], prev: dict[str, bool]) -> tuple[list[str], list[str]]:
+    """(regressed, fixed) against the previous run. Cases absent from either run are not a change."""
+    regressed = sorted(i for i, ok in cases.items() if not ok and prev.get(i) is True)
+    fixed = sorted(i for i, ok in cases.items() if ok and prev.get(i) is False)
+    return regressed, fixed
 
 
 def _answer_cells(df, allow_multi: bool = False) -> list[float]:
@@ -81,14 +146,14 @@ def main() -> int:
     rows = []
     for c in CASES:
         if c.expect_clarification:
-            res = run_analysis(c.question)
+            res = _run_with_backoff(c.question)
             ok = bool(res.clarification) and res.dataframe is None
             mark = "✅" if ok else "❌"
             print(f"  {mark} {c.id:18} [{c.category}] "
                   f"{'asked for clarification' if ok else 'did NOT clarify (guessed)'}")
         else:
             ref = _reference(c)
-            res = run_analysis(c.question)
+            res = _run_with_backoff(c.question)
             ok = res.error is None and _matches(
                 _answer_cells(res.dataframe, allow_multi=c.is_rate), ref, c.is_rate)
             f = _faithful(res)
@@ -109,11 +174,26 @@ def main() -> int:
     print(f"\n  Accuracy: {sum(total)}/{len(total)} = {acc:.0%}   "
           f"Caveat-faithfulness: {faithful_hits}/{faithful_total} = {faith:.0%}")
 
+    # Per-case diff against the last run. An aggregate that holds steady can still hide a case
+    # flipping (one regression masked by one fix), so drift has to be attributable, not just visible.
+    cases = {r["id"]: r["ok"] for r in rows}
+    prev = _previous_cases()
+    if prev:
+        regressed, fixed = _diff_cases(cases, prev)
+        print()
+        if regressed:
+            print(f"  ⚠ regressed since last run: {', '.join(regressed)}")
+        if fixed:
+            print(f"  ✓ fixed since last run:     {', '.join(fixed)}")
+        if not regressed and not fixed:
+            print("  no per-case change since last run")
+
     # regression log
     stamp = _dt.datetime.now().isoformat(timespec="seconds")
     with HISTORY.open("a") as fh:
         fh.write(json.dumps({"ts": stamp, "accuracy": round(acc, 3),
-                             "faithfulness": round(faith, 3), "n": len(total)}) + "\n")
+                             "faithfulness": round(faith, 3), "n": len(total),
+                             "cases": cases}) + "\n")
     print(f"  logged → {HISTORY.name}")
     return 0 if acc >= 0.85 else 1
 
