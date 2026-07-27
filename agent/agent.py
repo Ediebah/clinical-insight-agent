@@ -302,7 +302,13 @@ _MODEL_HINT = re.compile(
     r"worth (running|pursuing|continuing)|worth the (investment|trial|study)|"
     r"continue or stop|stop or continue|keep going|"
     r"continue the (trial|study|program|programme|drug|arm)|"
-    r"should we (continue|proceed|invest|keep going)|go ahead with|invest in)", re.I)
+    r"should we (continue|proceed|invest|keep going)|go ahead with|invest in|"
+    # The most direct way to ask for a design-stage go/no-go — "should we run this study?" — was
+    # not covered, while the more roundabout "worth running" / "invest in" / "go ahead with" were.
+    # Anchored to a study noun so it can't fire on "should we run the readmission report?".
+    r"(should|shall|would|do) (we|you|i)[^.?!]{0,40}\b(trial|study|programme|phase ?(i{1,3}|[123]))\b|"
+    r"(worth it|a good idea|bother with)[^.?!]{0,30}\b(trial|study|programme)\b|"
+    r"\b(trial|study|programme)\b[^.?!]{0,30}(worth it|a good idea))", re.I)
 
 
 def _route(question: str, context: str) -> dict:

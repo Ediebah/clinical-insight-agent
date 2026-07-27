@@ -226,6 +226,34 @@ def test_model_hint_power_phrasing_tolerates_intervening_words():
         assert agent._MODEL_HINT.search(q), q
 
 
+def test_model_hint_matches_direct_should_we_run_this_study_phrasing():
+    """The most direct design-stage go/no-go — 'should we run this study?' — was missed while the
+    more roundabout 'worth running' / 'invest in' / 'go ahead with' were covered. Under-firing makes
+    the whole go/no-go feature unreachable; over-firing costs one _route call that returns
+    'aggregate'. That asymmetry is why this clause leans broad, anchored to a study noun."""
+    for q in [
+        "Should we run a 60-patient study?",
+        "Should we run this trial?",
+        "Is it worth it to run the study?",
+        "Do we run the Phase II or not?",
+        "Is this study a good idea?",
+        "Should we bother with the trial?",
+        "Would you run this study?",
+    ]:
+        assert agent._MODEL_HINT.search(q), q
+
+
+def test_model_hint_study_phrasing_does_not_swallow_ordinary_questions():
+    """The study-noun anchor is what keeps the new clause off plain warehouse questions."""
+    for q in [
+        "Should we run the readmission report?",     # decision verb, no study noun
+        "How many studies are in the trials mart?",  # plural nouns, no decision verb
+        "List the studies by enrollment count.",
+        "Which conditions are worth investigating?",  # 'worth investigating' ≠ 'worth it'
+    ]:
+        assert agent._MODEL_HINT.search(q) is None, q
+
+
 def test_every_routing_case_reaches_the_router():
     """The other half of the gate contract. _MODEL_HINT is a hard precondition on the whole
     inferential layer: a ROUTES question that does not match never reaches _route in production, so

@@ -8,7 +8,7 @@ One dataset, many metrics — so labels never drift between evals.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
@@ -329,3 +329,101 @@ ROUTE_REQUIRED_KEYS: dict[str, tuple[str, ...]] = {
 # they must NOT carry SQL. Every other model type must, or line ~700 silently drops it to the
 # aggregate path with the right model_type already chosen — a misroute that looks like a success.
 ROUTE_NO_SQL = {"sample_size", "assurance", "aggregate"}
+
+
+# ---------------------------------------------------------------------------------------------
+# BAYES — numeric ground truth for the Bayesian go/no-go layer.
+#
+# ROUTES checks the agent reaches the right MODEL. This checks it reaches the right NUMBER, which
+# is a different failure: routing correctly to `assurance` and then reading 30% as the LRV instead
+# of the TV produces a confident GO on a trial that should stop, and nothing in the routing eval
+# would notice.
+#
+# bayes.py is closed-form conjugate, so the reference is computed by calling the same modeling
+# entry point with the CORRECT parameters at eval time — deliberately not hardcoded. Hardcoding
+# would re-test bayes.py (which has its own unit suite) and would rot whenever a grid legitimately
+# changes. Computing it live isolates the one thing the agent actually controls here: pulling
+# n_planned / tv / lrv / the prior out of English. A numeric mismatch is therefore an EXTRACTION
+# bug, never an arithmetic one.
+# ---------------------------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class BayesCase:
+    id: str
+    question: str
+    fn: str                                       # "assurance" (design) | "interim" (data so far)
+    expected_call: str                            # GO | CONSIDER | STOP
+    metric: str                                   # verdict key to compare numerically
+    params: dict                                  # ground-truth kwargs for the modeling entry point
+    observed: dict = field(default_factory=dict)  # interim only: the counts the question states
+    why: str = ""
+
+
+BAYES: list[BayesCase] = [
+    # ---- design-stage assurance (no data) ----
+    BayesCase(
+        "bo_assurance_phase2",
+        "We are planning a 100-patient single-arm Phase II. Phase I showed 8 responses in 20 "
+        "patients. We are hoping for a 30% response rate, and 15% is the minimum worth pursuing. "
+        "What is the assurance?",
+        fn="assurance", expected_call="GO", metric="assurance",
+        params=dict(n_planned=100, tv=0.30, lrv=0.15, prior_successes=8, prior_n=20),
+        why="the plain case: every parameter is stated explicitly"),
+    BayesCase(
+        "bo_assurance_futile",
+        "Should we run a 60-patient study? Our earlier work showed only 2 responses in 20. We "
+        "would need a 40% response rate for this to be worth it, and below 25% we walk away.",
+        fn="assurance", expected_call="STOP", metric="assurance",
+        params=dict(n_planned=60, tv=0.40, lrv=0.25, prior_successes=2, prior_n=20),
+        why="TV/LRV given as 'need' and 'walk away' rather than named — easy to swap"),
+    BayesCase(
+        "bo_assurance_device_goal",
+        "Our device has to beat an 85% success rate to meet its performance goal. Bench testing "
+        "showed 44 successes in 50. Is the planned 120-patient study worth running?",
+        fn="assurance", expected_call="CONSIDER", metric="assurance",
+        params=dict(n_planned=120, tv=0.85, lrv=0.85, framing="single_arm",
+                    prior_successes=44, prior_n=50),
+        why="a performance goal sets TV *and* LRV to the same value — the prompt's device rule"),
+    BayesCase(
+        "bo_assurance_two_arm",
+        "We plan a randomized 200-patient trial against standard of care, which responds 35% of "
+        "the time. We are hoping for a 15-point benefit, and any benefit at all is the floor. "
+        "Phase I showed 14 responses in 20 on the drug. What is the assurance?",
+        fn="assurance", expected_call="GO", metric="assurance",
+        params=dict(framing="two_arm", n_planned=200, tv=0.15, lrv=0.0, control_rate=0.35,
+                    prior_successes=14, prior_n=20),
+        why="two-arm TV/LRV are RISK DIFFERENCES, not response rates — the classic mix-up"),
+
+    # ---- interim on data so far ----
+    BayesCase(
+        "bo_interim_consider",
+        "We are 40 patients into a planned 100-patient trial with 12 responses. We are hoping for "
+        "a 30% response rate and 15% is the minimum worth pursuing. Continue or stop?",
+        fn="interim", expected_call="CONSIDER", metric="predictive_prob",
+        params=dict(n_planned=100, tv=0.30, lrv=0.15), observed=dict(successes=12, n_observed=40),
+        why="n_planned (100) must not be confused with the 40 observed so far"),
+    BayesCase(
+        "bo_interim_futility",
+        "We have 3 responses in the first 30 patients of a planned 120-patient trial. The target "
+        "is a 30% response rate and 15% is the minimum worth pursuing. Should we stop for futility?",
+        fn="interim", expected_call="STOP", metric="predictive_prob",
+        params=dict(n_planned=120, tv=0.30, lrv=0.15), observed=dict(successes=3, n_observed=30),
+        why="the futility signal that actually stops a trial — a false CONSIDER here costs money"),
+    BayesCase(
+        "bo_interim_go",
+        "We are 40 patients into a planned 100-patient trial with 28 responses. The target is 30% "
+        "and 15% is the minimum worth pursuing. Should we continue?",
+        fn="interim", expected_call="GO", metric="predictive_prob",
+        params=dict(n_planned=100, tv=0.30, lrv=0.15), observed=dict(successes=28, n_observed=40),
+        why="the GO end of the scale, where predictive probability saturates at 1.0"),
+    BayesCase(
+        "bo_interim_two_arm",
+        "At the interim we have 18 responses in 40 on the drug and 10 in 38 on control, in a "
+        "planned 200-patient randomized trial. We are hoping for a 15-point benefit and any "
+        "benefit is the floor. Should we continue?",
+        fn="interim", expected_call="CONSIDER", metric="predictive_prob",
+        params=dict(n_planned=200, tv=0.15, lrv=0.0, framing="two_arm",
+                    group="arm", control="control"),
+        observed=dict(t_successes=18, t_n=40, c_successes=10, c_n=38),
+        why="both arms must be parsed AND the effect expressed as a difference"),
+]
