@@ -1,0 +1,135 @@
+name: evals
+
+# The LLM-backed evals, on a schedule rather than per-PR.
+#
+# ci.yml runs everything deterministic and free — ruff, pytest (which includes the key-free gate,
+# routing-label and Bayesian-label pins), dbt build, and guardrail_eval — on every push and PR.
+# The three evals here each cost real API calls (the accuracy eval alone is ~175 completions), so
+# gating every PR on them would tax routine work for a signal that moves slowly. Weekly catches
+# model-side drift, which is the failure these actually exist to detect: nothing in the repo
+# changes and the numbers move anyway.
+#
+# Run it on demand from the Actions tab (workflow_dispatch) after touching a prompt.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"        # Mondays 06:00 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: evals-${{ github.ref }}
+  cancel-in-progress: false     # a sweep part-way through is worth finishing, not restarting
+
+jobs:
+  evals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90         # ~175 + 38 + ~40 completions, paced under a low TPM tier
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      # The sweeps are dozens of large prompts back to back. The harnesses back off on a 429 by
+      # themselves, but pacing avoids most of them and finishes sooner than backoff alone.
+      EVAL_PACE: "2"
+      ROUTE_EVAL_PACE: "5"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the API key is configured
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "::error::OPENAI_API_KEY secret is not set — add it in Settings → Secrets → Actions."
+            exit 1
+          fi
+
+      # The per-case history is gitignored, so a fresh checkout would make every run look like the
+      # first one and the drift diff ("regressed since last run: n_inpatient") would never fire.
+      # A rolling cache carries it forward: each run restores the newest previous entry and saves
+      # its own. Losing it degrades to "no per-case change" — never to a wrong verdict.
+      - name: Restore previous eval history
+        uses: actions/cache@v4
+        with:
+          path: agent/*_history.jsonl
+          key: eval-history-${{ github.run_id }}
+          restore-keys: eval-history-
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"        # Synthea's build target
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Generate a small, reproducible Synthea dataset
+        # Pinned release, matching ci.yml. The accuracy eval computes its ground truth from this
+        # same warehouse at runtime, so the reference values track whatever size CI builds.
+        run: |
+          mkdir -p synthea data
+          curl -L --fail -o synthea/synthea-with-dependencies.jar \
+            https://github.com/synthetichealth/synthea/releases/download/v4.0.0/synthea-with-dependencies.jar
+          cd synthea
+          java -jar synthea-with-dependencies.jar \
+            --exporter.csv.export true --exporter.fhir.export false \
+            -p 60 -s 12345 -cs 12345 Massachusetts
+
+      - name: Load raw CSVs into DuckDB
+        run: python scripts/load_raw.py
+
+      - name: dbt build (models + data tests)
+        working-directory: warehouse
+        run: |
+          dbt deps
+          dbt build --profiles-dir .
+
+      - name: Regenerate semantic catalog from dbt artifacts
+        run: |
+          cd warehouse && dbt docs generate --profiles-dir . && cd ..
+          python agent/build_catalog.py
+
+      # continue-on-error so one regression never hides the other two. The gate step below turns
+      # any failure back into a red run — a partial picture is the thing worth avoiding here,
+      # since these three fail for quite different reasons.
+      - name: Accuracy eval (aggregation path, reference-SQL ground truth)
+        id: accuracy
+        continue-on-error: true
+        run: python -m agent.eval
+
+      - name: Routing eval (inferential layer, 38 labelled routes)
+        id: routing
+        continue-on-error: true
+        run: python -m agent.route_eval
+
+      - name: Bayesian numeric oracle (go/no-go extraction)
+        id: bayes
+        continue-on-error: true
+        run: python -m agent.bayes_eval
+
+      - name: Upload eval history
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-history
+          path: agent/*_history.jsonl
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Fail if any eval fell below its threshold
+        if: >-
+          steps.accuracy.outcome == 'failure' ||
+          steps.routing.outcome == 'failure' ||
+          steps.bayes.outcome == 'failure'
+        # Passed via env rather than interpolated straight into the shell. These particular values
+        # are a fixed enum and this workflow has no event payload to attack, but keeping the habit
+        # means no workflow here is ever the one that forgot.
+        env:
+          ACCURACY: ${{ steps.accuracy.outcome }}
+          ROUTING: ${{ steps.routing.outcome }}
+          BAYES: ${{ steps.bayes.outcome }}
+        run: |
+          echo "accuracy=$ACCURACY  routing=$ROUTING  bayes=$BAYES"
+          echo "::error::An eval fell below its threshold — see the step logs above for the per-case diff."
+          exit 1
