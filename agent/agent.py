@@ -289,14 +289,26 @@ _MODEL_HINT = re.compile(
     r"adjust|controlling for|confound|odds|hazard|survival|time.to|effect of|impact of|independent of|"
     r"regression|proportion of variance|forecast|projection|trend|over time|seasonal|"
     r"causal|treatment effect|uplift|a/b|ab test|experiment|variant|conversion|"
-    r"should we ship|ship it|ship the|roll ?out|non.?inferior|noninferior|margin|"
-    r"sample size|power to detect|how many (patient|subject|participant|per arm)|enroll|powered|"
+    r"should we ship|ship it|ship the|roll ?out|non.?inferior|noninferior|"
+    r"equivalence margin|margin of equivalence|"
+    # sample size: "how many patients" alone is an ordinary COUNT question ("how many patients have
+    # diabetes?") — it only signals a design calculation when paired with a need/enrol/per-arm phrase.
+    r"sample size|power[^.?!]{0,20}to detect|powered|"
+    r"how many (patient|subject|participant)s?[^.?!]{0,40}"
+    r"(per arm|do we need|do i need|are needed|would we need|to enrol|should we (enrol|recruit))|"
+    r"how many per arm|to enrol{1,2}\b|enrol{1,2}ment (target|size|goal)|"
     r"go.?(or.?)?no.?go|assurance|(probability|chance|likelihood)[^.?!]{0,60}succe|futility|stop early|"
     r"interim|predictive probability|posterior|bayesian|performance goal|de.?risk|"
     r"worth (running|pursuing|continuing)|worth the (investment|trial|study)|"
     r"continue or stop|stop or continue|keep going|"
     r"continue the (trial|study|program|programme|drug|arm)|"
-    r"should we (continue|proceed|invest|keep going)|go ahead with|invest in)", re.I)
+    r"should we (continue|proceed|invest|keep going)|go ahead with|invest in|"
+    # The most direct way to ask for a design-stage go/no-go — "should we run this study?" — was
+    # not covered, while the more roundabout "worth running" / "invest in" / "go ahead with" were.
+    # Anchored to a study noun so it can't fire on "should we run the readmission report?".
+    r"(should|shall|would|do) (we|you|i)[^.?!]{0,40}\b(trial|study|programme|phase ?(i{1,3}|[123]))\b|"
+    r"(worth it|a good idea|bother with)[^.?!]{0,30}\b(trial|study|programme)\b|"
+    r"\b(trial|study|programme)\b[^.?!]{0,30}(worth it|a good idea))", re.I)
 
 
 def _route(question: str, context: str) -> dict:
@@ -316,7 +328,11 @@ def _route(question: str, context: str) -> dict:
         "  'survival'    time-to-event: needs `duration` + binary `event`, optional `predictors` (Cox "
         "hazard ratios) and a categorical `group` (Kaplan-Meier curves). Prefer over logistic when the "
         "event TIMING varies (e.g. mortality: duration=age, event=is_deceased, group=sex).\n"
-        "  'association' two variables `var_a`, `var_b` (t-test / chi-square / correlation).\n"
+        "  'association' two variables `var_a`, `var_b` (t-test / chi-square / correlation). Prefer "
+        "'association' over 'ols'/'logistic' when the question asks only whether TWO variables are "
+        "related ('is X correlated with Y', 'is X associated with Y', 'does X differ by Y') and names "
+        "NO covariates to adjust for — 'ols'/'logistic' are for ADJUSTED effects, so use them only "
+        "when the question supplies something to control for.\n"
         "  'forest'      'which factors most predict X / strongest risk factors / feature importance' → "
         "random forest. Needs `outcome` (binary or continuous) + several `predictors`.\n"
         "  'best_model'  'which model best predicts X / build the best model / pick the model that fits "
@@ -345,7 +361,10 @@ def _route(question: str, context: str) -> dict:
         "'did the treatment lift conversion'. Set `group` = the variant/arm column and `outcome` = the "
         "metric (binary converted, or continuous revenue). analytic_sql returns ONE ROW PER ASSIGNMENT "
         "from mart_experiments, filtered to a SINGLE experiment, e.g. `SELECT variant, converted FROM "
-        "mart_experiments WHERE experiment = 'checkout_redesign'`.\n"
+        "mart_experiments WHERE experiment = 'checkout_redesign'`. Naming an experiment does NOT by "
+        "itself make a question an A/B test: 'list the variants in X', 'which experiments are there', "
+        "'how many rows are in the experiments mart' ask for a LOOKUP of the data, not a comparison of "
+        "arms — those are plain aggregation.\n"
         "  'noninferiority' a non-inferiority test — 'is treatment X non-inferior to control within a Y "
         "margin'. Set `group`=the arm column, `outcome`=the endpoint, `margin`=the NI margin as a number "
         "on the outcome's scale (a rate/proportion → a proportion, e.g. 10% → 0.10; 3-point → 0.03), and "
@@ -415,7 +434,16 @@ def _route(question: str, context: str) -> dict:
         '"effect":0.1, "mean_control":0, "mean_treatment":0, "sd":1, "alpha":0.05, "power":0.8, "ratio":1, '
         '"n_planned":100, "tv":0.3, "lrv":0.15, "prior_successes":8, "prior_n":20, "framing":"single_arm", '
         '"analytic_sql":"SELECT ...", "hypothesis":"one sentence"}. '
-        'Plain aggregation → {"mode":"aggregate"}.',
+        'Plain aggregation → {"mode":"aggregate"}.\n'
+        # The gate is checked BEFORE _triage so a specific model question isn't clarified away as
+        # vague (see run_analysis). The cost of that ordering is that a VAGUE model-shaped question
+        # skips the clarify gate too, and gets a confident forecast of a subject the model invented.
+        # Handing those back as "aggregate" returns them to _triage, which exists to ask.
+        'A question that is model-shaped but never says WHAT to model — no outcome, metric or '
+        'subject anywhere in it ("show me the trends", "run the analysis", "what are the patterns", '
+        '"any correlations?") → {"mode":"aggregate"}. Do NOT invent a subject to model. This applies '
+        'ONLY when the subject is absent: if the question names the thing ("trend in encounter '
+        'volume", "what predicts readmission"), model it as normal.',
     )
 
 

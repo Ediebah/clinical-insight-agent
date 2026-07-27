@@ -32,6 +32,8 @@ warehouse/.user.yml
 .playwright-mcp/
 /clinical-agent-*.png
 agent/eval_history.jsonl
+agent/route_eval_history.jsonl
+agent/bayes_eval_history.jsonl
 
 # --- personal learning notes (local only, kept out of the public repo) ---
 /RUNBOOK.md
