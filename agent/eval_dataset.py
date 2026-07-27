@@ -301,6 +301,16 @@ ROUTES: list[Route] = [
     Route("ag_adjusted_filter",
           "Adjust the encounter list to exclude cancelled visits and give me the total count.",
           "aggregate", "'adjust' trips the gate, but this is a filtered count"),
+
+    # ---- model-shaped but subject-less: must be handed back, not guessed at ----
+    # The gate runs BEFORE _triage so a specific model question isn't clarified away as vague. The
+    # cost is that a vague one skips the clarify gate too. Routing these to 'aggregate' returns them
+    # to _triage, which asks. Paired with GOLD's `ambiguous_trends`, which asserts the clarification
+    # actually comes back out of the full agent.
+    Route("ag_vague_trends", "show me the trends", "aggregate",
+          "not timeseries — 'trend' trips the gate but no metric is named to forecast"),
+    Route("ag_vague_correlations", "any correlations?", "aggregate",
+          "not association — 'correlat' trips the gate but neither variable is named"),
 ]
 
 # model_type → spec keys agent._fit_model indexes directly (a missing key is a fit-time failure)

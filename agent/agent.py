@@ -434,7 +434,16 @@ def _route(question: str, context: str) -> dict:
         '"effect":0.1, "mean_control":0, "mean_treatment":0, "sd":1, "alpha":0.05, "power":0.8, "ratio":1, '
         '"n_planned":100, "tv":0.3, "lrv":0.15, "prior_successes":8, "prior_n":20, "framing":"single_arm", '
         '"analytic_sql":"SELECT ...", "hypothesis":"one sentence"}. '
-        'Plain aggregation → {"mode":"aggregate"}.',
+        'Plain aggregation → {"mode":"aggregate"}.\n'
+        # The gate is checked BEFORE _triage so a specific model question isn't clarified away as
+        # vague (see run_analysis). The cost of that ordering is that a VAGUE model-shaped question
+        # skips the clarify gate too, and gets a confident forecast of a subject the model invented.
+        # Handing those back as "aggregate" returns them to _triage, which exists to ask.
+        'A question that is model-shaped but never says WHAT to model — no outcome, metric or '
+        'subject anywhere in it ("show me the trends", "run the analysis", "what are the patterns", '
+        '"any correlations?") → {"mode":"aggregate"}. Do NOT invent a subject to model. This applies '
+        'ONLY when the subject is absent: if the question names the thing ("trend in encounter '
+        'volume", "what predicts readmission"), model it as normal.',
     )
 
 

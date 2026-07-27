@@ -96,6 +96,15 @@ def test_backoff_sleep_honours_the_servers_own_hint(monkeypatch):
     assert nxt == 60.0              # delay still doubles (capped) for the next attempt
 
 
+def test_previous_cases_ignores_the_faithful_map(tmp_path, monkeypatch):
+    """`faithful` is logged beside `cases` but is three-valued (true/false/null-not-applicable), so
+    it must never be mistaken for the pass/fail record the accuracy diff runs on."""
+    h = tmp_path / "h.jsonl"
+    _write(h, [{"ts": "t1", "cases": {"a": True}, "faithful": {"a": False, "b": None}}])
+    monkeypatch.setattr(ev, "HISTORY", h)
+    assert ev._previous_cases() == {"a": True}
+
+
 def test_backoff_sleep_falls_back_to_exponential_and_caps(monkeypatch):
     slept = []
     monkeypatch.setattr(ev.time, "sleep", slept.append)

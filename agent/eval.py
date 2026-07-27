@@ -145,6 +145,7 @@ def main() -> int:
     faithful_hits, faithful_total = 0, 0
     rows = []
     for c in CASES:
+        f = None
         if c.expect_clarification:
             res = _run_with_backoff(c.question)
             ok = bool(res.clarification) and res.dataframe is None
@@ -160,10 +161,11 @@ def main() -> int:
             if f is not None:
                 faithful_total += 1
                 faithful_hits += int(f)
+            flag = "" if f is not False else "  ⚠ interpretation ignored its own caveats"
             print(f"  {'✅' if ok else '❌'} {c.id:18} [{c.category:11}] ref={ref:<11.2f} "
-                  f"rows={res.n_rows:<3} tries={len(res.attempts)}")
+                  f"rows={res.n_rows:<3} tries={len(res.attempts)}{flag}")
         by_cat.setdefault(c.category, []).append(ok)
-        rows.append({"id": c.id, "category": c.category, "ok": ok})
+        rows.append({"id": c.id, "category": c.category, "ok": ok, "faithful": f})
 
     total = [ok for v in by_cat.values() for ok in v]
     acc = sum(total) / len(total)
@@ -173,6 +175,11 @@ def main() -> int:
     faith = (faithful_hits / faithful_total) if faithful_total else 1.0
     print(f"\n  Accuracy: {sum(total)}/{len(total)} = {acc:.0%}   "
           f"Caveat-faithfulness: {faithful_hits}/{faithful_total} = {faith:.0%}")
+    # Name the unfaithful cases. Faithfulness moving 7/7 -> 6/7 with no per-case record is
+    # unattributable, which is the same failure the per-case accuracy log exists to prevent — and
+    # this metric is the noisier of the two, since it reads generated prose rather than a number.
+    if unfaithful := [r["id"] for r in rows if r["faithful"] is False]:
+        print(f"    caveats ignored in: {', '.join(unfaithful)}")
 
     # Per-case diff against the last run. An aggregate that holds steady can still hide a case
     # flipping (one regression masked by one fix), so drift has to be attributable, not just visible.
@@ -193,7 +200,10 @@ def main() -> int:
     with HISTORY.open("a") as fh:
         fh.write(json.dumps({"ts": stamp, "accuracy": round(acc, 3),
                              "faithfulness": round(faith, 3), "n": len(total),
-                             "cases": cases}) + "\n")
+                             "cases": cases,
+                             # separate from `cases` so the accuracy diff stays a clean pass/fail;
+                             # null = the case had no guardrail finding to be faithful to
+                             "faithful": {r["id"]: r["faithful"] for r in rows}}) + "\n")
     print(f"  logged → {HISTORY.name}")
     return 0 if acc >= 0.85 else 1
 
