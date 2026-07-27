@@ -45,10 +45,11 @@ HISTORY = Path(__file__).resolve().parent / "route_eval_history.jsonl"
 # calls, and back off on the 429 rather than losing the whole sweep to one throttled request.
 PACE_SECONDS = float(os.getenv("ROUTE_EVAL_PACE", "0"))
 
-# Pinned just under the measured baseline (38/38 = 100% end-to-end on gpt-4o, 2026-07-26), leaving
+# Pinned just under the measured baseline (100% end-to-end on gpt-4o, 2026-07-26), leaving about
 # one case of slack for LLM nondeterminism. Set from an observed number, not a guess, and raised
-# whenever the router improves — a threshold that never moves is not a gate. Was 0.90 at the 36/38
-# baseline, before the 'association'-vs-'ols' and 'experiment'-vs-lookup prompt rules landed.
+# whenever the router improves — a threshold that never moves is not a gate. It was 0.90 before the
+# 'association'-vs-'ols' and 'experiment'-vs-lookup prompt rules closed the last two misroutes.
+# Expressed as a ratio rather than a count so it does not go stale every time ROUTES grows.
 PASS_THRESHOLD = 0.95
 
 # agent._fit_model accepts these as synonyms, so the router returning one is not a miss.
@@ -63,7 +64,8 @@ def _context(question: str) -> str:
 
 def _route_resilient(question: str, context: str, tries: int = 5) -> tuple[dict, str | None]:
     """(spec, error). One throttled or failed call must cost that case, never the whole sweep —
-    an eval that loses 37 good results to the 38th request is not a regression tool."""
+    an eval that loses every completed result to the last throttled request is not a regression
+    tool."""
     delay = 8.0
     for attempt in range(tries):
         try:

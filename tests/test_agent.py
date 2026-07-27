@@ -167,8 +167,10 @@ def test_model_hint_covers_every_inferential_capability():
         ("failure_analysis", "Where does the model fail?"),
         ("timeseries",       "Forecast monthly encounters for the next year."),
         ("timeseries",       "Is there a seasonal pattern in admissions?"),
-        ("uplift",           "What is the causal effect of the drug?"),
-        ("uplift",           "Estimate the treatment effect on readmission."),
+        # 'causal' is the model_type agent._fit_model dispatches on; 'uplift' is only the name of
+        # the function behind it (modeling.fit_uplift). Label the route, not the implementation.
+        ("causal",           "What is the causal effect of the drug?"),
+        ("causal",           "Estimate the treatment effect on readmission."),
         ("experiment",       "How did the experiment perform?"),
         ("experiment",       "Should we ship the new triage flow?"),
         ("noninferiority",   "Is the new arm non-inferior?"),
