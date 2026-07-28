@@ -47,6 +47,11 @@ agent/bayes_eval_history.jsonl
 .vscode/
 .idea/
 
+# --- build artifacts (packages are published from a clean build, never from a committed dist) ---
+dist/
+build/
+*.egg-info/
+
 # --- coverage artifacts ---
 .coverage
 htmlcov/
