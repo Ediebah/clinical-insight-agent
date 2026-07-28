@@ -5,6 +5,16 @@ finding kinds that SHOULD fire (expected) and MUST NOT fire (forbidden). We run 
 score it — measuring both recall (does it catch real issues?) and precision (does it avoid false
 alarms?). This is deterministic and needs no API key.
 
+`expected` is EXHAUSTIVE: it lists every finding the case should produce, not just the one the case
+was written to demonstrate. That distinction is the whole meaning of the precision number. While
+each case carried a single illustrative label, precision read 58% and every one of the five
+"false positives" was a correct finding — a table of four age groups really should get FDR-corrected
+contrasts, and a prevalence compared across age groups really is unadjusted. The metric was
+measuring how completely the cases had been labelled, not how well the guardrail behaved.
+
+Exhaustive labels make the test strictly stronger: an unexpected finding is now a genuine defect
+rather than an unlabelled correct one. When adding a case, list everything that should fire.
+
 Run:  .venv/bin/python -m agent.guardrail_eval
 """
 from __future__ import annotations
@@ -41,7 +51,9 @@ CASES = [
                        "total_patients_in_age_group": [309, 394, 120, 8],
                        "prevalence_pct": [3.88, 37.31, 51.67, 50.0]}),
          "Which age group has the highest prevalence of hypertension?",
-         expected={"small_sample"}, forbidden={"simpsons"}),
+         # n=8 is unstable; four groups + "which is highest" is a contrast family; and a prevalence
+         # compared across age groups is the textbook unadjusted comparison. All three belong.
+         expected={"small_sample", "contrasts", "confounding"}, forbidden={"simpsons"}),
 
     Case("clear_difference",
          pd.DataFrame({"cohort": ["A", "B"], "cases": [200, 50], "total": [1000, 1000]}),
@@ -62,7 +74,8 @@ CASES = [
          pd.DataFrame({"age_group": ["18-39", "40-64", "65-74", "75+"],
                        "prevalence_pct": [3.9, 37.3, 51.7, 49.5]}),
          "Prevalence of hypertension by age group",
-         expected={"missing_denominator"}, forbidden={"contrasts"}),
+         # a bare rate with no N, AND that rate compared across groups with no adjustment
+         expected={"missing_denominator", "confounding"}, forbidden={"contrasts"}),
 
     Case("confounded_comparison",
          pd.DataFrame({"age_group": ["18-39", "40-64", "65-74", "75+"],
@@ -70,7 +83,9 @@ CASES = [
                        "n_patients": [400, 500, 250, 180],
                        "readmission_rate": [2.0, 8.0, 22.0, 16.7]}),
          "Does the readmission rate differ by age group?",
-         expected={"confounding"}, forbidden={"missing_denominator"}),
+         # every group is well powered (n>=180), so small_sample stays quiet, but four rates being
+         # compared is still a contrast family on top of the confounding this case is named for
+         expected={"confounding", "contrasts"}, forbidden={"missing_denominator", "small_sample"}),
 
     Case("simpsons_paradox",
          pd.DataFrame({"treatment": ["A", "B", "A", "B"],
@@ -78,7 +93,10 @@ CASES = [
                        "cases": [81, 234, 192, 55],
                        "total": [87, 270, 263, 80]}),
          "Which treatment has the higher success rate?",
-         expected={"simpsons"}, forbidden={"confounding"}),
+         # the pooled A-vs-B contrast is the answer to the question asked; `simpsons` immediately
+         # says not to trust it. Reporting both is the behaviour validated on the Berkeley 1973
+         # admissions table (packages/caveat/validation), not an over-flag.
+         expected={"simpsons", "contrasts"}, forbidden={"confounding"}),
 
     Case("clean_balanced_no_overflag",
          pd.DataFrame({"payer": ["Aetna", "Cigna"], "members": [500, 510], "total_eligible": [1000, 1000]}),

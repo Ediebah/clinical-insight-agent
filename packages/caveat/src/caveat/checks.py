@@ -83,6 +83,24 @@ def _groups(ctx) -> list[tuple]:
             for i in df.index if df.loc[i, r.denominator] > 0]
 
 
+def _contrast_units(ctx) -> list[tuple]:
+    """(label, k, n) per unit worth contrasting.
+
+    When a stratifier is present each ROW is a group-within-stratum cell, and contrasting rows
+    cross-multiplies the two. On the Berkeley 1973 admissions table that produced "women in
+    department A vs men in department F, +76.5pp" as the headline: arithmetically true, and a
+    comparison nobody asked for. Pool to the group level instead and let `simpsons` say whether
+    pooling is safe — which on that table it does, loudly.
+    """
+    r, df = ctx.roles, ctx.df
+    if r.group and r.stratifier:
+        agg = df.groupby(r.group)[[r.numerator, r.denominator]].sum()
+        return [(str(g), int(row[r.numerator]), int(row[r.denominator]))
+                for g, row in agg.iterrows() if row[r.denominator] > 0]
+    return [(ctx.label(i), int(df.loc[i, r.numerator]), int(df.loc[i, r.denominator]))
+            for i in df.index if df.loc[i, r.denominator] > 0]
+
+
 # ───────────────────────────── proportion checks ─────────────────────────────
 def small_sample(ctx: Ctx) -> None:
     r, df, cfg = ctx.roles, ctx.df, ctx.config
@@ -123,18 +141,18 @@ def contrasts(ctx: Ctx) -> None:
         return ctx.skip("contrasts", f"{len(df)} rows exceeds max_contrast_rows "
                                      f"({cfg.max_contrast_rows}); pairwise is quadratic",
                         "raise Config.max_contrast_rows or aggregate first")
-    grp = _groups(ctx)
+    grp = _contrast_units(ctx)
     if len(grp) < 2:
         return ctx.skip("contrasts", "fewer than two rows have a positive denominator")
 
     pairs, pvals = [], []
     for a in range(len(grp)):
         for b in range(a + 1, len(grp)):
-            i, k1, n1 = grp[a]
-            j, k2, n2 = grp[b]
+            label_a, k1, n1 = grp[a]
+            label_b, k2, n2 = grp[b]
             d, lo, hi = newcombe_diff_ci(k1, n1, k2, n2)
             p = two_proportion_p(k1, n1, k2, n2)
-            pairs.append((i, j, d, lo, hi, p))
+            pairs.append((label_a, label_b, d, lo, hi, p))
             pvals.append(p)
     ctx.tests_run += len(pvals)
     q = benjamini_hochberg(pvals)
@@ -155,10 +173,11 @@ def contrasts(ctx: Ctx) -> None:
                 f"(q>={cfg.alpha}); observed gaps are within noise.{extra}")
         return
     sig.sort(key=lambda x: abs(x[0][2]), reverse=True)
-    (i, j, d, lo, hi, _p), qv = sig[0]
+    (label_a, label_b, d, lo, hi, _p), qv = sig[0]
+    pooled = " (pooled across strata)" if (ctx.roles.group and ctx.roles.stratifier) else ""
     ctx.add("contrasts", "warn",
-            f"{len(sig)}/{len(pairs)} pairwise contrasts survive BH-FDR (q<{cfg.alpha}). Largest: "
-            f"{ctx.label(i)} vs {ctx.label(j)}, risk difference {d*100:+.1f}pp "
+            f"{len(sig)}/{len(pairs)} pairwise contrasts survive BH-FDR (q<{cfg.alpha}){pooled}. "
+            f"Largest: {label_a} vs {label_b}, risk difference {d*100:+.1f}pp "
             f"(95% CI [{lo*100:.1f}, {hi*100:.1f}], q={qv:.3f}). Report differences with CIs, "
             f"not raw ranks.")
 
@@ -208,14 +227,23 @@ def missing_denominator(ctx: Ctx) -> None:
 
 
 def multiple_comparisons(ctx: Ctx, did_contrasts: bool = False) -> None:
-    cfg = ctx.config
+    cfg, r = ctx.config, ctx.roles
     if did_contrasts:
         return   # already handled rigorously, with FDR
-    if len(ctx.df) >= cfg.many_groups and _is_comparison(ctx.question):
+    # Rows are not groups. On a per-observation frame — which mean_contrasts explicitly expects —
+    # counting rows claimed "ranking 299 groups" for a two-arm comparison of 299 patients, and
+    # "ranking 200 groups" for a table of 200 measurements with no grouping column at all.
+    # Without a group column there is no family of comparisons to correct, so say so rather than
+    # guess: a multiplicity warning nobody can act on is just noise with a statistical accent.
+    if not (r.group and r.group in ctx.df.columns):
+        return ctx.skip("multiple_comparisons", "no group column identified, so there is no family "
+                                                "of comparisons to correct", "pass group='<col>'")
+    n_groups = ctx.df[r.group].nunique()
+    if n_groups >= cfg.many_groups and _is_comparison(ctx.question):
         ctx.add("multiple_comparisons", "warn",
-                f"Comparing or ranking {len(ctx.df)} groups inflates false positives. Correct "
+                f"Comparing or ranking {n_groups} groups inflates false positives. Correct "
                 f"before calling any single difference real: Bonferroni "
-                f"alpha/{len(ctx.df)} = {cfg.alpha/len(ctx.df):.4f}, or Benjamini-Hochberg FDR.")
+                f"alpha/{n_groups} = {cfg.alpha/n_groups:.4f}, or Benjamini-Hochberg FDR.")
 
 
 # ───────────────────────────── continuous checks ─────────────────────────────
