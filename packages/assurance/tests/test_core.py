@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 from scipy import stats
 
-from agent import bayes
+from assurance import core as bayes
 
 
 def test_beta_posterior_is_exact_conjugate_update():
@@ -111,7 +111,7 @@ def test_prior_panel_spans_skeptical_to_enthusiastic():
     panel = bayes.prior_panel(informed, RULE)
     names = [p.name for p in panel]
     assert names == ["Phase-I informed", "Vague", "Skeptical", "Enthusiastic"]
-    mean = lambda p: p.params[0] / (p.params[0] + p.params[1])   # noqa: E731
+    mean = lambda p: p.params[0] / (p.params[0] + p.params[1])
     skeptical = next(p for p in panel if p.name == "Skeptical")
     enthusiastic = next(p for p in panel if p.name == "Enthusiastic")
     assert mean(skeptical) <= RULE.lrv            # centred at or below the "not worth pursuing" value

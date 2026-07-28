@@ -40,6 +40,9 @@ jobs:
       - name: caveat package tests (standalone, no warehouse)
         run: pytest packages/caveat/tests -q
 
+      - name: assurance package tests (standalone, no warehouse)
+        run: pytest packages/assurance/tests -q
+
       - name: Generate a small, reproducible Synthea dataset
         # Pinned release (NOT master-branch-latest, a moving target that can break CI with no code
         # change and silently varies the generated data over time). Bump deliberately.
