@@ -8,4 +8,8 @@ dbt-core==1.11.11
 dbt-duckdb==1.10.1
 pytest>=8.0
 pytest-cov>=5.0
-ruff>=0.6
+# Pinned, not floored. A linter with a lower bound is a moving target: ruff ships new rules in minor
+# releases, so `>=0.6` silently adopted 0.16 and failed CI on code that had passed locally minutes
+# earlier, with nothing in the repo changed. Same reasoning as the pinned Synthea release in ci.yml.
+# Bump deliberately, and fix the new rules in that commit.
+ruff==0.16.0

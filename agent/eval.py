@@ -69,11 +69,37 @@ _FAITHFUL_KEYS = {
     "missing_denominator": ("denominator", "base rate", "sample size", "group size"),
     "wide_ci": ("confidence", "interval", "ci", "wide"),
     "multiple_comparisons": ("multiple", "correction", "bonferroni", "fdr", "false positive"),
+    # kinds added when the guardrail moved to `caveat` — an unmapped kind can never be scored
+    # faithful, so it would silently drag this metric down as new checks start firing
+    "boundary_rate": ("interval", "ci", "0%", "100%", "certain", "wilson"),
+    "winners_curse": ("small", "sample", "artifact", "rank", "interval", "chance"),
+    "mean_contrasts": ("difference", "confidence", "ci", "interval", "mean", "significant"),
+    "missing_data": ("missing", "incomplete", "null", "absent"),
+    "session_multiplicity": ("multiple", "looking", "spurious", "hypothes", "confirm"),
 }
 
 
-def _reference(case) -> float:
-    return float(run_query(case.reference_sql).iloc[0, 0])
+def _reference(case) -> float | None:
+    """The ground-truth scalar, or None when this warehouse holds no instance of what is asked.
+
+    A zero-row or zero-valued reference cannot discriminate a correct answer from a broken one: an
+    agent that computes it, one that finds nothing, one that refuses, and one that errors all
+    produce the same observable. Such a case is unsupported by the warehouse under test, not failed
+    by the agent, and scoring it as a failure makes accuracy a function of warehouse size.
+
+    This is not hypothetical. CI builds a 60-patient Synthea sample in which nobody has had a
+    myocardial infarction, so `heart_attack_patients` had a reference of 0. The agent did exactly
+    the right thing — vocabulary.resolve blocks a condition with no records rather than fitting an
+    empty cohort — and the eval marked that refusal wrong, reporting 34/35 where local reported
+    35/35 with no difference in the agent at all.
+    """
+    df = run_query(case.reference_sql)
+    if df is None or len(df) == 0:
+        return None
+    val = df.iloc[0, 0]
+    if pd.isna(val) or float(val) == 0:
+        return None
+    return float(val)
 
 
 def _previous_cases(path: Path | None = None) -> dict[str, bool]:
@@ -154,6 +180,12 @@ def main() -> int:
                   f"{'asked for clarification' if ok else 'did NOT clarify (guessed)'}")
         else:
             ref = _reference(c)
+            if ref is None:
+                # Unsupported by this warehouse — excluded from accuracy rather than counted wrong.
+                print(f"  ⃠  {c.id:18} [{c.category:11}] not represented in this warehouse "
+                      f"(reference is empty/zero) — skipped, not scored")
+                rows.append({"id": c.id, "category": c.category, "ok": None, "faithful": None})
+                continue
             res = _run_with_backoff(c.question)
             ok = res.error is None and _matches(
                 _answer_cells(res.dataframe, allow_multi=c.is_rate), ref, c.is_rate)
@@ -168,6 +200,10 @@ def main() -> int:
         rows.append({"id": c.id, "category": c.category, "ok": ok, "faithful": f})
 
     total = [ok for v in by_cat.values() for ok in v]
+    if not total:
+        print("\n  No case in GOLD is represented in this warehouse — nothing was scored. "
+              "The warehouse is too small or too different for this eval to say anything.")
+        return 1
     acc = sum(total) / len(total)
     print("\n  by category:")
     for cat, oks in sorted(by_cat.items()):
@@ -181,9 +217,23 @@ def main() -> int:
     if unfaithful := [r["id"] for r in rows if r["faithful"] is False]:
         print(f"    caveats ignored in: {', '.join(unfaithful)}")
 
+    # Never let a shrinking denominator pass unremarked: 33/33 over a warehouse that can only
+    # support half of GOLD is a weaker statement than 33/33 over one that supports all of it.
+    unsupported = [r["id"] for r in rows if r["ok"] is None]
+    if unsupported:
+        share = len(unsupported) / len(rows)
+        print(f"    not represented in this warehouse ({len(unsupported)}/{len(rows)}): "
+              f"{', '.join(unsupported)}")
+        if share > 0.25:
+            print(f"    ⚠ {share:.0%} of GOLD is unsupported here — accuracy is being measured on a "
+                  f"fraction of the dataset. Build a larger warehouse before trusting this number.")
+
     # Per-case diff against the last run. An aggregate that holds steady can still hide a case
     # flipping (one regression masked by one fix), so drift has to be attributable, not just visible.
-    cases = {r["id"]: r["ok"] for r in rows}
+    # Unsupported cases are omitted entirely rather than recorded as False: a case that vanishes
+    # because the warehouse shrank must not read as a regression, and one that reappears because it
+    # grew must not read as a fix.
+    cases = {r["id"]: r["ok"] for r in rows if r["ok"] is not None}
     prev = _previous_cases()
     if prev:
         regressed, fixed = _diff_cases(cases, prev)
@@ -200,6 +250,9 @@ def main() -> int:
     with HISTORY.open("a") as fh:
         fh.write(json.dumps({"ts": stamp, "accuracy": round(acc, 3),
                              "faithfulness": round(faith, 3), "n": len(total),
+                             # n is what was scored; unsupported says what the warehouse could not
+                             # support, so a run is comparable to another only alongside both
+                             "unsupported": unsupported,
                              "cases": cases,
                              # separate from `cases` so the accuracy diff stays a clean pass/fail;
                              # null = the case had no guardrail finding to be faithful to
