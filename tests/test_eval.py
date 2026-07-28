@@ -5,6 +5,8 @@ one fix — so the per-case history is what makes drift attributable. These pin 
 """
 import json
 
+import pandas as pd
+
 from agent import eval as ev
 
 
@@ -57,6 +59,44 @@ def test_diff_cases_treats_new_and_dropped_cases_as_no_change():
     """Adding a case to GOLD (or removing one) is an authored change, not agent drift."""
     assert ev._diff_cases({"new": False}, {"old": True}) == ([], [])
     assert ev._diff_cases({"new": True}, {"old": False}) == ([], [])
+
+
+# --- unsupported cases ---
+# A zero or empty reference cannot discriminate a correct answer from a broken one: computing it,
+# finding nothing, refusing, and erroring all produce the same observable. Such a case is
+# unsupported by the warehouse under test, not failed by the agent.
+
+class _Case:
+    reference_sql = "select 1"
+
+
+def test_reference_is_none_when_the_query_returns_no_rows(monkeypatch):
+    monkeypatch.setattr(ev, "run_query", lambda sql: pd.DataFrame({"n": []}))
+    assert ev._reference(_Case()) is None
+
+
+def test_reference_is_none_for_a_zero_count(monkeypatch):
+    """The heart_attack_patients case: CI's 60-patient warehouse has nobody with an MI, so the
+    agent's correct refusal was being scored as a wrong answer."""
+    monkeypatch.setattr(ev, "run_query", lambda sql: pd.DataFrame({"n": [0]}))
+    assert ev._reference(_Case()) is None
+
+
+def test_reference_is_none_for_a_null_value(monkeypatch):
+    monkeypatch.setattr(ev, "run_query", lambda sql: pd.DataFrame({"n": [None]}))
+    assert ev._reference(_Case()) is None
+
+
+def test_reference_returns_a_real_value_unchanged(monkeypatch):
+    monkeypatch.setattr(ev, "run_query", lambda sql: pd.DataFrame({"n": [52]}))
+    assert ev._reference(_Case()) == 52.0
+
+
+def test_an_unsupported_case_is_neither_a_regression_nor_a_fix():
+    """The property that makes omitting unsupported cases safe: a case that disappears because the
+    warehouse shrank must not read as a regression, nor reappear as a fix when it grows."""
+    assert ev._diff_cases({"a": True}, {"a": True, "gone": True}) == ([], [])
+    assert ev._diff_cases({"a": True, "back": True}, {"a": True}) == ([], [])
 
 
 # --- throttling ------------------------------------------------------------------------------
