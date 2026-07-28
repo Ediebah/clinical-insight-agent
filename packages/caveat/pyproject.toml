@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Statistical caveats for analysis results — what would stop a statistician believing this table."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = { file = "LICENSE" }
 authors = [{ name = "Divine Ediebah" }]
 keywords = ["statistics", "data-quality", "analytics", "llm", "agents", "text-to-sql",
             "confidence-intervals", "multiple-comparisons", "simpsons-paradox"]
@@ -32,6 +32,9 @@ dev = ["pytest>=7", "ruff>=0.5"]
 [project.urls]
 Homepage = "https://github.com/Ediebah/clinical-insight-agent"
 Source = "https://github.com/Ediebah/clinical-insight-agent/tree/main/packages/caveat"
+
+[tool.hatch.build.targets.sdist]
+include = ["src", "tests", "README.md", "LICENSE"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/caveat"]
