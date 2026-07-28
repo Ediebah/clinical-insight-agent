@@ -33,8 +33,17 @@ from .roles import Roles, UnknownColumn, infer_roles, resolve
 __version__ = "0.1.0"
 
 __all__ = [
-    "analyze", "Session", "Report", "Finding", "Skip", "Roles", "Config",
-    "render", "infer_roles", "UnknownColumn", "CHECK_ORDER",
+    "CHECK_ORDER",
+    "Config",
+    "Finding",
+    "Report",
+    "Roles",
+    "Session",
+    "Skip",
+    "UnknownColumn",
+    "analyze",
+    "infer_roles",
+    "render",
 ]
 
 # missing_data first (it conditions everything below it); multiple_comparisons last, because it
@@ -100,7 +109,7 @@ def analyze(df: pd.DataFrame, question: str = "", *,
                 fn(ctx)
                 if name == "contrasts":
                     did_contrasts = any(f.kind == "contrasts" for f in ctx.findings)
-        except Exception as e:                          # noqa: BLE001
+        except Exception as e:
             if strict:
                 raise
             ctx.skip(name, f"check raised {type(e).__name__}: {e}",

@@ -26,16 +26,16 @@ import pandas as pd
 
 DENOM_RE = re.compile(
     r"(total|denom|cohort|sample|population|_size|(^|_)n($|_)|num_patients|total_patients|"
-    r"eligible|at_risk|exposed)", re.I)
+    r"eligible|at_risk|exposed)", re.IGNORECASE)
 NUMER_RE = re.compile(
     r"(patients_with|_with_|numerator|cases|events|readmit|readmiss|affected|positive|"
-    r"successes|hits|deaths)", re.I)
-RATE_RE = re.compile(r"(rate|pct|percent|prevalence|proportion|share|ratio|incidence)", re.I)
-MEAN_RE = re.compile(r"(^avg_|_avg$|average|^mean_|_mean$|median)", re.I)
+    r"successes|hits|deaths)", re.IGNORECASE)
+RATE_RE = re.compile(r"(rate|pct|percent|prevalence|proportion|share|ratio|incidence)", re.IGNORECASE)
+MEAN_RE = re.compile(r"(^avg_|_avg$|average|^mean_|_mean$|median)", re.IGNORECASE)
 MEASURE_RE = re.compile(
     r"(cost|amount|charge|price|duration|minutes|value|income|expense|\blos\b|days_|"
-    r"length|spend|revenue|latency|score)", re.I)
-DISPERSION_RE = re.compile(r"(std|sd|median|iqr|p25|p75|min|max|var|stderr|se)", re.I)
+    r"length|spend|revenue|latency|score)", re.IGNORECASE)
+DISPERSION_RE = re.compile(r"(std|sd|median|iqr|p25|p75|min|max|var|stderr|se)", re.IGNORECASE)
 
 _FIELDS = ("numerator", "denominator", "rate", "measure", "group", "stratifier")
 

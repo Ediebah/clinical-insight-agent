@@ -58,7 +58,7 @@ def test_newcombe_diff_ci_contains_the_difference_and_stays_in_range():
 
 
 def test_newcombe_handles_an_empty_arm():
-    d, lo, hi = newcombe_diff_ci(0, 0, 4, 10)
+    _d, lo, hi = newcombe_diff_ci(0, 0, 4, 10)
     assert (lo, hi) == (-1.0, 1.0)
 
 
@@ -103,7 +103,7 @@ def test_bootstrap_mean_ci_brackets_the_mean_and_is_seeded():
 def test_bootstrap_diff_ci_detects_a_real_difference_and_a_null_one():
     a = [10] * 30 + [12] * 30
     b = [50] * 30 + [52] * 30
-    d, lo, hi, p = bootstrap_diff_ci(a, b, n_boot=500, seed=0)
+    d, _lo, hi, p = bootstrap_diff_ci(a, b, n_boot=500, seed=0)
     assert d == pytest.approx(-40, abs=0.1)
     assert hi < 0 and p < 0.05                       # interval excludes zero
 
@@ -121,7 +121,7 @@ def test_bootstrap_diff_p_never_reports_zero():
 
 
 def test_bootstrap_diff_ci_needs_two_points_per_side():
-    d, lo, hi, p = bootstrap_diff_ci([1], [1, 2, 3], n_boot=100, seed=0)
+    d, _lo, _hi, p = bootstrap_diff_ci([1], [1, 2, 3], n_boot=100, seed=0)
     assert math.isnan(d) and p == 1.0
 
 

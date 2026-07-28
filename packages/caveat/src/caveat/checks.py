@@ -7,6 +7,7 @@ web funnel.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -145,7 +146,7 @@ def contrasts(ctx: Ctx) -> None:
         n_tot = sum(ns) or 1
         mde = mde_two_proportions(int(np.median(ns)), int(np.median(ns)), k_tot / n_tot,
                                   cfg.alpha, cfg.power)
-        extra = ("" if mde != mde else
+        extra = ("" if math.isnan(mde) else
                  f" At the median group size (n={int(np.median(ns))}) the smallest difference this "
                  f"data could have detected is about {mde*100:.0f}pp, so 'no difference' here means "
                  f"'underpowered for anything smaller', not 'equivalent'.")

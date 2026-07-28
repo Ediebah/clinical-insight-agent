@@ -74,7 +74,7 @@ def benjamini_hochberg(pvals) -> list[float]:
     m = len(vals)
     if m == 0:
         return []
-    clean = [1.0 if (p is None or p != p) else float(p) for p in vals]
+    clean = [1.0 if (p is None or math.isnan(p)) else float(p) for p in vals]
     order = sorted(range(m), key=lambda i: clean[i])
     q = [0.0] * m
     prev = 1.0
