@@ -85,3 +85,20 @@ def test_selects_labelled_passages_and_validates_exact_page_quote():
         document, 7, "8 responses   among 25 patients"
     )
     assert not pdf_evidence.page_contains_quote(document, 1, "8 responses among 25 patients")
+
+
+def test_quote_matching_tolerates_pdf_line_hyphenation_and_typographic_punctuation():
+    document = {
+        "pages": [
+            {
+                "page": 2,
+                "text": "A single-\narm phase II design used a beta–binomial model and a 20% cutoff.",
+            }
+        ]
+    }
+
+    assert pdf_evidence.page_contains_quote(
+        document,
+        2,
+        "A single-arm phase II design used a beta-binomial model and a 20% cutoff.",
+    )

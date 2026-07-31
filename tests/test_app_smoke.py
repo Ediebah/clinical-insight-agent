@@ -59,7 +59,7 @@ def test_reproduction_protocol_lock_runs_confirmed_design(monkeypatch):
         "efficacy_reference": 0.30,
         "efficacy_gate": 0.95,
         "futility_cutoff": 0.20,
-        "published_predictive_probability": 0.105,
+        "published_predictive_probability": None,
         "published_final_boundary": 21,
         "published_decision": "STOP",
         "missing_fields": [],
@@ -98,7 +98,34 @@ def test_reproduction_pdf_mode_exposes_bounded_upload_path():
 def test_reproduction_pdf_upload_populates_page_linked_protocol_lock(monkeypatch):
     from agent import reproduction
 
-    def fake_parse(document):
+    def fake_discovery(document):
+        return {
+            "publication_title": "Uploaded trial",
+            "doi": "10.1234/upload.1",
+            "source_mode": "pdf",
+            "source_filename": document["filename"],
+            "source_sha256": document["sha256"],
+            "source_page_count": document["page_count"],
+            "source_text_page_count": document["text_page_count"],
+            "evidence": {},
+            "citation_warnings": [],
+            "refusal_reason": None,
+            "scenarios": [
+                {
+                    "scenario_id": "scenario-1",
+                    "label": "Interim look at N=25",
+                    "pages": [1],
+                    "location": {
+                        "page": 1,
+                        "quote": "At interim, 8 responses among 25 patients were observed.",
+                    },
+                    "endpoint_type": "single_arm_binary",
+                    "reason": None,
+                }
+            ],
+        }
+
+    def fake_parse(document, scenario, identity):
         return {
             "publication_title": "Uploaded trial",
             "doi": "10.1234/upload.1",
@@ -120,6 +147,9 @@ def test_reproduction_pdf_upload_populates_page_linked_protocol_lock(monkeypatch
             "source_sha256": document["sha256"],
             "source_page_count": document["page_count"],
             "source_text_page_count": document["text_page_count"],
+            "source_scenario_id": scenario["scenario_id"],
+            "source_scenario_label": scenario["label"],
+            "source_scenario_pages": scenario["pages"],
             "evidence": {
                 "observed_n": {
                     "page": 1,
@@ -130,6 +160,7 @@ def test_reproduction_pdf_upload_populates_page_linked_protocol_lock(monkeypatch
         }
 
     monkeypatch.setattr(reproduction, "parse_published_pdf_design", fake_parse)
+    monkeypatch.setattr(reproduction, "discover_pdf_design_scenarios", fake_discovery)
     at = AppTest.from_file("app.py", default_timeout=120).run()
     at.segmented_control[0].set_value("🧾 Reproduce").run()
     at.radio(key="repro_source_mode").set_value("Upload publication PDF").run()
@@ -137,15 +168,90 @@ def test_reproduction_pdf_upload_populates_page_linked_protocol_lock(monkeypatch
         "uploaded-trial.pdf", _publication_pdf(), "application/pdf"
     ).run()
     at.button(key="repro_parse_pdf").click().run()
+    at.selectbox(key="repro_scenario_id").set_value("scenario-1").run()
+    at.button(key="repro_extract_scenario").click().run()
 
     assert not at.exception, [str(e.value) for e in at.exception]
     assert at.text_input(key="repro_observed_n").value == "25"
     assert any("PDF EVIDENCE" in str(item.value) for item in at.markdown)
     assert any("PAGE 1" in str(item.value) for item in at.markdown)
     assert any("uploaded-trial.pdf" in str(item.value) for item in at.markdown)
+    assert any("Interim look at N=25" in str(item.value) for item in at.markdown)
 
     at.checkbox(key="repro_confirm").check()
     at.button(key="FormSubmitter:repro_lock_form-Confirm protocol lock and reproduce").click().run()
 
     assert not at.exception, [str(e.value) for e in at.exception]
     assert any("PDF source: uploaded-trial.pdf" in str(item.value) for item in at.caption)
+
+
+def test_reproduction_pdf_explicitly_stops_an_unsupported_selected_scenario(monkeypatch):
+    from agent import reproduction
+
+    scenario = {
+        "scenario_id": "scenario-1",
+        "label": "Randomized time-to-event design",
+        "pages": [1],
+        "location": {"page": 1, "quote": "Single-arm binary interim design."},
+        "endpoint_type": "unsupported",
+        "reason": "The publication uses a time-to-event endpoint.",
+    }
+
+    def fake_discovery(document):
+        return {
+            "publication_title": "Unsupported trial",
+            "doi": None,
+            "source_mode": "pdf",
+            "source_filename": document["filename"],
+            "source_sha256": document["sha256"],
+            "source_page_count": document["page_count"],
+            "source_text_page_count": document["text_page_count"],
+            "evidence": {},
+            "citation_warnings": [],
+            "refusal_reason": None,
+            "scenarios": [scenario],
+        }
+
+    def fake_parse(document, selected, identity):
+        return {
+            "publication_title": identity["publication_title"],
+            "doi": None,
+            "endpoint_type": "unsupported",
+            "unsupported_reason": "Randomized time-to-event designs are outside this engine.",
+            "missing_fields": [
+                "observed_successes",
+                "observed_n",
+                "planned_n",
+                "prior_a",
+                "prior_b",
+                "efficacy_reference",
+                "efficacy_gate",
+                "futility_cutoff",
+            ],
+            "source_mode": "pdf",
+            "source_filename": document["filename"],
+            "source_sha256": document["sha256"],
+            "source_page_count": document["page_count"],
+            "source_text_page_count": document["text_page_count"],
+            "source_scenario_id": selected["scenario_id"],
+            "source_scenario_label": selected["label"],
+            "source_scenario_pages": selected["pages"],
+            "evidence": {},
+            "citation_warnings": [],
+        }
+
+    monkeypatch.setattr(reproduction, "discover_pdf_design_scenarios", fake_discovery)
+    monkeypatch.setattr(reproduction, "parse_published_pdf_design", fake_parse)
+    at = AppTest.from_file("app.py", default_timeout=120).run()
+    at.segmented_control[0].set_value("🧾 Reproduce").run()
+    at.radio(key="repro_source_mode").set_value("Upload publication PDF").run()
+    at.file_uploader(key="repro_pdf").upload(
+        "unsupported.pdf", _publication_pdf(), "application/pdf"
+    ).run()
+    at.button(key="repro_parse_pdf").click().run()
+    at.selectbox(key="repro_scenario_id").set_value("scenario-1").run()
+    at.button(key="repro_extract_scenario").click().run()
+
+    assert not at.exception, [str(e.value) for e in at.exception]
+    assert any("Reproduction stopped" in str(item.value) for item in at.error)
+    assert not any("Confirm protocol lock" in str(item.label) for item in at.button)

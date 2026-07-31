@@ -1,0 +1,58 @@
+[
+  {
+    "id": "chen-2019",
+    "title": "Application of Bayesian predictive probability for interim futility analysis in single-arm phase II trial",
+    "doi": "10.21037/tcr.2019.05.17",
+    "url": "https://cdn.amegroups.cn/journals/pbpc/files/journals/3/articles/29902/public/29902-PB35-1131-R3.pdf",
+    "sha256": "ac97ccb94116a4ee62426f0f134b90a1acbae8d3fd62187f95bd8ea3730b218d"
+  },
+  {
+    "id": "zohar-2008",
+    "title": "Bayesian design and conduct of phase II single-arm clinical trials with binary outcomes: A tutorial",
+    "doi": "10.1016/j.cct.2007.11.005",
+    "url": "https://inserm.hal.science/inserm-02456790/file/PhaseII_single_arm_HAL.pdf",
+    "sha256": "64e56c1d5e7d0d7433c22b648034e5a01c2c3373a6b44625b6466ddf589202b9"
+  },
+  {
+    "id": "sambucini-2008",
+    "title": "A Bayesian predictive two-stage design for phase II clinical trials",
+    "doi": "10.1002/sim.3021",
+    "url": "https://www.stat.cmu.edu/~brian/zach-00/765-2019/764-2016/week02/bad%20and%20good/papers/Sambucini-bayesian-predictive-two-stage-design-2008-Statistics_in_Medicine.pdf",
+    "sha256": "8dd5b6eb1fb1685b529007862424f6ffd1fa26d7b0a8b391d8950a9e4813094e"
+  },
+  {
+    "id": "lee-liu-2008",
+    "title": "A predictive probability design for phase II cancer clinical trials",
+    "doi": "10.1177/1740774508089279",
+    "url": "https://odin.mdacc.tmc.edu/~jjlee/clinical_trials2012/Lee/Lee%20and%20Liu,%20A%20predictive%20probability%20design%20for%20phase%20II%20cancer%20clinical%20trials,%20clinical%20trials%202008.pdf",
+    "sha256": "60c2656d76c97b7deaff24ab71db34b266624d05ec6c039db60769b9de13312b"
+  },
+  {
+    "id": "johnson-cook",
+    "title": "Bayesian Design of Single-Arm Phase II Clinical Trials with Continuous Monitoring",
+    "doi": null,
+    "url": "https://www.johndcook.com/bayesian_phase_II.pdf",
+    "sha256": "ea868b4709b7e615dc16e528718aeb7cd09a6277ffa1577288805249280c3f8f"
+  },
+  {
+    "id": "yin-chen-lee-2012",
+    "title": "Phase II trial design with Bayesian adaptive randomization and predictive probability",
+    "doi": null,
+    "url": "https://saasresearch.hku.hk/~gyin/materials/2012YinChenLeeJRSSC.pdf",
+    "sha256": "764e531aa1803a49026e094f4dfabaa1c1bc1d9e6b874eca91d31a0bf493232f"
+  },
+  {
+    "id": "djeridi-2024",
+    "title": "Applications of the prediction of satisfaction design for monitoring single-arm phase II trials",
+    "doi": "10.1371/journal.pone.0305814",
+    "url": "https://journals.plos.org/plosone/article/file?type=printable&id=10.1371/journal.pone.0305814",
+    "sha256": "f1faa8123d030d511c181500c5455cc4d57d5d57cca2370e749826e0000b3638"
+  },
+  {
+    "id": "fitchett-2025",
+    "title": "Bayesian Optimal Phase II design with optimised stopping boundaries and response-adaptive randomisation",
+    "doi": null,
+    "url": "https://arxiv.org/pdf/2511.14714",
+    "sha256": "efdec0c3944e222fddcb6add81fb582e41855774a36bbcbee6915a1164ac74d1"
+  }
+]

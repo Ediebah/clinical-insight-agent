@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import io
 import re
+import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -90,9 +91,18 @@ def extract_pdf_evidence(data: bytes, filename: str = "publication.pdf") -> dict
     }
 
 
-def select_relevant_passages(document: dict[str, Any]) -> str:
-    """Return page-labelled, relevance-ranked passages within a fixed model context cap."""
+def select_relevant_passages(
+    document: dict[str, Any], *, focus_pages: set[int] | None = None
+) -> str:
+    """Return page-labelled passages within a fixed model context cap.
+
+    The first two front-matter passages are retained for publication identity.
+    When a user selects a worked scenario, its cited pages receive the highest
+    priority so that a different example in the same methods paper cannot win
+    the relevance ranking by accident.
+    """
     pages = document.get("pages") or []
+    focus_pages = set(focus_pages or ())
     candidates: list[tuple[int, int, int, str]] = []
     for page in pages:
         page_number = int(page.get("page") or 0)
@@ -107,9 +117,15 @@ def select_relevant_passages(document: dict[str, Any]) -> str:
                 lowered = passage.casefold()
                 keyword_score = sum(lowered.count(keyword) for keyword in _KEYWORDS)
                 numeric_score = min(8, len(re.findall(r"\b\d+(?:\.\d+)?%?\b", passage)))
-                first_page_bonus = 12 if page_number == 1 and window_index == 0 else 0
+                front_matter_bonus = 2_000 if page_number <= 2 and window_index == 0 else 0
+                focus_bonus = 4_000 if page_number in focus_pages else 0
                 candidates.append(
-                    (keyword_score * 4 + numeric_score + first_page_bonus, page_number, start, passage)
+                    (
+                        keyword_score * 4 + numeric_score + front_matter_bonus + focus_bonus,
+                        page_number,
+                        start,
+                        passage,
+                    )
                 )
             if start + _PASSAGE_CHARS >= len(text):
                 break
@@ -156,4 +172,26 @@ def _normalize_page_text(text: str) -> str:
 
 
 def _normalize_for_match(text: str) -> str:
-    return " ".join(str(text or "").split()).casefold()
+    normalized = unicodedata.normalize("NFKC", str(text or ""))
+    normalized = normalized.replace("\u00ad", "")
+    normalized = re.sub(r"(?<=\w)-\s+(?=\w)", "", normalized)
+    normalized = normalized.translate(
+        str.maketrans(
+            {
+                "‐": "-",
+                "‑": "-",
+                "‒": "-",
+                "–": "-",
+                "—": "-",
+                "−": "-",
+                "‘": "'",
+                "’": "'",
+                "“": '"',
+                "”": '"',
+            }
+        )
+    )
+    normalized = re.sub(r"(?<=\w)-(?=\w)", "", normalized)
+    normalized = re.sub(r"\s+([,.;:!?%)\]])", r"\1", normalized)
+    normalized = re.sub(r"([(\[])\s+", r"\1", normalized)
+    return " ".join(normalized.split()).casefold()
