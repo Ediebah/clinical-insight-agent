@@ -42,7 +42,14 @@ from agent.charts import (
     radar_chart,
     survival_plot,
 )
-from agent.reproduction import doi_url, parse_published_design, run_reproduction
+from agent.pdf_evidence import MAX_PDF_BYTES, MAX_PDF_PAGES, extract_pdf_evidence
+from agent.reproduction import (
+    SUPPORTED_ENDPOINT,
+    doi_url,
+    parse_published_design,
+    parse_published_pdf_design,
+    run_reproduction,
+)
 from agent.retrieval import load_catalog
 
 st.set_page_config(page_title="Clinical Insight Agent", page_icon="🩺",
@@ -233,6 +240,28 @@ code, pre, kbd{ font-family:var(--font-mono) !important; }
   padding-right:4rem; }
 .lock-source{ font-family:var(--font-mono); font-size:.72rem; color:var(--muted); margin-top:.3rem; }
 .field-label{ color:var(--muted); margin:.65rem 0 .25rem; }
+.pdf-boundary{ border:1px solid var(--border-soft); border-left:3px solid var(--accent-2);
+  border-radius:11px; padding:.75rem .9rem; margin:.55rem 0 .8rem; color:var(--muted);
+  background:rgba(138,180,248,.05); font-size:.82rem; line-height:1.5; }
+.source-rail{ border:1px solid var(--border-soft); border-radius:14px; background:var(--surface-2);
+  padding:.9rem; margin:.65rem 0 1.1rem; max-height:430px; overflow-y:auto;
+  scrollbar-color:var(--border) transparent; scrollbar-width:thin; }
+.source-rail-head{ display:flex; justify-content:space-between; gap:.7rem; align-items:flex-start;
+  padding-bottom:.7rem; margin-bottom:.65rem; border-bottom:1px solid var(--border-soft); }
+.source-name{ color:var(--text); font-size:.84rem; line-height:1.35; overflow-wrap:anywhere; }
+.source-meta{ font-family:var(--font-mono); font-size:.62rem; color:var(--faint); margin-top:.22rem; }
+.source-badge{ flex:none; font-family:var(--font-mono); font-size:.58rem; letter-spacing:.1em;
+  color:var(--accent-2); border:1px solid rgba(138,180,248,.35); border-radius:999px;
+  padding:.25rem .42rem; }
+.evidence-title{ font-family:var(--font-mono); font-size:.62rem; letter-spacing:.13em;
+  text-transform:uppercase; color:var(--accent); margin-bottom:.45rem; }
+.evidence-item{ border-left:2px solid rgba(79,209,197,.45); padding:.38rem 0 .4rem .55rem;
+  margin:.3rem 0; }
+.evidence-label{ color:var(--muted); font-size:.67rem; }
+.evidence-page{ font-family:var(--font-mono); color:var(--accent); font-size:.58rem;
+  letter-spacing:.1em; margin-left:.35rem; }
+.evidence-quote{ color:var(--text); font-size:.72rem; line-height:1.4; margin-top:.15rem; }
+.evidence-empty{ color:var(--faint); font-size:.74rem; line-height:1.45; }
 .match-seal{ display:flex; align-items:center; justify-content:space-between; gap:1rem; border-radius:14px;
   padding:1rem 1.2rem; margin:1rem 0; border:1px solid var(--seal); background:color-mix(in srgb,var(--seal) 10%,transparent); }
 .match-seal .seal-word{ font-family:var(--font-display); font-size:2rem; color:var(--seal); line-height:1; }
@@ -250,7 +279,8 @@ code, pre, kbd{ font-family:var(--font-mono) !important; }
 .comparison-table .status{ font-family:var(--font-mono); color:var(--accent); }
 .comparison-table .status.mismatch{ color:var(--caution); }
 .comparison-table .status.not-supplied{ color:var(--muted); }
-@media(max-width:700px){ .repro-intro{ grid-template-columns:1fr; } .match-seal{ align-items:flex-start;
+@media(max-width:700px){ .repro-intro{ grid-template-columns:1fr; } .source-rail{ max-height:none; overflow:visible; }
+  .match-seal{ align-items:flex-start;
   flex-direction:column; } .match-seal .seal-note{ text-align:left; } }
 </style>
 """
@@ -708,6 +738,29 @@ _REPRO_WIDGETS = {
     "published_final_boundary": "repro_published_boundary",
 }
 
+_REPRO_SOURCE_FIELDS = (
+    "source_mode",
+    "source_filename",
+    "source_sha256",
+    "source_page_count",
+    "source_text_page_count",
+)
+
+_REPRO_FIELD_LABELS = {
+    "endpoint_type": "Endpoint",
+    "observed_successes": "Observed successes",
+    "observed_n": "Interim N",
+    "planned_n": "Planned N",
+    "prior_a": "Prior alpha",
+    "prior_b": "Prior beta",
+    "efficacy_reference": "Rate reference",
+    "efficacy_gate": "Posterior gate",
+    "futility_cutoff": "Futility cutoff",
+    "published_predictive_probability": "Published predictive probability",
+    "published_final_boundary": "Published final boundary",
+    "published_decision": "Published decision",
+}
+
 
 def _repro_text(value) -> str:
     return "" if value is None else str(value)
@@ -743,7 +796,74 @@ def _repro_form_values() -> dict:
     values["published_decision"] = st.session_state.get("repro_published_decision")
     if values["published_decision"] == "Not reported":
         values["published_decision"] = None
+    parsed = st.session_state.get("repro_spec") or {}
+    for field in _REPRO_SOURCE_FIELDS:
+        if field in parsed:
+            values[field] = parsed[field]
+    if parsed.get("source_mode") == "pdf":
+        evidence, warnings = _current_pdf_evidence(parsed, values)
+        values["evidence"] = evidence
+        values["citation_warnings"] = warnings
     return values
+
+
+def _current_pdf_evidence(parsed: dict, values: dict) -> tuple[dict, list[str]]:
+    evidence = {}
+    warnings = list(parsed.get("citation_warnings") or [])
+    for field, citation in (parsed.get("evidence") or {}).items():
+        original = parsed.get(field)
+        current = values.get(field)
+        if _repro_text(original).strip() == _repro_text(current).strip():
+            evidence[field] = citation
+        else:
+            warnings.append(f"{field}: page citation detached after the extracted value was edited")
+    return evidence, warnings
+
+
+def _render_pdf_evidence(parsed: dict, values: dict) -> None:
+    evidence, warnings = _current_pdf_evidence(parsed, values)
+    filename = html.escape(parsed.get("source_filename") or "Uploaded publication")
+    page_count = parsed.get("source_page_count") or 0
+    text_pages = parsed.get("source_text_page_count") or 0
+    fingerprint = html.escape((parsed.get("source_sha256") or "unknown")[:12])
+    cards = []
+    for field, citation in evidence.items():
+        label = html.escape(_REPRO_FIELD_LABELS.get(field, field.replace("_", " ")))
+        quote = html.escape(str(citation.get("quote") or ""))
+        page = html.escape(str(citation.get("page") or "?"))
+        cards.append(
+            "<div class='evidence-item'>"
+            f"<div><span class='evidence-label'>{label}</span>"
+            f"<span class='evidence-page'>PAGE {page}</span></div>"
+            f"<div class='evidence-quote'>“{quote}”</div></div>"
+        )
+    evidence_html = "".join(cards) or (
+        "<div class='evidence-empty'>No field has a validated page quote. Complete the lock manually "
+        "and check it against the paper before computation.</div>"
+    )
+    st.markdown(
+        "<div class='source-rail'><div class='source-rail-head'><div>"
+        f"<div class='source-name'>{filename}</div>"
+        f"<div class='source-meta'>{text_pages}/{page_count} text pages · SHA {fingerprint}…</div>"
+        "</div><div class='source-badge'>PDF EVIDENCE</div></div>"
+        f"<div class='evidence-title'>Validated source quotes</div>{evidence_html}</div>",
+        unsafe_allow_html=True,
+    )
+    if warnings:
+        st.warning(
+            f"{len(warnings)} extracted value(s) were withheld or detached because their page quote "
+            "could not be validated."
+        )
+
+
+def _clear_reproduction_state() -> None:
+    for key in (
+        "repro_spec",
+        "repro_result",
+        "repro_confirmed_snapshot",
+        "repro_confirm",
+    ):
+        st.session_state.pop(key, None)
 
 
 def _repro_snapshot(values: dict) -> str:
@@ -812,6 +932,13 @@ def _render_repro_result(result: dict) -> None:
     link = doi_url(source.get("doi"))
     if link:
         st.markdown(f"Source: [Open the DOI record]({link})")
+    if source.get("source_mode") == "pdf":
+        st.caption(
+            f"PDF source: {source.get('source_filename') or 'uploaded publication'} · "
+            f"{source.get('source_page_count') or 0} pages · "
+            f"SHA-256 {(source.get('source_sha256') or 'unknown')[:16]}… · "
+            f"{len(source.get('evidence') or {})} validated field quotes in audit"
+        )
     st.caption(
         f"Engine: {result['engine']} · absolute probability tolerance {result['tolerance']:.4f} · "
         f"audit fingerprint {result['audit_fingerprint'][:16]}…"
@@ -831,41 +958,86 @@ def _render_repro_result(result: dict) -> None:
 def _render_reproduction() -> None:
     st.markdown(
         "<div class='repro-intro'><div class='repro-copy'><div class='lock-label'>Published decision lab</div>"
-        "<h2>Turn prose into a testable statistical decision.</h2><p>Paste the design description. AI "
-        "extracts the parameters; you verify the protocol lock; an exact engine performs the computation."
+        "<h2>Turn a publication into a testable decision.</h2><p>Paste design text or upload a "
+        "text-based PDF. AI extracts cited parameters; you verify the protocol lock; an exact engine "
+        "performs the computation."
         "</p></div><div class='repro-scope'><div class='scope-label'>Supported now</div>"
         "<div class='scope-value'>Single-arm binary<br>Beta-binomial interim futility</div></div></div>",
         unsafe_allow_html=True,
     )
 
-    if st.button("Load the Chen et al. example", key="repro_load_example"):
-        st.session_state.repro_prompt = _CHEN_EXAMPLE
-        st.session_state.pop("repro_spec", None)
-        st.session_state.pop("repro_result", None)
-
-    st.text_area(
-        "Published design text",
-        key="repro_prompt",
-        height=190,
-        placeholder=(
-            "Include the interim data, planned N, beta prior, final efficacy rule, futility cutoff, "
-            "and any result reported by the publication."
-        ),
+    source_mode = st.radio(
+        "Publication source",
+        ["Paste design text", "Upload publication PDF"],
+        horizontal=True,
+        key="repro_source_mode",
     )
-    if st.button("Parse design", type="primary", key="repro_parse"):
-        try:
-            with st.spinner("Extracting stated design parameters…"):
-                parsed = parse_published_design(st.session_state.get("repro_prompt", ""))
-            st.session_state.repro_spec = parsed
-            st.session_state.pop("repro_result", None)
-            st.session_state.pop("repro_confirmed_snapshot", None)
-            _load_repro_widgets(parsed)
-        except Exception as exc:  # noqa: BLE001
-            st.error(f"Design parsing failed: {exc}")
+    previous_mode = st.session_state.get("repro_previous_source_mode")
+    if previous_mode is not None and previous_mode != source_mode:
+        _clear_reproduction_state()
+    st.session_state.repro_previous_source_mode = source_mode
+
+    if source_mode == "Paste design text":
+        if st.button("Load the Chen et al. example", key="repro_load_example"):
+            st.session_state.repro_prompt = _CHEN_EXAMPLE
+            _clear_reproduction_state()
+
+        st.text_area(
+            "Published design text",
+            key="repro_prompt",
+            height=190,
+            placeholder=(
+                "Include the interim data, planned N, beta prior, final efficacy rule, futility cutoff, "
+                "and any result reported by the publication."
+            ),
+        )
+        if st.button("Parse design", type="primary", key="repro_parse"):
+            try:
+                with st.spinner("Extracting stated design parameters…"):
+                    parsed = parse_published_design(st.session_state.get("repro_prompt", ""))
+                st.session_state.repro_spec = parsed
+                st.session_state.pop("repro_result", None)
+                st.session_state.pop("repro_confirmed_snapshot", None)
+                _load_repro_widgets(parsed)
+            except Exception as exc:  # noqa: BLE001
+                st.error(f"Design parsing failed: {exc}")
+    else:
+        st.markdown(
+            f"<div class='pdf-boundary'><strong>Bounded PDF path:</strong> text-based PDFs only, "
+            f"maximum 10 MB and {MAX_PDF_PAGES} pages. No OCR. Do not upload PHI, confidential, or "
+            "licensed documents. Selected extracted passages are sent to the configured language model. "
+            "The app processes the file in memory and does not persist its bytes or full text.</div>",
+            unsafe_allow_html=True,
+        )
+        uploaded_pdf = st.file_uploader(
+            "Upload publication PDF",
+            type=["pdf"],
+            accept_multiple_files=False,
+            max_upload_size=MAX_PDF_BYTES // (1024 * 1024),
+            key="repro_pdf",
+        )
+        if st.button("Extract PDF design", type="primary", key="repro_parse_pdf"):
+            if uploaded_pdf is None:
+                st.error("Upload a publication PDF first.")
+            elif (getattr(uploaded_pdf, "size", None) or 0) > MAX_PDF_BYTES:
+                st.error("The PDF exceeds the 10 MB upload limit.")
+            else:
+                try:
+                    with st.spinner("Extracting page text and validating source quotes…"):
+                        document = extract_pdf_evidence(uploaded_pdf.getvalue(), uploaded_pdf.name)
+                        parsed = parse_published_pdf_design(document)
+                    st.session_state.repro_spec = parsed
+                    st.session_state.pop("repro_result", None)
+                    st.session_state.pop("repro_confirmed_snapshot", None)
+                    _load_repro_widgets(parsed)
+                except Exception as exc:  # noqa: BLE001
+                    st.error(f"PDF extraction failed: {exc}")
 
     parsed = st.session_state.get("repro_spec")
     if not parsed:
-        st.caption("The model extracts only stated values. Blank fields must be completed before computation.")
+        st.caption(
+            "The model extracts only stated values. Blank fields must be completed before computation."
+        )
         return
 
     missing = parsed.get("missing_fields") or []
@@ -876,10 +1048,30 @@ def _render_reproduction() -> None:
         st.session_state.get("repro_result")
         and current_snapshot == st.session_state.get("repro_confirmed_snapshot")
     )
-    lock_slot = st.empty()
-    lock_slot.markdown(_protocol_lock_card(title, doi, lock_confirmed), unsafe_allow_html=True)
+    current_values = _repro_form_values()
+    if parsed.get("source_mode") == "pdf":
+        lock_col, evidence_col = st.columns([1.15, .85])
+        with lock_col:
+            lock_slot = st.empty()
+            lock_slot.markdown(
+                _protocol_lock_card(title, doi, lock_confirmed), unsafe_allow_html=True
+            )
+        with evidence_col:
+            _render_pdf_evidence(parsed, current_values)
+    else:
+        lock_slot = st.empty()
+        lock_slot.markdown(_protocol_lock_card(title, doi, lock_confirmed), unsafe_allow_html=True)
     if missing:
-        st.warning("Not found in the pasted text: " + ", ".join(field.replace("_", " ") for field in missing))
+        source_label = "validated PDF quotes" if parsed.get("source_mode") == "pdf" else "pasted text"
+        st.warning(
+            f"Not found in the {source_label}: "
+            + ", ".join(field.replace("_", " ") for field in missing)
+        )
+    if parsed.get("endpoint_type") not in {None, SUPPORTED_ENDPOINT}:
+        st.error(
+            "The publication describes an unsupported endpoint or model. You can inspect the extracted "
+            "lock, but this exact engine will refuse computation."
+        )
 
     with st.form("repro_lock_form", border=True):
         _field_label("Publication title")
@@ -936,8 +1128,14 @@ def _render_reproduction() -> None:
                 "Published interim decision", ["Not reported", "STOP", "CONSIDER", "GO"],
                 key="repro_published_decision",
             )
+        confirm_label = (
+            "I checked these values and page quotes against the uploaded publication and want the engine "
+            "to use this exact design."
+            if parsed.get("source_mode") == "pdf"
+            else "I checked these values against the publication and want the engine to use this exact design."
+        )
         confirmed = st.checkbox(
-            "I checked these values against the publication and want the engine to use this exact design.",
+            confirm_label,
             key="repro_confirm",
         )
         submitted = st.form_submit_button("Confirm protocol lock and reproduce", type="primary")
