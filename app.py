@@ -42,6 +42,7 @@ from agent.charts import (
     radar_chart,
     survival_plot,
 )
+from agent.reproduction import doi_url, parse_published_design, run_reproduction
 from agent.retrieval import load_catalog
 
 st.set_page_config(page_title="Clinical Insight Agent", page_icon="🩺",
@@ -181,6 +182,8 @@ CSS = """
 /* Visually hide widget labels but keep them in the a11y tree for screen readers (not display:none). */
 [data-testid="stWidgetLabel"]{ position:absolute; width:1px; height:1px; overflow:hidden;
   clip-path:inset(50%); white-space:nowrap; }
+[data-testid="stCheckbox"] [data-testid="stWidgetLabel"]{ position:static; width:auto; height:auto;
+  overflow:visible; clip-path:none; white-space:normal; color:var(--text); }
 
 /* code / SQL */
 [data-testid="stCode"], pre{ background:var(--surface-2) !important;
@@ -205,6 +208,37 @@ code, pre, kbd{ font-family:var(--font-mono) !important; }
   border-left:3px solid var(--caution); border-radius:11px; padding:.7rem 1rem; margin:.6rem 0 1rem;
   color:var(--text); font-size:.92rem; }
 .hitl-note{ font-family:var(--font-mono); font-size:.72rem; color:var(--faint); margin-top:.4rem; }
+
+/* published-decision reproduction */
+.repro-intro{ display:grid; grid-template-columns:minmax(0,1.45fr) minmax(220px,.55fr); gap:1rem;
+  margin:1.5rem 0 1.25rem; }
+.repro-copy{ background:linear-gradient(140deg,rgba(79,209,197,.09),rgba(19,28,39,.72));
+  border:1px solid rgba(79,209,197,.25); border-radius:16px; padding:1.25rem 1.35rem; }
+.repro-copy h2{ font-family:var(--font-display); font-size:1.7rem; margin:0 0 .45rem; color:var(--text); }
+.repro-copy p{ color:var(--muted); line-height:1.55; margin:0; }
+.repro-scope{ border:1px solid var(--border-soft); border-radius:16px; padding:1rem 1.1rem;
+  background:var(--surface-2); }
+.repro-scope .scope-label,.lock-label,.field-label{ font-family:var(--font-mono); font-size:.65rem;
+  letter-spacing:.13em; text-transform:uppercase; color:var(--accent); }
+.repro-scope .scope-value{ color:var(--text); margin-top:.45rem; line-height:1.45; }
+.protocol-lock{ position:relative; overflow:hidden; background:var(--surface);
+  border:1px solid rgba(245,196,81,.36); border-left:4px solid var(--warn); border-radius:14px;
+  padding:1rem 1.2rem 1rem 1.35rem; margin:.65rem 0 1.1rem; }
+.protocol-lock:after{ content:'UNCONFIRMED'; position:absolute; top:.7rem; right:-2.3rem;
+  transform:rotate(35deg); width:8rem; text-align:center; font-family:var(--font-mono);
+  font-size:.58rem; letter-spacing:.12em; color:#0a0e13; background:var(--warn); padding:.2rem 0; }
+.lock-title{ font-family:var(--font-display); font-size:1.2rem; color:var(--text); margin-top:.25rem;
+  padding-right:4rem; }
+.lock-source{ font-family:var(--font-mono); font-size:.72rem; color:var(--muted); margin-top:.3rem; }
+.field-label{ color:var(--muted); margin:.65rem 0 .25rem; }
+.match-seal{ display:flex; align-items:center; justify-content:space-between; gap:1rem; border-radius:14px;
+  padding:1rem 1.2rem; margin:1rem 0; border:1px solid var(--seal); background:color-mix(in srgb,var(--seal) 10%,transparent); }
+.match-seal .seal-word{ font-family:var(--font-display); font-size:2rem; color:var(--seal); line-height:1; }
+.match-seal .seal-note{ color:var(--muted); font-size:.86rem; text-align:right; }
+.seal-match{ --seal:var(--accent); } .seal-mismatch{ --seal:var(--caution); }
+.seal-computed{ --seal:var(--accent-2); }
+@media(max-width:700px){ .repro-intro{ grid-template-columns:1fr; } .match-seal{ align-items:flex-start;
+  flex-direction:column; } .match-seal .seal-note{ text-align:left; } }
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
@@ -642,6 +676,259 @@ def _data_dictionary() -> str:
     return "\n".join(lines)
 
 
+# ─────────────────────── published-decision reproduction ───────────────────────
+_CHEN_EXAMPLE = """Chen et al. (2019), A Bayesian optimal phase II design for accelerating the development of targeted cancer therapies, DOI 10.21037/tcr.2019.05.17. Single-arm binary Phase II design with a Beta(1,1) prior and planned N=50. At the interim, 8 responses were observed among 25 patients. Final success requires posterior P(response rate > 30% | final data) > 95%. Stop for futility when the predictive probability of final success is below 20%. The publication reports predictive probability 0.105, a final efficacy boundary of 21 responses among 50, and a STOP decision at 8/25."""
+
+_REPRO_WIDGETS = {
+    "publication_title": "repro_title",
+    "doi": "repro_doi",
+    "endpoint_type": "repro_endpoint",
+    "observed_successes": "repro_successes",
+    "observed_n": "repro_observed_n",
+    "planned_n": "repro_planned_n",
+    "prior_a": "repro_prior_a",
+    "prior_b": "repro_prior_b",
+    "efficacy_reference": "repro_reference",
+    "efficacy_gate": "repro_gate",
+    "futility_cutoff": "repro_futility",
+    "published_predictive_probability": "repro_published_ppos",
+    "published_final_boundary": "repro_published_boundary",
+}
+
+
+def _repro_text(value) -> str:
+    return "" if value is None else str(value)
+
+
+def _load_repro_widgets(spec: dict) -> None:
+    for field, key in _REPRO_WIDGETS.items():
+        st.session_state[key] = _repro_text(spec.get(field))
+    decision = spec.get("published_decision")
+    st.session_state.repro_published_decision = decision if decision in {"STOP", "CONSIDER", "GO"} else "Not reported"
+    st.session_state.repro_confirm = False
+
+
+def _field_label(text: str) -> None:
+    st.markdown(f"<div class='field-label'>{html.escape(text)}</div>", unsafe_allow_html=True)
+
+
+def _repro_form_values() -> dict:
+    values = {
+        field: st.session_state.get(key, "") for field, key in _REPRO_WIDGETS.items()
+    }
+    values["published_decision"] = st.session_state.get("repro_published_decision")
+    if values["published_decision"] == "Not reported":
+        values["published_decision"] = None
+    return values
+
+
+def _repro_snapshot(values: dict) -> str:
+    return json.dumps(values, sort_keys=True, separators=(",", ":"), default=str)
+
+
+def _format_repro_value(metric: str, value) -> str:
+    if value is None:
+        return "—"
+    if "probability" in metric.lower():
+        return f"{float(value):.6f}"
+    return str(value)
+
+
+def _render_repro_result(result: dict) -> None:
+    match = result["overall_match"]
+    if match is True:
+        seal_class, seal_word = "seal-match", "MATCH"
+        note = "All supplied publication claims match within the declared tolerance."
+    elif match is False:
+        seal_class, seal_word = "seal-mismatch", "MISMATCH"
+        note = "At least one supplied publication claim does not match this resolved design."
+    else:
+        seal_class, seal_word = "seal-computed", "COMPUTED"
+        note = "No published result was supplied for a numerical comparison."
+    st.markdown(
+        f"<div class='match-seal {seal_class}'><div class='seal-word'>{seal_word}</div>"
+        f"<div class='seal-note'>{html.escape(note)}</div></div>", unsafe_allow_html=True)
+
+    computed = result["computed"]
+    interval = computed.get("credible_interval") or [None, None]
+    ci_text = "—" if None in interval else f"{interval[0]:.3f}–{interval[1]:.3f}"
+    _mon_kpis([
+        {"label": "Predictive probability", "value": f"{computed['predictive_probability']:.4f}",
+         "sub": f"decision: {computed['decision']}"},
+        {"label": "Final boundary", "value": str(computed["final_boundary"]),
+         "sub": f"needs {computed['responses_needed']} more responses"},
+        {"label": "Posterior rate", "value": f"{computed['posterior_mean']:.3f}",
+         "sub": f"95% CrI {ci_text}"},
+        {"label": "P(rate > reference)",
+         "value": f"{computed['posterior_probability_above_reference']:.4f}",
+         "sub": "current posterior evidence"},
+    ])
+
+    comparison_rows = []
+    for row in result["comparisons"]:
+        status = "NOT SUPPLIED" if row["match"] is None else ("MATCH" if row["match"] else "MISMATCH")
+        comparison_rows.append({
+            "Check": row["metric"],
+            "Computed": _format_repro_value(row["metric"], row["computed"]),
+            "Published": _format_repro_value(row["metric"], row["published"]),
+            "Status": status,
+        })
+    st.dataframe(pd.DataFrame(comparison_rows), width="stretch", hide_index=True)
+
+    source = result["resolved_design"]
+    link = doi_url(source.get("doi"))
+    if link:
+        st.markdown(f"Source: [Open the DOI record]({link})")
+    st.caption(
+        f"Engine: {result['engine']} · absolute probability tolerance {result['tolerance']:.4f} · "
+        f"audit fingerprint {result['audit_fingerprint'][:16]}…"
+    )
+    st.download_button(
+        "Download audit record (JSON)",
+        data=json.dumps(result, indent=2, default=str),
+        file_name="clinical-insight-reproduction.json",
+        mime="application/json",
+    )
+    st.info(
+        "A match reproduces the stated numerical decision under the confirmed inputs. It is not an "
+        "independent validation, regulatory review, or assessment of the publication's full methods."
+    )
+
+
+def _render_reproduction() -> None:
+    st.markdown(
+        "<div class='repro-intro'><div class='repro-copy'><div class='lock-label'>Published decision lab</div>"
+        "<h2>Turn prose into a testable statistical decision.</h2><p>Paste the design description. AI "
+        "extracts the parameters; you verify the protocol lock; an exact engine performs the computation."
+        "</p></div><div class='repro-scope'><div class='scope-label'>Supported now</div>"
+        "<div class='scope-value'>Single-arm binary<br>Beta-binomial interim futility</div></div></div>",
+        unsafe_allow_html=True,
+    )
+
+    if st.button("Load the Chen et al. example", key="repro_load_example"):
+        st.session_state.repro_prompt = _CHEN_EXAMPLE
+        st.session_state.pop("repro_spec", None)
+        st.session_state.pop("repro_result", None)
+
+    st.text_area(
+        "Published design text",
+        key="repro_prompt",
+        height=190,
+        placeholder=(
+            "Include the interim data, planned N, beta prior, final efficacy rule, futility cutoff, "
+            "and any result reported by the publication."
+        ),
+    )
+    if st.button("Parse design", type="primary", key="repro_parse"):
+        try:
+            with st.spinner("Extracting stated design parameters…"):
+                parsed = parse_published_design(st.session_state.get("repro_prompt", ""))
+            st.session_state.repro_spec = parsed
+            st.session_state.pop("repro_result", None)
+            st.session_state.pop("repro_confirmed_snapshot", None)
+            _load_repro_widgets(parsed)
+        except Exception as exc:  # noqa: BLE001
+            st.error(f"Design parsing failed: {exc}")
+
+    parsed = st.session_state.get("repro_spec")
+    if not parsed:
+        st.caption("The model extracts only stated values. Blank fields must be completed before computation.")
+        return
+
+    missing = parsed.get("missing_fields") or []
+    title = parsed.get("publication_title") or "Untitled published design"
+    doi = parsed.get("doi") or "No DOI extracted"
+    st.markdown(
+        f"<div class='protocol-lock'><div class='lock-label'>Protocol lock · edit before confirmation</div>"
+        f"<div class='lock-title'>{html.escape(title)}</div><div class='lock-source'>{html.escape(doi)}"
+        "</div></div>", unsafe_allow_html=True,
+    )
+    if missing:
+        st.warning("Not found in the pasted text: " + ", ".join(field.replace("_", " ") for field in missing))
+
+    with st.form("repro_lock_form", border=True):
+        _field_label("Publication title")
+        st.text_input("Publication title", key="repro_title")
+        source_col, endpoint_col = st.columns([2, 1])
+        with source_col:
+            _field_label("DOI")
+            st.text_input("DOI", key="repro_doi")
+        with endpoint_col:
+            _field_label("Endpoint type")
+            st.text_input("Endpoint type", key="repro_endpoint")
+
+        st.markdown("<div class='eyebrow'>Observed design</div>", unsafe_allow_html=True)
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            _field_label("Observed successes")
+            st.text_input("Observed successes", key="repro_successes")
+        with c2:
+            _field_label("Interim N")
+            st.text_input("Interim N", key="repro_observed_n")
+        with c3:
+            _field_label("Planned N")
+            st.text_input("Planned N", key="repro_planned_n")
+
+        st.markdown("<div class='eyebrow'>Exact decision rule</div>", unsafe_allow_html=True)
+        c1, c2, c3, c4, c5 = st.columns(5)
+        with c1:
+            _field_label("Prior alpha")
+            st.text_input("Prior alpha", key="repro_prior_a")
+        with c2:
+            _field_label("Prior beta")
+            st.text_input("Prior beta", key="repro_prior_b")
+        with c3:
+            _field_label("Rate reference")
+            st.text_input("Rate reference", key="repro_reference")
+        with c4:
+            _field_label("Posterior gate")
+            st.text_input("Posterior gate", key="repro_gate")
+        with c5:
+            _field_label("Futility cutoff")
+            st.text_input("Futility cutoff", key="repro_futility")
+
+        st.markdown("<div class='eyebrow'>Published claims · optional comparison</div>", unsafe_allow_html=True)
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            _field_label("Predictive probability")
+            st.text_input("Published predictive probability", key="repro_published_ppos")
+        with c2:
+            _field_label("Final boundary")
+            st.text_input("Published final boundary", key="repro_published_boundary")
+        with c3:
+            _field_label("Interim decision")
+            st.selectbox(
+                "Published interim decision", ["Not reported", "STOP", "CONSIDER", "GO"],
+                key="repro_published_decision",
+            )
+        confirmed = st.checkbox(
+            "I checked these values against the publication and want the engine to use this exact design.",
+            key="repro_confirm",
+        )
+        submitted = st.form_submit_button("Confirm protocol lock and reproduce", type="primary")
+
+    values = _repro_form_values()
+    snapshot = _repro_snapshot(values)
+    if st.session_state.get("repro_result") and snapshot != st.session_state.get("repro_confirmed_snapshot"):
+        st.session_state.pop("repro_result", None)
+        st.info("The design changed. Confirm the protocol lock again to compute a new result.")
+
+    if submitted:
+        if not confirmed:
+            st.error("Confirm that you checked the extracted design before computation.")
+        else:
+            try:
+                with st.spinner("Running exact beta-binomial enumeration…"):
+                    result = run_reproduction(values)
+                st.session_state.repro_result = result
+                st.session_state.repro_confirmed_snapshot = snapshot
+            except Exception as exc:  # noqa: BLE001
+                st.error(f"The confirmed design is not computable: {exc}")
+
+    if st.session_state.get("repro_result"):
+        _render_repro_result(st.session_state.repro_result)
+
+
 # ───────────────────────────── hero ─────────────────────────────
 st.markdown("""
 <div class="hero">
@@ -657,8 +944,12 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ───────────────────────────── nav ─────────────────────────────
-_view = st.segmented_control("nav", ["🔬 Analyze", "📈 Dashboard", "📊 Monitoring"], default="🔬 Analyze",
+_view = st.segmented_control(
+    "nav", ["🔬 Analyze", "🧾 Reproduce", "📈 Dashboard", "📊 Monitoring"], default="🔬 Analyze",
                              label_visibility="collapsed")
+if _view == "🧾 Reproduce":
+    _render_reproduction()
+    st.stop()
 if _view == "📈 Dashboard":                              # first look at the data, then stop
     _render_dashboard()
     st.stop()

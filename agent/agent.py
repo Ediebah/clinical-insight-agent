@@ -401,7 +401,10 @@ def _route(question: str, context: str) -> dict:
         "the per-subject rows with range(): `SELECT 1 AS responded FROM range(12) UNION ALL SELECT 0 AS "
         "responded FROM range(28)` (successes, then n_observed - successes failures). Also extract "
         "`n_planned` (the FULL planned enrolment, which is larger than the rows returned), `tv`, `lrv`, "
-        "and the prior as `prior_successes` + `prior_n` if a previous study is mentioned. If the "
+        "and the prior as `prior_successes` + `prior_n` or `prior_a` + `prior_b` if stated. Extract "
+        "`gate_tv` and `gate_lrv` as the final posterior-probability thresholds, and `stop_lrv` as the "
+        "interim predictive-probability futility threshold, ONLY when the question states them. Never "
+        "invent a gate or silently substitute one from a different design. If the "
         "question gives no TV/LRV, use the LRV/TV from any stated goal, else tv=0.30, lrv=0.15 for a "
         "response-rate endpoint and SAY SO in the hypothesis.\n"
         "For a RANDOMIZED / two-arm interim (treatment vs a concurrent control or placebo, e.g. '18/40 "
@@ -432,7 +435,8 @@ def _route(question: str, context: str) -> dict:
         '"treatment":"col", "margin":0.1, "higher_is_better":true, '
         '"kind":"superiority", "outcome_type":"proportion", "p_control":0.7, "p_treatment":0.8, '
         '"effect":0.1, "mean_control":0, "mean_treatment":0, "sd":1, "alpha":0.05, "power":0.8, "ratio":1, '
-        '"n_planned":100, "tv":0.3, "lrv":0.15, "prior_successes":8, "prior_n":20, "framing":"single_arm", '
+        '"n_planned":100, "tv":0.3, "lrv":0.15, "gate_tv":0.8, "gate_lrv":0.9, "stop_lrv":0.1, '
+        '"prior_successes":8, "prior_n":20, "prior_a":1, "prior_b":1, "framing":"single_arm", '
         '"analytic_sql":"SELECT ...", "hypothesis":"one sentence"}. '
         'Plain aggregation → {"mode":"aggregate"}.\n'
         # The gate is checked BEFORE _triage so a specific model question isn't clarified away as
@@ -483,9 +487,13 @@ def _fit_model(spec: dict, df) -> modeling.ModelResult:
         return modeling.fit_noninferiority(df, spec["group"], spec["outcome"], spec.get("margin"),
                                            spec.get("higher_is_better", True), spec.get("control"))
     if mt == "interim":
+        gate_tv = spec.get("gate_tv") if spec.get("gate_tv") is not None else 0.80
+        gate_lrv = spec.get("gate_lrv") if spec.get("gate_lrv") is not None else 0.90
+        stop_lrv = spec.get("stop_lrv") if spec.get("stop_lrv") is not None else 0.10
         return modeling.fit_interim(
             df, spec["outcome"], n_planned=spec.get("n_planned"), tv=spec.get("tv"),
-            lrv=spec.get("lrv"), higher_is_better=spec.get("higher_is_better", True),
+            lrv=spec.get("lrv"), gate_tv=gate_tv, gate_lrv=gate_lrv, stop_lrv=stop_lrv,
+            higher_is_better=spec.get("higher_is_better", True),
             prior_successes=spec.get("prior_successes"), prior_n=spec.get("prior_n"),
             prior_a=spec.get("prior_a"), prior_b=spec.get("prior_b"),
             framing=spec.get("framing", "single_arm"),

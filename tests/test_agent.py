@@ -84,6 +84,29 @@ def test_fit_model_dispatches_interim():
     assert mr.model_type == "interim" and mr.error is None
 
 
+def test_fit_model_dispatches_explicit_published_interim_gates():
+    """The router's extracted gates must reach the engine instead of reverting to its defaults."""
+    df = pd.DataFrame({"responded": [1] * 8 + [0] * 17})
+    spec = {
+        "model_type": "interim",
+        "outcome": "responded",
+        "n_planned": 50,
+        "tv": 0.30,
+        "lrv": 0.30,
+        "gate_tv": 0.95,
+        "gate_lrv": 0.95,
+        "stop_lrv": 0.20,
+        "prior_a": 1,
+        "prior_b": 1,
+    }
+
+    mr = agent._fit_model(spec, df)
+
+    assert mr.error is None
+    assert mr.verdict["predictive_prob"] == 0.1045
+    assert mr.verdict["call"] == "STOP"
+
+
 def test_fit_model_dispatches_two_arm_interim():
     import pandas as pd
     rows = ([("treatment", 1)] * 18 + [("treatment", 0)] * 22

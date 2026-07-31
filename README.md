@@ -20,7 +20,7 @@ does none of that. I built it as a clinical data scientist working in biostatist
 Everything runs on synthetic EHR data, so there is no PHI and the whole project is public and reproducible.
 
 Live demo: [clinical-insight-agent.streamlit.app](https://clinical-insight-agent.streamlit.app).
-CI runs on every push: `dbt build`, 108 data tests, 291 unit tests, and the guardrail eval.
+CI runs on every push: `dbt build`, 108 data tests, 323 unit tests, and the guardrail eval.
 
 ![Demo: a plain-English question is typed and run; the agent states a hypothesis, writes and executes read-only SQL, renders KPI cards and a confidence-interval chart, and the statistical guardrail flags confounding and a missing denominator before the findings.](assets/demo.gif)
 
@@ -54,6 +54,11 @@ warehouse from scratch, see [Run it locally](#run-it-locally-full-rebuild).
   fixes that SQL on its own when a query errors, returns nothing, or comes back all zeros. Then it cites the
   tables it used, runs the guardrail, reviews its own work, and interprets the result. The UI shows every
   step, along with the cost and latency of the run.
+- Reproduces a published Bayesian interim decision from plain-English design text. The model extracts only
+  stated parameters into an editable protocol lock; the user confirms the resolved design; then the exact
+  beta-binomial engine compares its predictive probability, final boundary, and decision with the paper.
+  Missing parameters stay blank instead of receiving hidden defaults, and every run exports a fingerprinted
+  JSON audit record. This first workflow supports single-arm binary interim futility designs.
 - Picks the model the question calls for and fits it with `statsmodels` or `scikit-learn`, so the numbers are
   computed rather than generated: regression, survival, causal effects, A/B ship-decisions, non-inferiority,
   forecasting, feature importance, and power or sample-size for study design. When you want the *best*
@@ -75,7 +80,7 @@ warehouse from scratch, see [Run it locally](#run-it-locally-full-rebuild).
   warehouse is failing a critical integrity test, so a broken pipeline can't quietly feed corrupt metrics
   into an analysis.
 - Built to run in production: the SQL engine is read-only, there is a live monitoring tab, an eval suite,
-  291 unit tests in CI, a Dockerfile, upload-your-own-data, and a Word-report export.
+  323 unit tests in CI, a Dockerfile, upload-your-own-data, and a Word-report export.
 
 ---
 
@@ -95,7 +100,7 @@ compares candidate models and lands on each publication's own choice:
   Cox model recovers ejection fraction (**HR 0.95** per %) and serum creatinine (**HR 1.36**) as the
   headline mortality predictors — the same two the paper singles out — and the survival curves separate
   reduced- from preserved-ejection-fraction patients.
-- **Bayesian interim go/no-go** — the published worked example of Chen & Chen (2019): at an 8/25
+- **Bayesian interim go/no-go** — the published worked example of Chen et al. (2019): at an 8/25
   interim look the agent's `fit_interim` returns a predictive probability of success of **0.105**, the
   value the paper reports.
 - **Machine learning (random forest)** — Wisconsin Diagnostic Breast Cancer (Wolberg et al., 1995): the
@@ -303,7 +308,7 @@ and 6 named metrics with their statistical caveats is generated from the dbt art
 readable to the agent, and a deterministic token-overlap RAG retrieves over it with no embedding calls.
 
 ### Engineering
-- 291 keyless `pytest` unit tests covering the guardrail statistics, SQL validation and security, retrieval,
+- 323 keyless `pytest` unit tests covering the guardrail statistics, SQL validation and security, retrieval,
   charts, agent helpers, modeling, condition-vocabulary grounding, data lineage, and the data-quality gate,
   plus `ruff` and a coverage gate, all run in CI.
 - GitHub Actions CI on every push: Synthea, then DuckDB, then `dbt build` (108 tests), then a catalog
@@ -348,7 +353,7 @@ cp agent/.env.example agent/.env      # then put your OPENAI_API_KEY in agent/.e
 # 4. Run the agent (CLI) + the checks
 .venv/bin/python -m agent.agent "Which conditions are most prevalent in patients 75 and older?"
 .venv/bin/python -m agent.agent "How does survival differ for heart attack patients?"   # → Myocardial infarction cohort
-.venv/bin/pytest                           # 291 keyless unit tests   (ruff check . to lint)
+.venv/bin/pytest                           # 323 keyless unit tests   (ruff check . to lint)
 .venv/bin/python -m agent.guardrail_eval   # guardrail precision/recall (no key)
 .venv/bin/python -m agent.eval_retrieval   # retrieval precision/recall/MRR (no key)
 .venv/bin/python -m agent.eval             # answer accuracy (needs a key)
@@ -357,7 +362,7 @@ cp agent/.env.example agent/.env      # then put your OPENAI_API_KEY in agent/.e
 .venv/bin/python -m agent.model_builder    # autogen a dbt model + tests → build → self-heal
 .venv/bin/python -m agent.pipeline_healer  # self-healing demo: dbt test fails → agent fixes → green
 
-# 5. Run the app (Analyze + Monitoring tabs)
+# 5. Run the app (Analyze + Reproduce + Dashboard + Monitoring tabs)
 .venv/bin/streamlit run app.py
 ```
 
@@ -386,7 +391,7 @@ overridable with `OPENAI_MODEL`). CI runs on GitHub Actions; the app is packaged
 ## Repo layout
 
 ```
-├── app.py                       Streamlit UI, Analyze + Monitoring tabs
+├── app.py                       Streamlit UI, Analyze + Reproduce + Dashboard + Monitoring tabs
 ├── agent/
 │   ├── agent.py                 the self-healing agent loop
 │   ├── modeling.py              inferential models (regression, survival, AIPW causal, A/B, NI, power)
@@ -400,7 +405,7 @@ overridable with `OPENAI_MODEL`). CI runs on GitHub Actions; the app is packaged
 │   ├── charts.py, llm.py, observe.py, build_catalog.py
 │   └── eval*.py, guardrail_eval.py, eval_dataset.py   the eval suite + GOLD set
 ├── warehouse/                   the dbt project (staging → core → analytics marts + tests + docs)
-├── tests/                       291 keyless pytest unit tests
+├── tests/                       323 keyless pytest unit tests
 ├── scripts/load_raw.py          Synthea CSV → DuckDB raw
 ├── .github/workflows/ci.yml     Synthea → DuckDB → dbt build → catalog → guardrail eval
 ├── Dockerfile, DEPLOY.md
