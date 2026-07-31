@@ -188,7 +188,13 @@ def test_pdf_scenario_discovery_separates_multiple_worked_examples(monkeypatch):
         ],
         "refusal_reason": None,
     }
-    monkeypatch.setattr(reproduction.llm, "complete_json", lambda *_args, **_kwargs: raw)
+    captured = {}
+
+    def fake_complete_json(system, _user, **_kwargs):
+        captured["system"] = system
+        return raw
+
+    monkeypatch.setattr(reproduction.llm, "complete_json", fake_complete_json)
 
     discovery = reproduction.discover_pdf_design_scenarios(document)
 
@@ -202,6 +208,7 @@ def test_pdf_scenario_discovery_separates_multiple_worked_examples(monkeypatch):
         "Example A, N=40",
         "Example B, N=60",
     ]
+    assert "one candidate per stated" in captured["system"]
 
 
 def test_pdf_identity_cannot_be_taken_from_a_reference_page(monkeypatch):
@@ -256,6 +263,20 @@ def test_numeric_citation_accepts_percent_written_as_a_word():
     )
 
 
+def test_supported_endpoint_requires_composite_beta_binomial_evidence():
+    evidence = {
+        "endpoint_type": {"page": 1, "quote": "single-arm phase II trial"},
+        "prior_a": {"page": 2, "quote": "Beta(1,1) prior"},
+        "prior_b": {"page": 2, "quote": "Beta(1,1) prior"},
+        "efficacy_reference": {"page": 2, "quote": "response rate above 30%"},
+    }
+
+    assert reproduction._supports_endpoint_from_evidence(evidence)
+    assert not reproduction._supports_endpoint_from_evidence(
+        {key: value for key, value in evidence.items() if key != "prior_b"}
+    )
+
+
 def test_doi_citation_accepts_pdf_spacing_around_doi_punctuation():
     assert reproduction._citation_mentions_value(
         "doi",
@@ -287,7 +308,7 @@ def test_pdf_parser_keeps_only_values_with_exact_page_quotes(monkeypatch):
             "single-arm phase II trial."
         ),
         "doi": "DOI 10.21037/tcr.2019.05.17.",
-        "endpoint_type": "Single-arm binary design.",
+        "endpoint_type": "Single-arm",
         "observed_successes": "At interim, 8 responses among 25 patients were observed.",
         "observed_n": "At interim, 8 responses among 25 patients were observed.",
         "planned_n": "Planned sample size was 50.",

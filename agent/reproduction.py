@@ -121,6 +121,9 @@ The user message names one selected scenario. Extract only that scenario. If it
 is not a single-arm binary beta-binomial interim design, set endpoint_type to
 "unsupported", leave non-applicable design fields null, and return a concise
 "unsupported_reason". Otherwise return "unsupported_reason": null.
+For a supported endpoint_type citation, quote a span that explicitly says
+single-arm or binary. Other cited fields can establish the remaining properties
+of the binary beta-binomial model.
 """
 
 _PDF_SCENARIO_SYSTEM = """You identify distinct reproducible scenarios in a publication PDF.
@@ -152,7 +155,10 @@ Return this JSON object:
 A scenario is one specific worked example, simulation setting, table row, trial
 configuration, or decision point whose inputs a user could select for
 reproduction. Separate scenarios when a methods paper contains multiple examples,
-sample sizes, priors, thresholds, tables, or trial designs. Return at most eight.
+sample sizes, priors, thresholds, tables, or trial designs. When a design has
+multiple interim looks or stopping boundaries, return one candidate per stated
+look or boundary case; do not collapse them into one generic multi-stage
+scenario. Return at most eight.
 The location quote must be an exact, short verbatim span that uniquely anchors
 the scenario on the cited page. Title and DOI must be cited from page 1 or 2,
 never from references. If there is no identifiable scenario, return an empty
@@ -304,11 +310,26 @@ def parse_published_pdf_design(
             continue
         evidence[field] = citation
 
+    if spec.get("endpoint_type") == SUPPORTED_ENDPOINT and not _supports_endpoint_from_evidence(
+        evidence
+    ):
+        spec["endpoint_type"] = None
+        evidence.pop("endpoint_type", None)
+        warnings.append(
+            "endpoint_type: cited evidence does not jointly establish a single-arm binary "
+            "beta-binomial design"
+        )
+
     spec["source_mode"] = "pdf"
     spec.update(_pdf_source_metadata(document))
     spec["source_scenario_id"] = _clean_text(scenario.get("scenario_id"))
     spec["source_scenario_label"] = scenario_label
-    spec["source_scenario_pages"] = sorted(scenario_pages)
+    design_evidence_pages = {
+        citation["page"]
+        for field, citation in evidence.items()
+        if field not in _IDENTITY_FIELDS
+    }
+    spec["source_scenario_pages"] = sorted(scenario_pages | design_evidence_pages)
     spec["evidence"] = evidence
     spec["citation_warnings"] = warnings
     spec["unsupported_reason"] = (_clean_text(raw.get("unsupported_reason")) or "")[:500] or None
@@ -556,7 +577,7 @@ def _citation_mentions_value(field: str, value: Any, quote: str) -> bool:
         return bool(target and target.casefold() in compact_quote)
     if field == "endpoint_type":
         if value == SUPPORTED_ENDPOINT:
-            return bool(re.search(r"single[\s-]*arm", lowered)) and "binary" in lowered
+            return bool(re.search(r"single[\s-]*arm", lowered)) or "binary" in lowered
         return value == "unsupported"
     if field == "published_decision":
         patterns = {
@@ -583,6 +604,23 @@ def _citation_mentions_value(field: str, value: Any, quote: str) -> bool:
         return False
     target = float(value)
     return any(math.isclose(number, target, rel_tol=1e-9, abs_tol=1e-12) for number in numbers)
+
+
+def _supports_endpoint_from_evidence(evidence: dict[str, dict[str, Any]]) -> bool:
+    endpoint = evidence.get("endpoint_type")
+    if not isinstance(endpoint, dict):
+        return False
+    endpoint_quote = str(endpoint.get("quote") or "").casefold()
+    if not (re.search(r"single[\s-]*arm", endpoint_quote) or "binary" in endpoint_quote):
+        return False
+
+    combined = " ".join(str(item.get("quote") or "") for item in evidence.values()).casefold()
+    has_single_arm = bool(re.search(r"single[\s-]*arm", combined))
+    has_binary_response = "binary" in combined or bool(
+        re.search(r"\bresponse(?:s| rate)?\b|\bresponder(?:s)?\b", combined)
+    )
+    has_beta_model = {"prior_a", "prior_b"}.issubset(evidence) and "beta" in combined
+    return has_single_arm and has_binary_response and has_beta_model
 
 
 def _validated_pdf_citation(

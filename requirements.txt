@@ -6,7 +6,7 @@
 # The statistical guardrail, extracted to its own package (packages/caveat) because none of it is
 # healthcare-specific. Installed from the local path so the app and the library stay in lockstep;
 # swap for `caveat==<version>` once it is published.
-# Streamlit Cloud rebuild marker: PDF scenario workflow, 2026-07-31.
+# Streamlit Cloud rebuild marker: PDF scenario workflow revision 2, 2026-07-31.
 ./packages/caveat
 ./packages/assurance
 streamlit==1.58.0
