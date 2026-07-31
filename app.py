@@ -227,6 +227,8 @@ code, pre, kbd{ font-family:var(--font-mono) !important; }
 .protocol-lock:after{ content:'UNCONFIRMED'; position:absolute; top:.7rem; right:-2.3rem;
   transform:rotate(35deg); width:8rem; text-align:center; font-family:var(--font-mono);
   font-size:.58rem; letter-spacing:.12em; color:#0a0e13; background:var(--warn); padding:.2rem 0; }
+.protocol-lock.confirmed{ border-color:rgba(79,209,197,.38); border-left-color:var(--accent); }
+.protocol-lock.confirmed:after{ content:'CONFIRMED'; background:var(--accent); }
 .lock-title{ font-family:var(--font-display); font-size:1.2rem; color:var(--text); margin-top:.25rem;
   padding-right:4rem; }
 .lock-source{ font-family:var(--font-mono); font-size:.72rem; color:var(--muted); margin-top:.3rem; }
@@ -237,6 +239,17 @@ code, pre, kbd{ font-family:var(--font-mono) !important; }
 .match-seal .seal-note{ color:var(--muted); font-size:.86rem; text-align:right; }
 .seal-match{ --seal:var(--accent); } .seal-mismatch{ --seal:var(--caution); }
 .seal-computed{ --seal:var(--accent-2); }
+.comparison-table{ border:1px solid var(--border-soft); border-radius:12px; overflow:hidden;
+  margin:.4rem 0 1rem; }
+.comparison-table table{ width:100%; border-collapse:collapse; font-size:.84rem; }
+.comparison-table th{ font-family:var(--font-mono); font-size:.65rem; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--muted); background:var(--surface-2); text-align:left; }
+.comparison-table th,.comparison-table td{ padding:.7rem .8rem; border-bottom:1px solid var(--border-soft); }
+.comparison-table tr:last-child td{ border-bottom:0; }
+.comparison-table td{ color:var(--text); }
+.comparison-table .status{ font-family:var(--font-mono); color:var(--accent); }
+.comparison-table .status.mismatch{ color:var(--caution); }
+.comparison-table .status.not-supplied{ color:var(--muted); }
 @media(max-width:700px){ .repro-intro{ grid-template-columns:1fr; } .match-seal{ align-items:flex-start;
   flex-direction:column; } .match-seal .seal-note{ text-align:left; } }
 </style>
@@ -712,6 +725,17 @@ def _field_label(text: str) -> None:
     st.markdown(f"<div class='field-label'>{html.escape(text)}</div>", unsafe_allow_html=True)
 
 
+def _protocol_lock_card(title: str, doi: str, confirmed: bool) -> str:
+    lock_class = " confirmed" if confirmed else ""
+    lock_label = "Protocol lock · confirmed inputs" if confirmed else \
+        "Protocol lock · edit before confirmation"
+    return (
+        f"<div class='protocol-lock{lock_class}'><div class='lock-label'>{lock_label}</div>"
+        f"<div class='lock-title'>{html.escape(title)}</div>"
+        f"<div class='lock-source'>{html.escape(doi)}</div></div>"
+    )
+
+
 def _repro_form_values() -> dict:
     values = {
         field: st.session_state.get(key, "") for field, key in _REPRO_WIDGETS.items()
@@ -767,13 +791,22 @@ def _render_repro_result(result: dict) -> None:
     comparison_rows = []
     for row in result["comparisons"]:
         status = "NOT SUPPLIED" if row["match"] is None else ("MATCH" if row["match"] else "MISMATCH")
-        comparison_rows.append({
-            "Check": row["metric"],
-            "Computed": _format_repro_value(row["metric"], row["computed"]),
-            "Published": _format_repro_value(row["metric"], row["published"]),
-            "Status": status,
-        })
-    st.dataframe(pd.DataFrame(comparison_rows), width="stretch", hide_index=True)
+        status_class = status.lower().replace(" ", "-")
+        comparison_rows.append(
+            "<tr>"
+            f"<td>{html.escape(row['metric'])}</td>"
+            f"<td>{html.escape(_format_repro_value(row['metric'], row['computed']))}</td>"
+            f"<td>{html.escape(_format_repro_value(row['metric'], row['published']))}</td>"
+            f"<td class='status {status_class}'>{status}</td>"
+            "</tr>"
+        )
+    st.markdown(
+        "<div class='comparison-table'><table><thead><tr><th>Check</th><th>Computed</th>"
+        "<th>Published</th><th>Status</th></tr></thead><tbody>"
+        + "".join(comparison_rows)
+        + "</tbody></table></div>",
+        unsafe_allow_html=True,
+    )
 
     source = result["resolved_design"]
     link = doi_url(source.get("doi"))
@@ -838,11 +871,13 @@ def _render_reproduction() -> None:
     missing = parsed.get("missing_fields") or []
     title = parsed.get("publication_title") or "Untitled published design"
     doi = parsed.get("doi") or "No DOI extracted"
-    st.markdown(
-        f"<div class='protocol-lock'><div class='lock-label'>Protocol lock · edit before confirmation</div>"
-        f"<div class='lock-title'>{html.escape(title)}</div><div class='lock-source'>{html.escape(doi)}"
-        "</div></div>", unsafe_allow_html=True,
+    current_snapshot = _repro_snapshot(_repro_form_values())
+    lock_confirmed = bool(
+        st.session_state.get("repro_result")
+        and current_snapshot == st.session_state.get("repro_confirmed_snapshot")
     )
+    lock_slot = st.empty()
+    lock_slot.markdown(_protocol_lock_card(title, doi, lock_confirmed), unsafe_allow_html=True)
     if missing:
         st.warning("Not found in the pasted text: " + ", ".join(field.replace("_", " ") for field in missing))
 
@@ -922,6 +957,7 @@ def _render_reproduction() -> None:
                     result = run_reproduction(values)
                 st.session_state.repro_result = result
                 st.session_state.repro_confirmed_snapshot = snapshot
+                lock_slot.markdown(_protocol_lock_card(title, doi, True), unsafe_allow_html=True)
             except Exception as exc:  # noqa: BLE001
                 st.error(f"The confirmed design is not computable: {exc}")
 

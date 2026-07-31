@@ -50,4 +50,5 @@ def test_reproduction_protocol_lock_runs_confirmed_design(monkeypatch):
 
     assert not at.exception, [str(e.value) for e in at.exception]
     assert any("MATCH" in str(item.value) for item in at.markdown)
-    assert len(at.dataframe) == 1
+    assert any("Protocol lock · confirmed inputs" in str(item.value) for item in at.markdown)
+    assert any("comparison-table" in str(item.value) for item in at.markdown)
