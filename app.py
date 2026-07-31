@@ -45,6 +45,7 @@ from agent.charts import (
 from agent.pdf_evidence import MAX_PDF_BYTES, MAX_PDF_PAGES, extract_pdf_evidence
 from agent.reproduction import (
     SUPPORTED_ENDPOINT,
+    discover_pdf_design_scenarios,
     doi_url,
     parse_published_design,
     parse_published_pdf_design,
@@ -720,7 +721,7 @@ def _data_dictionary() -> str:
 
 
 # ─────────────────────── published-decision reproduction ───────────────────────
-_CHEN_EXAMPLE = """Chen et al. (2019), A Bayesian optimal phase II design for accelerating the development of targeted cancer therapies, DOI 10.21037/tcr.2019.05.17. Single-arm binary Phase II design with a Beta(1,1) prior and planned N=50. At the interim, 8 responses were observed among 25 patients. Final success requires posterior P(response rate > 30% | final data) > 95%. Stop for futility when the predictive probability of final success is below 20%. The publication reports predictive probability 0.105, a final efficacy boundary of 21 responses among 50, and a STOP decision at 8/25."""
+_CHEN_EXAMPLE = """Chen et al. (2019), Application of Bayesian predictive probability for interim futility analysis in single-arm phase II trial, DOI 10.21037/tcr.2019.05.17. The paper specifies a single-arm binary Phase II design with a Beta(1,1) prior and planned N=50. Final success requires posterior P(response rate > 30% | final data) > 95%, giving a final efficacy boundary of 21 responses among 50. For the paper's hypothetical first interim boundary at N=25, stop for futility when the predictive probability of final success is below 20%; the stopping rule is 8 or fewer responses. Use 8 responses among 25 as the hypothetical boundary case and STOP as the published rule outcome. The paper does not report a predictive-probability value for this hypothetical case; compute it independently."""
 
 _REPRO_WIDGETS = {
     "publication_title": "repro_title",
@@ -744,9 +745,14 @@ _REPRO_SOURCE_FIELDS = (
     "source_sha256",
     "source_page_count",
     "source_text_page_count",
+    "source_scenario_id",
+    "source_scenario_label",
+    "source_scenario_pages",
 )
 
 _REPRO_FIELD_LABELS = {
+    "publication_title": "Publication title",
+    "doi": "DOI",
     "endpoint_type": "Endpoint",
     "observed_successes": "Observed successes",
     "observed_n": "Interim N",
@@ -826,6 +832,8 @@ def _render_pdf_evidence(parsed: dict, values: dict) -> None:
     page_count = parsed.get("source_page_count") or 0
     text_pages = parsed.get("source_text_page_count") or 0
     fingerprint = html.escape((parsed.get("source_sha256") or "unknown")[:12])
+    scenario_label = html.escape(parsed.get("source_scenario_label") or "Selected scenario")
+    scenario_pages = ", ".join(str(page) for page in parsed.get("source_scenario_pages") or [])
     cards = []
     for field, citation in evidence.items():
         label = html.escape(_REPRO_FIELD_LABELS.get(field, field.replace("_", " ")))
@@ -845,6 +853,7 @@ def _render_pdf_evidence(parsed: dict, values: dict) -> None:
         "<div class='source-rail'><div class='source-rail-head'><div>"
         f"<div class='source-name'>{filename}</div>"
         f"<div class='source-meta'>{text_pages}/{page_count} text pages · SHA {fingerprint}…</div>"
+        f"<div class='source-meta'>Scenario: {scenario_label} · pages {html.escape(scenario_pages or '—')}</div>"
         "</div><div class='source-badge'>PDF EVIDENCE</div></div>"
         f"<div class='evidence-title'>Validated source quotes</div>{evidence_html}</div>",
         unsafe_allow_html=True,
@@ -856,12 +865,22 @@ def _render_pdf_evidence(parsed: dict, values: dict) -> None:
         )
 
 
-def _clear_reproduction_state() -> None:
+def _clear_protocol_lock_state() -> None:
     for key in (
         "repro_spec",
         "repro_result",
         "repro_confirmed_snapshot",
         "repro_confirm",
+    ):
+        st.session_state.pop(key, None)
+
+
+def _clear_reproduction_state() -> None:
+    _clear_protocol_lock_state()
+    for key in (
+        "repro_pdf_document",
+        "repro_pdf_discovery",
+        "repro_scenario_id",
     ):
         st.session_state.pop(key, None)
 
@@ -933,8 +952,11 @@ def _render_repro_result(result: dict) -> None:
     if link:
         st.markdown(f"Source: [Open the DOI record]({link})")
     if source.get("source_mode") == "pdf":
+        scenario = source.get("source_scenario_label") or "selected scenario"
+        pages = ", ".join(str(page) for page in source.get("source_scenario_pages") or [])
         st.caption(
             f"PDF source: {source.get('source_filename') or 'uploaded publication'} · "
+            f"scenario: {scenario} · source pages {pages or '—'} · "
             f"{source.get('source_page_count') or 0} pages · "
             f"SHA-256 {(source.get('source_sha256') or 'unknown')[:16]}… · "
             f"{len(source.get('evidence') or {})} validated field quotes in audit"
@@ -1016,39 +1038,121 @@ def _render_reproduction() -> None:
             max_upload_size=MAX_PDF_BYTES // (1024 * 1024),
             key="repro_pdf",
         )
-        if st.button("Extract PDF design", type="primary", key="repro_parse_pdf"):
+        if st.button("Find reproducible scenarios", type="primary", key="repro_parse_pdf"):
             if uploaded_pdf is None:
                 st.error("Upload a publication PDF first.")
             elif (getattr(uploaded_pdf, "size", None) or 0) > MAX_PDF_BYTES:
                 st.error("The PDF exceeds the 10 MB upload limit.")
             else:
                 try:
-                    with st.spinner("Extracting page text and validating source quotes…"):
+                    with st.spinner("Extracting page text and finding page-anchored scenarios…"):
                         document = extract_pdf_evidence(uploaded_pdf.getvalue(), uploaded_pdf.name)
-                        parsed = parse_published_pdf_design(document)
-                    st.session_state.repro_spec = parsed
-                    st.session_state.pop("repro_result", None)
-                    st.session_state.pop("repro_confirmed_snapshot", None)
-                    _load_repro_widgets(parsed)
+                        discovery = discover_pdf_design_scenarios(document)
+                    _clear_protocol_lock_state()
+                    st.session_state.repro_pdf_document = document
+                    st.session_state.repro_pdf_discovery = discovery
+                    st.session_state.pop("repro_scenario_id", None)
                 except Exception as exc:  # noqa: BLE001
-                    st.error(f"PDF extraction failed: {exc}")
+                    st.error(f"PDF scenario discovery failed: {exc}")
+
+        discovery = st.session_state.get("repro_pdf_discovery")
+        if discovery:
+            identity = discovery.get("publication_title") or "Publication title not validated"
+            doi = discovery.get("doi") or "DOI not validated"
+            st.caption(f"Page-cited identity: {identity} · {doi}")
+            scenarios = discovery.get("scenarios") or []
+            if not scenarios:
+                st.error(
+                    "Reproduction stopped: "
+                    + (
+                        discovery.get("refusal_reason")
+                        or "No page-anchored reproducible scenario was found in this publication."
+                    )
+                )
+            else:
+                scenario_by_id = {item["scenario_id"]: item for item in scenarios}
+
+                def _scenario_option(scenario_id: str) -> str:
+                    item = scenario_by_id[scenario_id]
+                    pages = ", ".join(str(page) for page in item.get("pages") or []) or "?"
+                    support = {
+                        SUPPORTED_ENDPOINT: "supported candidate",
+                        "unsupported": "likely unsupported",
+                    }.get(item.get("endpoint_type"), "support not yet verified")
+                    return f"{item['label']} · pages {pages} · {support}"
+
+                selected_id = st.selectbox(
+                    "Choose the exact scenario, table, or design configuration to reproduce",
+                    options=list(scenario_by_id),
+                    index=None,
+                    format_func=_scenario_option,
+                    placeholder="Select one page-anchored scenario",
+                    key="repro_scenario_id",
+                )
+                if selected_id:
+                    selected = scenario_by_id[selected_id]
+                    location = selected.get("location") or {}
+                    st.caption(
+                        f"Scenario anchor, page {location.get('page', '?')}: "
+                        f"“{location.get('quote', '')}”"
+                    )
+                    if selected.get("reason"):
+                        st.caption(selected["reason"])
+                    if st.button(
+                        "Extract selected scenario",
+                        type="primary",
+                        key="repro_extract_scenario",
+                    ):
+                        try:
+                            with st.spinner("Validating the selected scenario's page quotes…"):
+                                parsed = parse_published_pdf_design(
+                                    st.session_state.repro_pdf_document,
+                                    selected,
+                                    discovery,
+                                )
+                            _clear_protocol_lock_state()
+                            st.session_state.repro_spec = parsed
+                            _load_repro_widgets(parsed)
+                        except Exception as exc:  # noqa: BLE001
+                            st.error(f"Selected-scenario extraction failed: {exc}")
 
     parsed = st.session_state.get("repro_spec")
     if not parsed:
-        st.caption(
-            "The model extracts only stated values. Blank fields must be completed before computation."
-        )
+        if source_mode == "Upload publication PDF" and st.session_state.get("repro_pdf_discovery"):
+            if st.session_state.repro_pdf_discovery.get("scenarios"):
+                st.caption("Select one scenario above before a protocol lock can be created.")
+        else:
+            st.caption(
+                "The model extracts only stated values. Blank fields must be completed before computation."
+            )
         return
 
     missing = parsed.get("missing_fields") or []
     title = parsed.get("publication_title") or "Untitled published design"
     doi = parsed.get("doi") or "No DOI extracted"
-    current_snapshot = _repro_snapshot(_repro_form_values())
+    current_values = _repro_form_values()
+    if parsed.get("source_mode") == "pdf" and parsed.get("endpoint_type") != SUPPORTED_ENDPOINT:
+        _render_pdf_evidence(parsed, current_values)
+        if parsed.get("endpoint_type") == "unsupported":
+            reason = parsed.get("unsupported_reason") or (
+                "The selected scenario is not a single-arm binary beta-binomial interim design."
+            )
+        else:
+            reason = (
+                "The selected scenario could not be verified as a single-arm binary beta-binomial "
+                "interim design from a page-cited quote."
+            )
+        st.error(f"Reproduction stopped: {reason}")
+        st.info(
+            "Choose a different page-anchored scenario. This workflow does not infer or manually "
+            "convert an unsupported design into the supported model."
+        )
+        return
+    current_snapshot = _repro_snapshot(current_values)
     lock_confirmed = bool(
         st.session_state.get("repro_result")
         and current_snapshot == st.session_state.get("repro_confirmed_snapshot")
     )
-    current_values = _repro_form_values()
     if parsed.get("source_mode") == "pdf":
         lock_col, evidence_col = st.columns([1.15, .85])
         with lock_col:

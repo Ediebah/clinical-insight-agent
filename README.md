@@ -20,7 +20,7 @@ does none of that. I built it as a clinical data scientist working in biostatist
 Everything runs on synthetic EHR data, so there is no PHI and the whole project is public and reproducible.
 
 Live demo: [clinical-insight-agent.streamlit.app](https://clinical-insight-agent.streamlit.app).
-CI runs on every push: `dbt build`, 108 data tests, 334 unit tests, and the guardrail eval.
+CI runs on every push: `dbt build`, 108 data tests, 343 unit tests, and the guardrail eval.
 
 ![Demo: a plain-English question is typed and run; the agent states a hypothesis, writes and executes read-only SQL, renders KPI cards and a confidence-interval chart, and the statistical guardrail flags confounding and a missing denominator before the findings.](assets/demo.gif)
 
@@ -55,13 +55,14 @@ warehouse from scratch, see [Run it locally](#run-it-locally-full-rebuild).
   tables it used, runs the guardrail, reviews its own work, and interprets the result. The UI shows every
   step, along with the cost and latency of the run.
 - Reproduces a published Bayesian interim decision from plain-English design text or an uploaded publication
-  PDF. The bounded PDF path accepts text-based files up to 10 MB and 40 pages, links every extracted design
-  value to a page and an exact source quote, and withholds values whose quotes cannot be validated. The user
-  confirms the editable protocol lock; then the exact beta-binomial engine compares its predictive probability,
-  final boundary, and decision with the paper. Missing parameters stay blank instead of receiving hidden
-  defaults, and every run exports a fingerprinted JSON audit record with the PDF fingerprint and validated
-  quotes. PDFs are processed in memory; scanned/image-only files, OCR, encrypted files, and non-single-arm
-  binary designs are not supported in this first workflow.
+  PDF. The bounded PDF path accepts text-based files up to 10 MB and 40 pages, validates publication identity
+  against page 1 or 2, and identifies distinct worked scenarios before it creates a protocol lock. The user
+  selects the exact example, table, or configuration; every extracted value then needs a page-linked source
+  quote. Unsupported designs stop with a reason, and unverified values stay blank instead of receiving hidden
+  defaults. After user confirmation, the exact beta-binomial engine compares its predictive probability, final
+  boundary, and decision with the paper. Every run exports a fingerprinted JSON audit record with the PDF
+  fingerprint, selected scenario, and validated quotes. PDFs are processed in memory; scanned/image-only files,
+  OCR, encrypted files, and non-single-arm binary designs are not supported in this workflow.
 - Picks the model the question calls for and fits it with `statsmodels` or `scikit-learn`, so the numbers are
   computed rather than generated: regression, survival, causal effects, A/B ship-decisions, non-inferiority,
   forecasting, feature importance, and power or sample-size for study design. When you want the *best*
@@ -83,7 +84,7 @@ warehouse from scratch, see [Run it locally](#run-it-locally-full-rebuild).
   warehouse is failing a critical integrity test, so a broken pipeline can't quietly feed corrupt metrics
   into an analysis.
 - Built to run in production: the SQL engine is read-only, there is a live monitoring tab, an eval suite,
-  334 unit tests in CI, a Dockerfile, upload-your-own-data, and a Word-report export.
+  343 unit tests in CI, a Dockerfile, upload-your-own-data, and a Word-report export.
 
 ---
 
@@ -103,9 +104,10 @@ compares candidate models and lands on each publication's own choice:
   Cox model recovers ejection fraction (**HR 0.95** per %) and serum creatinine (**HR 1.36**) as the
   headline mortality predictors — the same two the paper singles out — and the survival curves separate
   reduced- from preserved-ejection-fraction patients.
-- **Bayesian interim go/no-go** — the published worked example of Chen et al. (2019): at an 8/25
-  interim look the agent's `fit_interim` returns a predictive probability of success of **0.105**, the
-  value the paper reports.
+- **Bayesian interim go/no-go** — Chen et al. (2019) specify a final efficacy boundary of 21/50 and a
+  first-interim futility boundary of 8 or fewer responses at N=25. For that hypothetical 8/25 boundary
+  case, the exact engine independently computes a predictive probability of **0.10450076** and returns
+  **STOP**. The probability is an engine result, not a value quoted from the publication.
 - **Machine learning (random forest)** — Wisconsin Diagnostic Breast Cancer (Wolberg et al., 1995): the
   agent's random forest reaches a cross-validated **AUC of 0.99**, inside the reported benchmark band,
   with the settled tumour markers (size, concavity) on top.
@@ -311,7 +313,7 @@ and 6 named metrics with their statistical caveats is generated from the dbt art
 readable to the agent, and a deterministic token-overlap RAG retrieves over it with no embedding calls.
 
 ### Engineering
-- 323 keyless `pytest` unit tests covering the guardrail statistics, SQL validation and security, retrieval,
+- 343 keyless `pytest` unit tests covering the guardrail statistics, SQL validation and security, retrieval,
   charts, agent helpers, modeling, condition-vocabulary grounding, data lineage, and the data-quality gate,
   plus `ruff` and a coverage gate, all run in CI.
 - GitHub Actions CI on every push: Synthea, then DuckDB, then `dbt build` (108 tests), then a catalog
@@ -356,7 +358,7 @@ cp agent/.env.example agent/.env      # then put your OPENAI_API_KEY in agent/.e
 # 4. Run the agent (CLI) + the checks
 .venv/bin/python -m agent.agent "Which conditions are most prevalent in patients 75 and older?"
 .venv/bin/python -m agent.agent "How does survival differ for heart attack patients?"   # → Myocardial infarction cohort
-.venv/bin/pytest                           # 323 keyless unit tests   (ruff check . to lint)
+.venv/bin/pytest                           # 343 keyless unit tests   (ruff check . to lint)
 .venv/bin/python -m agent.guardrail_eval   # guardrail precision/recall (no key)
 .venv/bin/python -m agent.eval_retrieval   # retrieval precision/recall/MRR (no key)
 .venv/bin/python -m agent.eval             # answer accuracy (needs a key)
@@ -408,7 +410,7 @@ overridable with `OPENAI_MODEL`). CI runs on GitHub Actions; the app is packaged
 │   ├── charts.py, llm.py, observe.py, build_catalog.py
 │   └── eval*.py, guardrail_eval.py, eval_dataset.py   the eval suite + GOLD set
 ├── warehouse/                   the dbt project (staging → core → analytics marts + tests + docs)
-├── tests/                       323 keyless pytest unit tests
+├── tests/                       343 keyless pytest unit tests
 ├── scripts/load_raw.py          Synthea CSV → DuckDB raw
 ├── .github/workflows/ci.yml     Synthea → DuckDB → dbt build → catalog → guardrail eval
 ├── Dockerfile, DEPLOY.md
