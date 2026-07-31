@@ -13,9 +13,9 @@ import math
 import re
 from typing import Any
 
-import pandas as pd
+from scipy import stats
 
-from . import bayes, llm, modeling
+from . import bayes, llm
 
 SUPPORTED_ENDPOINT = "single_arm_binary"
 
@@ -184,24 +184,6 @@ def run_reproduction(spec: dict[str, Any], tolerance: float = 0.001) -> dict[str
     gate = resolved["efficacy_gate"]
     futility = resolved["futility_cutoff"]
 
-    records = pd.DataFrame(
-        {"outcome": [1] * successes + [0] * (observed_n - successes)}
-    )
-    result = modeling.fit_interim(
-        records,
-        "outcome",
-        n_planned=planned_n,
-        tv=reference,
-        lrv=reference,
-        gate_tv=gate,
-        gate_lrv=gate,
-        stop_lrv=futility,
-        prior_a=prior_a,
-        prior_b=prior_b,
-    )
-    if result.error:
-        raise ValueError(f"The deterministic engine rejected this design: {result.error}")
-
     prior = bayes.Prior(
         "Confirmed publication prior",
         "beta",
@@ -225,14 +207,19 @@ def run_reproduction(spec: dict[str, Any], tolerance: float = 0.001) -> dict[str
     posterior_probability = float(
         bayes.prob_exceeds("beta", post_a, post_b, reference, True)
     )
-    posterior_term = result.terms[0] if result.terms else None
+    posterior_mean = float(post_a / (post_a + post_b))
+    credible_interval = [float(value) for value in stats.beta.ppf([0.025, 0.975], post_a, post_b)]
+    computed_decision, _ = bayes.decide(
+        posterior_probability,
+        posterior_probability,
+        rule,
+    )
+    if predictive_probability < futility:
+        computed_decision = "STOP"
 
     published_probability = resolved["published_predictive_probability"]
     published_boundary = resolved["published_final_boundary"]
     published_decision = resolved["published_decision"]
-    computed_decision = str(
-        result.verdict.get("call", result.verdict.get("decision", ""))
-    ).upper()
 
     comparisons = [
         _comparison(
@@ -255,11 +242,8 @@ def run_reproduction(spec: dict[str, Any], tolerance: float = 0.001) -> dict[str
                 max(0, final_boundary - successes) if final_boundary is not None else None
             ),
             "decision": computed_decision,
-            "posterior_mean": float(posterior_term.estimate) if posterior_term else None,
-            "credible_interval": (
-                [float(posterior_term.ci_low), float(posterior_term.ci_high)]
-                if posterior_term else None
-            ),
+            "posterior_mean": posterior_mean,
+            "credible_interval": credible_interval,
             "posterior_probability_above_reference": posterior_probability,
         },
         "comparisons": comparisons,
