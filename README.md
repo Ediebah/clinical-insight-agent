@@ -20,7 +20,7 @@ does none of that. I built it as a clinical data scientist working in biostatist
 Everything runs on synthetic EHR data, so there is no PHI and the whole project is public and reproducible.
 
 Live demo: [clinical-insight-agent.streamlit.app](https://clinical-insight-agent.streamlit.app).
-CI runs on every push: `dbt build`, 108 data tests, 323 unit tests, and the guardrail eval.
+CI runs on every push: `dbt build`, 108 data tests, 334 unit tests, and the guardrail eval.
 
 ![Demo: a plain-English question is typed and run; the agent states a hypothesis, writes and executes read-only SQL, renders KPI cards and a confidence-interval chart, and the statistical guardrail flags confounding and a missing denominator before the findings.](assets/demo.gif)
 
@@ -54,11 +54,14 @@ warehouse from scratch, see [Run it locally](#run-it-locally-full-rebuild).
   fixes that SQL on its own when a query errors, returns nothing, or comes back all zeros. Then it cites the
   tables it used, runs the guardrail, reviews its own work, and interprets the result. The UI shows every
   step, along with the cost and latency of the run.
-- Reproduces a published Bayesian interim decision from plain-English design text. The model extracts only
-  stated parameters into an editable protocol lock; the user confirms the resolved design; then the exact
-  beta-binomial engine compares its predictive probability, final boundary, and decision with the paper.
-  Missing parameters stay blank instead of receiving hidden defaults, and every run exports a fingerprinted
-  JSON audit record. This first workflow supports single-arm binary interim futility designs.
+- Reproduces a published Bayesian interim decision from plain-English design text or an uploaded publication
+  PDF. The bounded PDF path accepts text-based files up to 10 MB and 40 pages, links every extracted design
+  value to a page and an exact source quote, and withholds values whose quotes cannot be validated. The user
+  confirms the editable protocol lock; then the exact beta-binomial engine compares its predictive probability,
+  final boundary, and decision with the paper. Missing parameters stay blank instead of receiving hidden
+  defaults, and every run exports a fingerprinted JSON audit record with the PDF fingerprint and validated
+  quotes. PDFs are processed in memory; scanned/image-only files, OCR, encrypted files, and non-single-arm
+  binary designs are not supported in this first workflow.
 - Picks the model the question calls for and fits it with `statsmodels` or `scikit-learn`, so the numbers are
   computed rather than generated: regression, survival, causal effects, A/B ship-decisions, non-inferiority,
   forecasting, feature importance, and power or sample-size for study design. When you want the *best*
@@ -80,7 +83,7 @@ warehouse from scratch, see [Run it locally](#run-it-locally-full-rebuild).
   warehouse is failing a critical integrity test, so a broken pipeline can't quietly feed corrupt metrics
   into an analysis.
 - Built to run in production: the SQL engine is read-only, there is a live monitoring tab, an eval suite,
-  323 unit tests in CI, a Dockerfile, upload-your-own-data, and a Word-report export.
+  334 unit tests in CI, a Dockerfile, upload-your-own-data, and a Word-report export.
 
 ---
 
