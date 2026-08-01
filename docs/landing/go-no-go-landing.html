@@ -508,7 +508,7 @@
             <tr>
               <td class="meth">Bayesian interim<br>go/no-go</td>
               <td class="src">Single-arm phase II worked example<br><cite>Chen &amp; Chen, 2019</cite></td>
-              <td class="repro">predictive probability 0.105<br>at the 8/25 interim look</td>
+              <td class="repro">final boundary 21/50<br>engine PPoS 0.10450076 at 8/25</td>
             </tr>
             <tr>
               <td class="meth">Machine learning<br>(random forest)</td>
@@ -532,9 +532,10 @@
         <span class="k">How it holds</span>
         <p>Each reproduction runs the <b>same <code>agent/modeling.py</code> code the live app uses</b>, and each is
           enforced in CI (<code>tests/test_validation.py</code>): the odds and hazard ratios keep their established
-          magnitude and direction, the AUC stays inside the published band, and the predictive probability stays
-          within 0.001 of the paper's value. A change that quietly breaks the modeling is caught against real ground
-          truth, not synthetic data.</p>
+          magnitude and direction, the AUC stays inside the published band, the final boundary stays at the
+          published 21/50, and the independently computed predictive probability stays at its locked reference.
+          The paper does not report that numerical probability. A change that quietly breaks the modeling is caught
+          against real evidence and fixed numerical expectations, not synthetic data.</p>
       </div>
     </div>
   </section>

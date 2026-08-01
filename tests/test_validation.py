@@ -12,8 +12,8 @@ independent literatures are pinned here:
   * Cox proportional hazards + Kaplan-Meier — UCI Heart Failure Clinical Records (Chicco & Jurman,
     2020). Lower ejection fraction and higher serum creatinine are the headline mortality predictors.
     Data: ``examples/heart_failure.csv``.
-  * Bayesian interim go/no-go — reproduces the published predictive-probability futility calculation
-    of Chen & Chen (2019), a single-arm phase II worked example, to within 0.001.
+  * Bayesian interim go/no-go — applies the published Chen & Chen (2019) design and hypothetical
+    stopping-boundary case, then checks the independently computed predictive probability.
   * Machine learning (random forest) — Wisconsin Diagnostic Breast Cancer (Wolberg et al., 1995). The
     cross-validated AUC lands in the long-reported ~0.97-0.99 band and the top permutation-importance
     features are the settled tumour markers (size and concavity). Data: ``examples/breast_cancer.csv``.
@@ -123,15 +123,16 @@ def test_kaplan_meier_separates_reduced_from_preserved_ejection_fraction():
     assert final["EF < 40 (reduced)"] < final["EF >= 40"]   # reduced EF -> worse survival
 
 
-# ── Bayesian go/no-go: reproduce a published interim-futility calculation (Chen & Chen 2019) ──────────
-def test_interim_reproduces_the_published_predictive_probability():
+# ── Bayesian go/no-go: apply the Chen & Chen (2019) published design ────────────────────────────────
+def test_interim_computes_chen_boundary_case_predictive_probability():
     # Chen & Chen (2019), single-arm phase II: p0=0.30, success if P(rate>0.30)>0.95, Beta(1,1) prior,
-    # 50 planned with an interim after 25. At 8/25 the paper reports a predictive probability of 0.105.
+    # 50 planned with an interim after 25. The paper gives 8/25 as a hypothetical stopping-boundary
+    # case but does not report its predictive probability; the expected value below is engine-derived.
     interim = pd.DataFrame({"response": [1] * 8 + [0] * 17})
     mr = modeling.fit_interim(interim, "response", n_planned=50, tv=0.30, lrv=0.30,
                               gate_tv=0.95, gate_lrv=0.95, stop_lrv=0.0, prior_a=1, prior_b=1)
     assert mr.error is None
-    assert abs(mr.verdict["predictive_prob"] - 0.105) < 0.001
+    assert mr.verdict["predictive_prob"] == pytest.approx(0.1045, abs=1e-12)
 
 
 def test_interim_final_success_boundary_matches_the_paper():
