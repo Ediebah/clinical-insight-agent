@@ -11,7 +11,7 @@ ground truth.
 |---|---|---|---|
 | `heart_disease_validation.py` | logistic regression + random forest | UCI Cleveland heart disease | `ca` OR 3.07, AUC 0.90 |
 | `heart_failure_survival.py` | Cox PH + Kaplan-Meier | UCI Heart Failure Clinical Records | ejection-fraction HR 0.95, creatinine HR 1.36 |
-| `bayesian_interim_futility.py` | Bayesian interim go/no-go | Chen & Chen (2019), phase II worked example | predictive probability 0.105 |
+| `bayesian_interim_futility.py` | Bayesian interim go/no-go | Chen & Chen (2019), phase II boundary case | final boundary 21/50; independently computed probability 0.1045 |
 | `ml_breast_cancer.py` | random forest (machine learning) | Wisconsin Diagnostic Breast Cancer | cross-validated AUC 0.99 |
 | `model_selection.py` | **model-selection engine** (compares models, picks the best) | all three datasets above | the engine lands on each publication's own model |
 | `survival_ml.py` | **survival ML** — random survival forest vs Cox | UCI Heart Failure Clinical Records | tuned forest wins, C-index 0.75, recovers EF + creatinine |
@@ -87,9 +87,9 @@ patients versus **0.74** for preserved-EF.
 
 ## 3. Bayesian go/no-go — the reference
 
-The Bayesian decision engine reasons over response counts, not a table of rows, so its ground truth is
-a *published calculation* rather than a dataset. `bayesian_interim_futility.py` reproduces the worked
-interim-futility example of Chen & Chen (2019).
+The Bayesian decision engine reasons over response counts, not a table of rows. Its validation applies
+the published design and hypothetical interim stopping boundary from Chen & Chen (2019), then checks
+the exact engine calculation against a locked deterministic result.
 
 - Reference: Chen D.-G., Chen J.D. (2019), *Application of Bayesian predictive probability for interim
   futility analysis in single-arm phase II trial*, Translational Cancer Research 8(Suppl 4):S404–S411.
@@ -103,10 +103,10 @@ Run it:
 .venv/bin/python examples/bayesian_interim_futility.py
 ```
 
-At the interim look of **8 responders in 25**, the paper reports a predictive probability of success of
-**0.105** — 13 or more of the remaining 25 would be needed to reach the winning boundary of 21/50. The
-agent's own interim entry point (`modeling.fit_interim`, the call the app makes for a *"continue or
-stop?"* question) returns **0.1045**, the same number to three decimals.
+The paper's hypothetical first-interim stopping boundary is **8 or fewer responders in 25**. At the
+8/25 boundary case, 13 or more of the remaining 25 would be needed to reach the final efficacy boundary
+of 21/50. The agent's generic interim entry point independently computes a predictive probability of
+**0.1045**. The publication does not report a numerical predictive probability for this case.
 
 ## 4. Machine learning — the dataset
 
@@ -195,6 +195,7 @@ on out-of-fold predictions so nothing is optimistic:
 
 Every number above comes from the same `agent/modeling.py` code the live app runs, and every one is
 **CI-enforced** in `tests/test_validation.py`: the AUC stays in the published band, the odds ratios and
-hazard ratios keep their established magnitude and direction, and the predictive probability stays
-within 0.001 of the published value. A change that silently breaks the modeling is caught against real
-ground truth, not just synthetic data.
+hazard ratios keep their established magnitude and direction, the Bayesian final boundary stays at the
+published 21/50, and the independently computed predictive probability stays at its locked deterministic
+reference. A change that silently breaks the modeling is caught against real evidence and fixed numerical
+expectations, not just synthetic data.

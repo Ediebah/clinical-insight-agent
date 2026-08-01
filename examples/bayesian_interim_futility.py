@@ -1,9 +1,9 @@
-"""Reproduce a published Bayesian interim-futility calculation.
+"""Apply a published Bayesian interim-futility design with an exact engine.
 
 The heart-disease and heart-failure examples check the agent's *regression* code against real datasets.
-This one does the same for the agent's *Bayesian go/no-go* engine, which reasons over response counts
-rather than a table of rows: it reproduces the worked predictive-probability calculation from a
-published methods paper, to the third decimal.
+This one tests the agent's *Bayesian go/no-go* engine, which reasons over response counts rather than
+a table of rows. It applies a design and hypothetical stopping-boundary case from a published methods
+paper, then checks the independently computed predictive probability against a locked engine value.
 
     Reference : Chen D.-G., Chen J.D. (2019), "Application of Bayesian predictive probability for
                 interim futility analysis in single-arm phase II trial", Translational Cancer Research
@@ -12,12 +12,13 @@ published methods paper, to the third decimal.
                 response rate exceeds p0 = 30%. Success at the final analysis is declared when the
                 posterior probability P(rate > 0.30) exceeds 0.95, under a non-informative Beta(1,1)
                 prior. Planned enrolment is 50, with one interim look after 25 patients.
-    The look  : 8 of the first 25 patients responded. The paper reports the predictive probability that
-                the trial will still succeed at n = 50 -- i.e. that 13 or more of the remaining 25 will
-                respond, pushing the total to the winning boundary of 21/50 -- as 0.105.
+    The case  : The paper's hypothetical first-interim stopping boundary is 8 or fewer responses among
+                25 patients. At 8/25, 13 or more of the remaining 25 must respond to reach the final
+                efficacy boundary of 21/50. The paper does not report a predictive-probability value
+                for this case; the engine independently computes it.
 
-The agent's own interim engine (`modeling.fit_interim`, the same call the app makes for a "continue or
-stop?" question) is handed exactly that interim look and must return the same number.
+The agent's own interim engine (`modeling.fit_interim`, the same calculation the app uses for an
+interim question) is handed that boundary case and must return the locked deterministic result.
 
 Run:  .venv/bin/python examples/bayesian_interim_futility.py
 """
@@ -31,8 +32,8 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))   # run as a standalone script
 from agent import bayes, modeling  # noqa: E402
 
-PUBLISHED_PPOS = 0.105        # Chen & Chen (2019), predictive probability at the 8/25 interim
-GO_BOUNDARY = 21             # final responders of 50 needed to declare success
+EXPECTED_ENGINE_PPOS = 0.1045  # Rounded value returned by this entry point; not reported by the paper.
+GO_BOUNDARY = 21               # Published final responders needed to declare success.
 
 
 def main() -> None:
@@ -53,21 +54,21 @@ def main() -> None:
     print("   enrolment   50 planned, interim after 25")
     print(f"   interim     {mr.fit_stat}\n")
 
-    print("Judged against the paper")
+    print("Publication boundary and independently computed result")
     print("-" * 62)
     prior = bayes.Prior("Vague", "beta", (1.0, 1.0), "non-informative Beta(1,1)")
     rule = bayes.DecisionRule(tv=0.30, lrv=0.30, gate_tv=0.95, gate_lrv=0.95, stop_lrv=0.0)
     go = bayes.go_grid_binary(prior, 50, rule)
     checks = [
-        (f"Predictive probability of success matches the published {PUBLISHED_PPOS} (to within 0.001)",
-         abs(ppos - PUBLISHED_PPOS) < 0.001),
-        (f"Final success boundary is {GO_BOUNDARY} of 50 responders",
+        (f"Engine PPoS matches its locked reference {EXPECTED_ENGINE_PPOS:.4f}",
+         abs(ppos - EXPECTED_ENGINE_PPOS) < 1e-12),
+        (f"Published final success boundary is {GO_BOUNDARY} of 50 responders",
          next(r for r in range(51) if go[r] == 1) == GO_BOUNDARY),
     ]
     for label, ok in checks:
         print(f"   [{'PASS' if ok else 'FAIL'}] {label}")
-    print(f"\nThe agent's interim call returns PPoS = {ppos:.4f}, the same 0.105 the paper reports for "
-          "this look, from the same code the app runs for a \"continue or stop?\" question.")
+    print(f"\nThe agent independently computes PPoS = {ppos:.4f} for the paper's hypothetical 8/25 "
+          "boundary case. Chen & Chen do not report this numerical probability.")
 
 
 if __name__ == "__main__":
