@@ -27,6 +27,7 @@ try:
 except Exception:
     pass  # no secrets.toml locally — falls back to agent/.env
 
+import about
 from agent.agent import run_analysis
 from agent.charts import (
     assurance_curve_chart,
@@ -133,6 +134,72 @@ CSS = """
 .meta{ font-family:var(--font-mono); font-size:.73rem; color:var(--faint); margin-top:1rem;
   display:flex; gap:.5rem; align-items:center; }
 .meta .dot{ color:var(--border); }
+
+/* ── about page — follows docs/index.html's format in this app's tokens ───────────────────── */
+/* section head: serif h2 + muted standfirst, baseline-aligned */
+.sec-head{ display:flex; align-items:baseline; gap:1rem; flex-wrap:wrap;
+  margin:2.6rem 0 1.3rem; padding-top:1.6rem; border-top:1px solid var(--border-soft); }
+.sec-head.first{ border-top:0; padding-top:0; margin-top:1.4rem; }
+.sec-head h2{ font-family:var(--font-display); font-weight:600; font-size:1.85rem; line-height:1.12;
+  letter-spacing:-.01em; color:var(--text); margin:0; }
+.sec-head p{ margin:0; color:var(--muted); font-size:.95rem; }
+
+/* lede — the opening statement */
+.lede{ font-size:1.12rem; line-height:1.66; color:var(--muted); max-width:66ch; margin:.9rem 0 0; }
+.lede strong{ color:var(--text); font-weight:600; }
+
+/* hairline-gutter cell grid: 1px gaps over a border-coloured bed reads as ruled cells */
+.cellgrid{ display:grid; gap:1px; background:var(--border-soft); border:1px solid var(--border-soft);
+  border-radius:14px; overflow:hidden; margin-top:.2rem; }
+.cellgrid.c3{ grid-template-columns:repeat(auto-fit,minmax(17rem,1fr)); }
+.cellgrid.c2{ grid-template-columns:repeat(2,1fr); }
+.cellgrid.c6{ grid-template-columns:repeat(3,1fr); }
+.cellgrid.c4{ grid-template-columns:repeat(4,1fr); }
+.cellgrid > div{ background:var(--surface); padding:1.15rem 1.25rem 1.3rem;
+  display:flex; flex-direction:column; }   /* flex so .tag can bottom-align across ragged cells */
+.cell .q{ font-family:var(--font-display); font-size:1.08rem; font-weight:500; color:var(--text);
+  display:block; margin-bottom:.45rem; line-height:1.25; }
+.cell .d{ color:var(--muted); font-size:.9rem; line-height:1.58; margin:0; }
+.cell .tag{ align-self:flex-start; font-family:var(--font-mono); font-size:.66rem; letter-spacing:.06em;
+  color:var(--accent); background:rgba(79,209,197,.09); padding:.18rem .48rem; border-radius:5px;
+  margin-top:auto; padding-top:.18rem; }
+.cell .tag-sp{ height:.75rem; }            /* min gap when the description already fills the cell */
+.cell .n{ font-family:var(--font-mono); font-size:.7rem; font-weight:500; letter-spacing:.1em;
+  color:var(--accent); }
+.cell .ico{ font-size:1.25rem; line-height:1; }
+.cell h3{ font-family:var(--font-body); font-size:1rem; font-weight:600; color:var(--text);
+  margin:.45rem 0 .3rem; }
+/* display face, not mono: IBM Plex Mono's tabular comma makes "1,139" read as "1 , 139" */
+.cell .stat{ font-family:var(--font-display); font-weight:600; font-size:2rem; letter-spacing:-.01em;
+  color:var(--text); line-height:1.1; margin:.15rem 0 .1rem; }
+.cell .statlab{ font-family:var(--font-mono); font-size:.66rem; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--muted); }
+.cell .statsub{ font-family:var(--font-mono); font-size:.72rem; color:var(--accent); }
+
+/* method chips */
+.chips{ display:flex; flex-wrap:wrap; gap:.5rem; margin-top:1.1rem; }
+.chip{ font-family:var(--font-mono); font-size:.75rem; color:var(--muted); background:var(--surface);
+  border:1px solid var(--border-soft); border-radius:7px; padding:.38rem .65rem; white-space:nowrap; }
+
+/* limits — left-ruled list */
+.limits{ list-style:none; padding:0; margin:.3rem 0 0; display:flex; flex-direction:column; gap:.85rem; }
+.limits li{ color:var(--muted); font-size:.94rem; line-height:1.6; padding-left:1rem;
+  border-left:2px solid var(--border); }
+.limits li b{ color:var(--text); font-weight:600; }
+
+/* accent-ruled note */
+.note{ display:flex; gap:1.1rem; align-items:flex-start; margin-top:1.3rem; background:var(--surface);
+  border:1px solid var(--border-soft); border-left:3px solid var(--accent); border-radius:12px;
+  padding:1rem 1.25rem; }
+.note .k{ font-family:var(--font-mono); font-size:.7rem; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--accent); font-weight:500; white-space:nowrap; padding-top:.2rem; }
+.note p{ margin:0; color:var(--muted); font-size:.93rem; line-height:1.6; }
+.note p b{ color:var(--text); font-weight:600; }
+
+@media (max-width:860px){ .cellgrid.c6{ grid-template-columns:repeat(2,1fr); }
+  .cellgrid.c4{ grid-template-columns:repeat(2,1fr); } }
+@media (max-width:560px){ .cellgrid.c6,.cellgrid.c4,.cellgrid.c2{ grid-template-columns:1fr; }
+  .note{ flex-direction:column; gap:.5rem; } }
 
 /* eyebrow section labels */
 .eyebrow{ font-family:var(--font-mono); font-size:.72rem; letter-spacing:.2em;
@@ -1267,6 +1334,64 @@ def _render_reproduction() -> None:
         _render_repro_result(st.session_state.repro_result)
 
 
+# ───────────────────────────── about (default landing view) ─────────────────────────────
+def _sec(title: str, standfirst: str, first: bool = False) -> None:
+    """The landing page's section head: serif title + muted standfirst on a shared baseline."""
+    st.markdown(f"<div class='sec-head{' first' if first else ''}'><h2>{html.escape(title)}</h2>"
+                f"<p>{html.escape(standfirst)}</p></div>", unsafe_allow_html=True)
+
+
+def _render_about() -> None:
+    """Static copy only — no warehouse read, no session state. This is the view every visitor
+    loads first, so it must render instantly and must not be able to fail on a bad DB connection.
+
+    Follows the format of the project's landing page (docs/index.html) — serif section heads,
+    hairline-gutter cell grids, numbered pipeline steps — but in this app's own tokens, so About
+    doesn't read as a different product from Dashboard and Monitoring."""
+    e = html.escape
+
+    _sec("What this is", about.LEAD_STANDFIRST, first=True)
+    st.markdown(f"<p class='lede'>{e(about.LEAD)} <strong>{e(about.LEAD_STRONG)}</strong></p>",
+                unsafe_allow_html=True)
+    st.markdown("<div class='chips'>" + "".join(
+        f"<span class='chip'>{e(c)}</span>" for c in about.METHOD_CHIPS) + "</div>",
+        unsafe_allow_html=True)
+
+    _sec("What you can ask", "Plain English in, a fitted model out.")
+    st.markdown("<div class='cellgrid c6'>" + "".join(
+        f"<div class='cell'><span class='q'>{e(q)}</span><p class='d'>{e(d)}</p>"
+        f"<div class='tag-sp'></div><span class='tag'>{e(t)}</span></div>"
+        for q, d, t in about.QUESTION_CELLS) + "</div>", unsafe_allow_html=True)
+
+    _sec("What data sits behind it", "Synthetic by design, so the whole project is public.")
+    st.markdown("<div class='cellgrid c4'>" + "".join(
+        f"<div class='cell'><div class='statlab'>{e(_l)}</div><div class='stat'>{e(_v)}</div>"
+        f"<div class='statsub'>{e(_s)}</div></div>" for _l, _v, _s in about.DATA_FACTS)
+        + "</div>", unsafe_allow_html=True)
+    st.markdown(about.DATA_NOTE)
+    st.markdown(f"**{about.BYOD_LABEL}.** {about.BYOD_NOTE}")
+
+    _sec("How a question becomes an answer", "One question runs the whole analysis; the UI shows every step.")
+    st.markdown("<div class='cellgrid c6'>" + "".join(
+        f"<div class='cell'><span class='n'>{e(n)}</span><h3>{e(title)}</h3><p class='d'>{e(desc)}</p></div>"
+        for n, title, desc in about.PIPELINE) + "</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='note'><span class='k'>{e(about.GUARDRAIL_NOTE_LABEL)}</span>"
+                f"<p>The guardrail is the part worth reading before the headline number. It is "
+                f"<b>computed, not generated</b>: a language model may phrase a caveat, but no "
+                f"language model decides whether one applies.</p></div>", unsafe_allow_html=True)
+
+    _sec("What it will not do", "The boundaries, stated up front.")
+    st.markdown("<ul class='limits'>" + "".join(
+        f"<li><b>{e(head)}</b> {e(body)}</li>" for head, body in about.LIMITS) + "</ul>",
+        unsafe_allow_html=True)
+
+    _sec("Getting started", "Four views. Two of them need no API key.")
+    st.markdown("<div class='cellgrid c2'>" + "".join(
+        f"<div class='cell'><span class='ico'>{icon}</span><h3>{e(name)}</h3>"
+        f"<p class='d'>{e(desc)}</p></div>" for icon, name, desc in about.GETTING_STARTED)
+        + "</div>", unsafe_allow_html=True)
+
+
 # ───────────────────────────── hero ─────────────────────────────
 st.markdown("""
 <div class="hero">
@@ -1283,8 +1408,11 @@ st.markdown("""
 
 # ───────────────────────────── nav ─────────────────────────────
 _view = st.segmented_control(
-    "nav", ["🔬 Analyze", "🧾 Reproduce", "📈 Dashboard", "📊 Monitoring"], default="🔬 Analyze",
-                             label_visibility="collapsed")
+    "nav", ["ℹ️ About", "🔬 Analyze", "🧾 Reproduce", "📈 Dashboard", "📊 Monitoring"],
+    default="ℹ️ About", label_visibility="collapsed")
+if _view == "ℹ️ About":                                  # the default landing view — orient, then stop
+    _render_about()
+    st.stop()
 if _view == "🧾 Reproduce":
     _render_reproduction()
     st.stop()

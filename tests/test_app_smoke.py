@@ -38,6 +38,7 @@ def _publication_pdf() -> bytes:
 
 
 def test_app_renders_without_exception():
+    """Default view — About, since that is what a first-time visitor loads."""
     at = AppTest.from_file("app.py", default_timeout=120)
     at.run()
     assert not at.exception, [str(e.value) for e in at.exception]
@@ -255,3 +256,12 @@ def test_reproduction_pdf_explicitly_stops_an_unsupported_selected_scenario(monk
     assert not at.exception, [str(e.value) for e in at.exception]
     assert any("Reproduction stopped" in str(item.value) for item in at.error)
     assert not any("Confirm protocol lock" in str(item.label) for item in at.button)
+
+
+def test_analyze_view_renders_without_exception():
+    """About is the default landing view, so test_app_renders_without_exception no longer reaches
+    the analyze flow. Drive the nav back to it, or a break in the question path ships green."""
+    at = AppTest.from_file("app.py", default_timeout=120)
+    at.run()
+    at.segmented_control[0].set_value("🔬 Analyze").run()
+    assert not at.exception, [str(e.value) for e in at.exception]
