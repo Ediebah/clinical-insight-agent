@@ -160,7 +160,7 @@ Two precision points that the copy must respect, both from this pass:
 
 ## 6. Testing
 
-- **`tests/test_about.py` (new, 8 tests)** — imports `about` with no Streamlit dependency and asserts the copy still carries its load-bearing claims: the four disclosures (`synthetic`, `no PHI`, `read-only`, `1,000 rows`), the four counts against the manifest, that models and queryable tables stay stated *separately*, that the absence claim stays scoped to "name a condition", that every question cell is a complete triple, and that the pipeline stays numbered in order. This is the point of putting copy in its own module: a later edit that quietly drops the PHI disclosure fails CI.
+- **`tests/test_about.py` (new, 7 tests)** — imports `about` with no Streamlit dependency and asserts the copy still carries its load-bearing claims: the four disclosures (`synthetic`, `no PHI`, `read-only`, `1,000 rows`), the four counts against the manifest, that models and queryable tables stay stated *separately*, that the absence claim stays scoped to "name a condition", that every question cell is a complete triple, and that the pipeline stays numbered in order. This is the point of putting copy in its own module: a later edit that quietly drops the PHI disclosure fails CI.
 - **`tests/test_app_smoke.py` (amend)** — the app now defaults to About, so the existing smoke test will exercise About rather than the Analyze flow. Add a second `AppTest` case that drives the nav back to `🔬 Analyze` and re-runs, restoring the coverage the default change would otherwise silently drop:
   ```python
   at.segmented_control[0].set_value("🔬 Analyze").run()
@@ -178,7 +178,8 @@ the agent, the warehouse, the modeling suite, or any existing view's behaviour.
 
 Explicitly out of scope: clickable example questions that jump into Analyze; live warehouse
 statistics on the page; any restructuring of `app.py` beyond the nav block and the CSS additions;
-reconciling `README.md:23` (which says 291 unit tests while the root suite now collects 352).
+reconciling the README's unit-test count, which this page's 8 new tests make stale (344 → 352).
+*Addressed separately after merge; the count appears in five places in `README.md`, not one.*
 
 ## 8. Verification
 
