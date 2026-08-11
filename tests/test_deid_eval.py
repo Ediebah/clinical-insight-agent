@@ -239,3 +239,31 @@ def test_history_record_is_one_json_object_per_line(tmp_path, monkeypatch):
     lines = hist.read_text().strip().split("\n")
     assert len(lines) == 2
     assert json.loads(lines[1])["ts"] == "y"
+
+
+def test_main_success_path_includes_disclaimer_and_appends_history(tmp_path, monkeypatch, capsys):
+    """Integration test: main() success path invokes _print() which must include the disclaimer."""
+    hist = tmp_path / "h.jsonl"
+    monkeypatch.setattr(deid_eval, "HISTORY", hist)
+    monkeypatch.setattr(deid_eval, "load_rows",
+                        lambda db_path=None, limit=200: [dict(_ROW, Id="id-0")])
+    monkeypatch.setattr(deid, "available", lambda: True)
+    monkeypatch.setattr(deid, "scan_columns", lambda frame, sample=20: [])
+    monkeypatch.setattr(deid, "scrub_values", lambda vals: list(vals))
+    exit_code = deid_eval.main([])
+    assert exit_code == 0
+    lines = hist.read_text().strip().split("\n")
+    assert len(lines) == 1
+    captured = capsys.readouterr().out
+    assert "Not a real-world figure" in captured
+    assert "still Synthea's" in captured
+
+
+def test_main_rejects_non_integer_limit_cleanly(monkeypatch, capsys):
+    """Non-integer --limit= must return 1 and print a readable message, not raise."""
+    monkeypatch.setattr(deid, "available", lambda: True)
+    exit_code = deid_eval.main(["--limit=abc"])
+    assert exit_code == 1
+    captured = capsys.readouterr().out
+    assert "Invalid" in captured or "not an integer" in captured
+    assert "abc" in captured

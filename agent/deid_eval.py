@@ -283,7 +283,11 @@ def main(argv: list[str] | None = None) -> int:
     limit = 200
     for a in argv:
         if a.startswith("--limit="):
-            limit = int(a.split("=", 1)[1])
+            try:
+                limit = int(a.split("=", 1)[1])
+            except ValueError:
+                print(f"Invalid --limit value: {a.split('=', 1)[1]} is not an integer.")
+                return 1
     rec = run(limit=limit)
     _print(rec)
     append_history(rec)
