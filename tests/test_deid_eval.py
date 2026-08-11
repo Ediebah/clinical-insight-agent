@@ -123,7 +123,7 @@ def test_build_notes_pairs_each_note_with_what_was_inserted():
     notes = deid_eval.build_notes(_identities(2))
     assert len(notes) == 2
     text, truth = notes[0]
-    for kind in ("name", "ssn", "address", "zip", "mrn", "date"):
+    for kind in ("first_name", "last_name", "ssn", "address", "zip", "mrn", "date"):
         assert kind in truth
         assert truth[kind] in text          # ground truth by construction
 
@@ -154,11 +154,42 @@ def test_score_spans_reports_recall_per_type_not_aggregated(monkeypatch):
         out = []
         for v in vals:
             for _text, truth in notes:
-                v = v.replace(truth["name"], "[REDACTED]")
+                v = v.replace(truth["first_name"], "[REDACTED]")
+                v = v.replace(truth["last_name"], "[REDACTED]")
             out.append(v)
         return out
     monkeypatch.setattr(deid, "scrub_values", masks_names_only)
     out = deid_eval.score_spans(notes)
-    assert out["recall"]["name"] == 1.0
+    assert out["recall"]["first_name"] == 1.0
+    assert out["recall"]["last_name"] == 1.0
     assert out["recall"]["ssn"] == 0.0
     assert out["leaks"]["ssn"]          # the surviving value is reported as evidence
+
+
+def test_score_spans_catches_partial_masking_of_name_components(monkeypatch):
+    """Masking only last name must not yield full success; first_name should be exposed."""
+    notes = deid_eval.build_notes(_identities(2))
+
+    def masks_last_name_only(vals):
+        out = []
+        for v in vals:
+            for _text, truth in notes:
+                v = v.replace(truth["last_name"], "[REDACTED]")
+            out.append(v)
+        return out
+    monkeypatch.setattr(deid, "scrub_values", masks_last_name_only)
+    out = deid_eval.score_spans(notes)
+    assert out["recall"]["last_name"] == 1.0
+    assert out["recall"]["first_name"] == 0.0  # not masked — failure
+    assert out["leaks"]["first_name"]  # evidence captured
+
+
+def test_score_spans_raises_on_wrong_output_length(monkeypatch):
+    """Silent truncation reporting perfect scores is worse than any other failure mode."""
+    notes = deid_eval.build_notes(_identities(2))
+
+    def returns_fewer_items(vals):
+        return ["[REDACTED]"]  # wrong: expected 2, returned 1
+    monkeypatch.setattr(deid, "scrub_values", returns_fewer_items)
+    with pytest.raises(ValueError, match="scrub_values returned .* expected"):
+        deid_eval.score_spans(notes)

@@ -167,7 +167,7 @@ def score_columns(df: pd.DataFrame, truth: set[str]) -> dict:
 _NOTE = ("Patient {name} (MRN {mrn_digits}), DOB {date}, SSN {ssn}, resides at {address}, "
          "{city} {zip}. Seen today in clinic; vitals stable and follow-up arranged.")
 
-ENTITY_TYPES = ("name", "ssn", "address", "zip", "mrn", "date")
+ENTITY_TYPES = ("first_name", "last_name", "ssn", "address", "zip", "mrn", "date")
 
 
 def build_notes(identities: list[Identity]) -> list[tuple[str, dict[str, str]]]:
@@ -182,14 +182,21 @@ def build_notes(identities: list[Identity]) -> list[tuple[str, dict[str, str]]]:
         mrn_digits = i.mrn.replace("MRN ", "")
         text = _NOTE.format(name=name, mrn_digits=mrn_digits, date=i.birthdate, ssn=i.ssn,
                             address=i.address, city=i.city, zip=i.zip)
-        out.append((text, {"name": name, "ssn": i.ssn, "address": i.address,
-                           "zip": i.zip, "mrn": mrn_digits, "date": i.birthdate}))
+        out.append((text, {"first_name": i.first, "last_name": i.last, "ssn": i.ssn,
+                           "address": i.address, "zip": i.zip, "mrn": mrn_digits,
+                           "date": i.birthdate}))
     return out
 
 
 def score_spans(notes: list[tuple[str, dict[str, str]]]) -> dict:
     """Per-entity-type recall: the share of inserted values no longer present after scrubbing."""
-    scrubbed = deid.scrub_values([t for t, _ in notes])
+    texts = [t for t, _ in notes]
+    scrubbed = deid.scrub_values(texts)
+    if len(scrubbed) != len(texts):
+        raise ValueError(
+            f"scrub_values returned {len(scrubbed)} items but expected {len(texts)}; "
+            "silent truncation would report perfect scores on dropped notes"
+        )
     found = {k: 0 for k in ENTITY_TYPES}
     total = {k: 0 for k in ENTITY_TYPES}
     leaks: dict[str, list[str]] = {k: [] for k in ENTITY_TYPES}
