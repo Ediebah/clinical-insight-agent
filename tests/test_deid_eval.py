@@ -117,3 +117,48 @@ def test_score_columns_checks_that_age_and_sex_stay_quasi(monkeypatch):
                                    examples=[], suggested="drop", severity="direct")]
     monkeypatch.setattr(deid, "scan_columns", fake_scan)
     assert deid_eval.score_columns(df, truth)["quasi_ok"] is False
+
+
+def test_build_notes_pairs_each_note_with_what_was_inserted():
+    notes = deid_eval.build_notes(_identities(2))
+    assert len(notes) == 2
+    text, truth = notes[0]
+    for kind in ("name", "ssn", "address", "zip", "mrn", "date"):
+        assert kind in truth
+        assert truth[kind] in text          # ground truth by construction
+
+
+def test_score_spans_is_perfect_when_everything_is_masked(monkeypatch):
+    notes = deid_eval.build_notes(_identities(2))
+    monkeypatch.setattr(deid, "scrub_values",
+                        lambda vals: ["[REDACTED]" for _ in vals])
+    out = deid_eval.score_spans(notes)
+    assert out["overall"] == 1.0
+    assert all(v == 1.0 for v in out["recall"].values())
+    assert all(not v for v in out["leaks"].values())
+
+
+def test_score_spans_is_zero_when_nothing_is_masked(monkeypatch):
+    notes = deid_eval.build_notes(_identities(2))
+    monkeypatch.setattr(deid, "scrub_values", lambda vals: list(vals))
+    out = deid_eval.score_spans(notes)
+    assert out["overall"] == 0.0
+    assert all(v == 0.0 for v in out["recall"].values())
+
+
+def test_score_spans_reports_recall_per_type_not_aggregated(monkeypatch):
+    """An aggregate would have averaged away the MRN failure that motivated this benchmark."""
+    notes = deid_eval.build_notes(_identities(2))
+
+    def masks_names_only(vals):
+        out = []
+        for v in vals:
+            for _text, truth in notes:
+                v = v.replace(truth["name"], "[REDACTED]")
+            out.append(v)
+        return out
+    monkeypatch.setattr(deid, "scrub_values", masks_names_only)
+    out = deid_eval.score_spans(notes)
+    assert out["recall"]["name"] == 1.0
+    assert out["recall"]["ssn"] == 0.0
+    assert out["leaks"]["ssn"]          # the surviving value is reported as evidence

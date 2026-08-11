@@ -162,3 +162,46 @@ def score_columns(df: pd.DataFrame, truth: set[str]) -> dict:
         "false_positives": sorted(false_positives),
         "quasi_ok": quasi_ok,
     }
+
+
+_NOTE = ("Patient {name} (MRN {mrn_digits}), DOB {date}, SSN {ssn}, resides at {address}, "
+         "{city} {zip}. Seen today in clinic; vitals stable and follow-up arranged.")
+
+ENTITY_TYPES = ("name", "ssn", "address", "zip", "mrn", "date")
+
+
+def build_notes(identities: list[Identity]) -> list[tuple[str, dict[str, str]]]:
+    """Note-like text with known identifiers embedded, paired with what was inserted.
+
+    Templated, not real: ground truth requires knowing exactly what went in. Real clinical text is
+    messier and would very likely score worse — see the spec's open risks.
+    """
+    out = []
+    for i in identities:
+        name = f"{i.first} {i.last}"
+        mrn_digits = i.mrn.replace("MRN ", "")
+        text = _NOTE.format(name=name, mrn_digits=mrn_digits, date=i.birthdate, ssn=i.ssn,
+                            address=i.address, city=i.city, zip=i.zip)
+        out.append((text, {"name": name, "ssn": i.ssn, "address": i.address,
+                           "zip": i.zip, "mrn": mrn_digits, "date": i.birthdate}))
+    return out
+
+
+def score_spans(notes: list[tuple[str, dict[str, str]]]) -> dict:
+    """Per-entity-type recall: the share of inserted values no longer present after scrubbing."""
+    scrubbed = deid.scrub_values([t for t, _ in notes])
+    found = {k: 0 for k in ENTITY_TYPES}
+    total = {k: 0 for k in ENTITY_TYPES}
+    leaks: dict[str, list[str]] = {k: [] for k in ENTITY_TYPES}
+    for out_text, (_orig, truth) in zip(scrubbed, notes):
+        for kind, value in truth.items():
+            total[kind] += 1
+            if value not in out_text:
+                found[kind] += 1
+            elif len(leaks[kind]) < 5:      # evidence, capped so output stays readable
+                leaks[kind].append(value)
+    recall = {k: (found[k] / total[k] if total[k] else 1.0) for k in ENTITY_TYPES}
+    all_found, all_total = sum(found.values()), sum(total.values())
+    return {"recall": recall,
+            "overall": all_found / all_total if all_total else 1.0,
+            "leaks": leaks}
