@@ -20,6 +20,8 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
+import pandas as pd
+
 log = logging.getLogger(__name__)
 
 MODEL_ID = "OpenMed/OpenMed-PII-SuperClinical-Small-44M-v1-onnx-android"
@@ -104,4 +106,61 @@ def scrub_values(values: list[str]) -> list[str]:
         except Exception as exc:  # noqa: BLE001
             log.warning("scrub failed for one value: %s", exc)
             out.append(REDACTION)      # fail CLOSED per value: an unscrubbable value is redacted
+    return out
+
+
+def scan_columns(df: pd.DataFrame, sample: int = 20) -> list[ColumnFinding]:
+    """Sample each column and report which look like they hold identifiers.
+
+    Sampling, not exhaustive: the frame can be 12M cells and never leaves the machine, so the
+    scan exists to inform a per-COLUMN decision, not to find every cell. That structural framing
+    is what keeps the feature honest despite the model's unpublished recall.
+    """
+    if _model() is None:
+        return []
+    findings: list[ColumnFinding] = []
+    for col in df.columns:
+        values = [str(v) for v in df[col].dropna().unique()[:sample]]
+        if not values:
+            continue
+        labels, hits = [], 0
+        for v in values:
+            found = [label for _s, _e, label in _spans(v)]
+            if found:
+                hits += 1
+                labels.extend(found)
+        if not hits:
+            continue
+        rate = hits / len(values)
+        findings.append(ColumnFinding(
+            column=str(col),
+            entity_types=sorted(set(labels)),
+            hit_rate=rate,
+            examples=scrub_values(values[:3]),          # redacted previews only
+            suggested="drop" if rate >= DROP_THRESHOLD else "mask",
+        ))
+    return findings
+
+
+def apply_decisions(df: pd.DataFrame, drop: list[str], mask: list[str]) -> pd.DataFrame:
+    """Drop the named columns outright and mask identifiers within the others.
+
+    Dropping happens before the frame reaches DuckDB, so a dropped column can appear neither in
+    the catalog's example values nor in any query result — one action closes two exits.
+    """
+    out = df.drop(columns=[c for c in drop if c in df.columns])
+    for col in mask:
+        if col in out.columns:
+            out[col] = scrub_values([str(v) for v in out[col]])
+    return out
+
+
+def scrub_frame(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
+    """Mask identifiers in the named columns of a result frame. Returns df unchanged if none."""
+    cols = [c for c in columns if c in df.columns]
+    if not cols:
+        return df
+    out = df.copy()
+    for col in cols:
+        out[col] = scrub_values([str(v) for v in out[col]])
     return out

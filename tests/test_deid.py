@@ -8,6 +8,7 @@ The mocks mirror the REAL API, verified by installing the package and calling it
 import sys
 import types
 
+import pandas as pd
 import pytest
 
 from agent import deid
@@ -81,3 +82,59 @@ def test_scrub_values_ignores_low_confidence_spans(monkeypatch):
         return [types.SimpleNamespace(label="city", score=0.1, start=0, end=4, text="Mass")]
     monkeypatch.setattr(deid, "_load_model", lambda: _low)
     assert deid.scrub_values(["Mass General"]) == ["Mass General"]
+
+
+# ── column scanning and decisions ───────────────────────────────────────────────────────────────
+
+_NAMES = {"John Doe": [("first_name", 0, 8)], "Jane Roe": [("first_name", 0, 8)]}
+
+
+def test_scan_flags_an_identifying_column_and_ignores_a_numeric_one(monkeypatch):
+    monkeypatch.setattr(deid, "_load_model", lambda: _fake_model(_NAMES))
+    df = pd.DataFrame({"patient": ["John Doe", "Jane Roe"], "age": [41, 52]})
+    findings = deid.scan_columns(df)
+    assert [f.column for f in findings] == ["patient"]
+    assert findings[0].entity_types == ["first_name"]     # lowercase snake_case, per the real model
+    assert findings[0].hit_rate == 1.0
+
+
+def test_scan_suggests_drop_at_high_hit_rate_and_mask_below(monkeypatch):
+    monkeypatch.setattr(deid, "_load_model", lambda: _fake_model(_NAMES))
+    high = pd.DataFrame({"name": ["John Doe", "Jane Roe"]})
+    low = pd.DataFrame({"notes": ["John Doe", "seen in clinic", "no issues", "stable"]})
+    assert deid.scan_columns(high)[0].suggested == "drop"
+    assert deid.scan_columns(low)[0].suggested == "mask"
+
+
+def test_scan_examples_never_contain_the_raw_identifier(monkeypatch):
+    monkeypatch.setattr(deid, "_load_model", lambda: _fake_model(_NAMES))
+    finding = deid.scan_columns(pd.DataFrame({"patient": ["John Doe"]}))[0]
+    assert all("John Doe" not in e for e in finding.examples)
+
+
+def test_scan_returns_nothing_when_unavailable(monkeypatch):
+    monkeypatch.setitem(sys.modules, "openmed", None)
+    assert deid.scan_columns(pd.DataFrame({"patient": ["John Doe"]})) == []
+
+
+def test_apply_decisions_drops_and_masks_exactly_the_named_columns(monkeypatch):
+    monkeypatch.setattr(deid, "_load_model", lambda: _fake_model(_NAMES))
+    df = pd.DataFrame({"a": ["John Doe"], "b": ["John Doe"], "c": [7]})
+    out = deid.apply_decisions(df, drop=["a"], mask=["b"])
+    assert list(out.columns) == ["b", "c"]
+    assert out["b"].iloc[0] == "[REDACTED]"
+    assert out["c"].iloc[0] == 7
+
+
+def test_scrub_frame_touches_only_the_named_columns(monkeypatch):
+    monkeypatch.setattr(deid, "_load_model", lambda: _fake_model(_NAMES))
+    df = pd.DataFrame({"keep": ["John Doe"], "other": ["John Doe"]})
+    out = deid.scrub_frame(df, ["keep"])
+    assert out["keep"].iloc[0] == "[REDACTED]"
+    assert out["other"].iloc[0] == "John Doe"
+
+
+def test_scrub_frame_is_a_noop_for_an_empty_column_list(monkeypatch):
+    monkeypatch.setattr(deid, "_load_model", lambda: _fake_model({}))
+    df = pd.DataFrame({"a": ["x"]})
+    assert deid.scrub_frame(df, []) is df
