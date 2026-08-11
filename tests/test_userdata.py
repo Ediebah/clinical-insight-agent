@@ -72,3 +72,19 @@ def test_prepare_upload_roundtrip_queryable():
     finally:
         con.close()
     assert n == 3
+
+
+def test_build_catalog_scrubs_example_values(monkeypatch):
+    """Example values are one of only three things that reach the LLM — they must be scrubbed."""
+    monkeypatch.setattr("agent.deid.scrub_values", lambda vals: ["[REDACTED]" for _ in vals])
+    cat = userdata.build_catalog(pd.DataFrame({"patient": ["John Doe", "Jane Roe"]}), "t")
+    assert cat["tables"][0]["columns"][0]["example_values"] == ["[REDACTED]", "[REDACTED]"]
+
+
+def test_build_catalog_survives_a_broken_scrubber(monkeypatch):
+    """A failing de-id must not break an upload — fail open."""
+    def boom(_vals):
+        raise RuntimeError("model gone")
+    monkeypatch.setattr("agent.deid.scrub_values", boom)
+    cat = userdata.build_catalog(pd.DataFrame({"patient": ["John Doe"]}), "t")
+    assert cat["tables"][0]["columns"][0]["example_values"] == ["John Doe"]
