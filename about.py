@@ -87,8 +87,11 @@ DATA_NOTE = (
 BYOD_LABEL = "Your own data"
 BYOD_NOTE = (
     "Upload a CSV or Excel file and the agent profiles it, infers each column's structural role, "
-    "and runs the same modeling suite against it. Uploads reach the server and the model sees your "
-    "column names and query results, so use **synthetic or non-sensitive data only**."
+    "and runs the same modeling suite against it. A local model first scans the columns for "
+    "identifiers and asks you what to drop, mask, or keep — that scan runs on this machine and "
+    "sends nothing anywhere. It reduces what reaches the language model; it does **not** make the "
+    "data de-identified or safe to share, and on this hosted demo the file has already reached "
+    "the server. Use **synthetic or non-sensitive data only** here."
 )
 
 # ── 4 · how a question becomes an answer ────────────────────────────────────────────────────────
