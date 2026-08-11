@@ -1499,9 +1499,17 @@ if _byod_mode:
                     _drop, _mask = [], []
                     for _f in _findings:
                         _sev = "quasi-identifier" if _f.severity == "quasi" else "identifier"
+                        # The column header is rendered as markdown, NOT as the radio's label:
+                        # the app's CSS hides every stWidgetLabel for a11y, so a label here would
+                        # be invisible and the panel would show identical unlabelled rows.
+                        st.markdown(
+                            f"<div style='margin:.9rem 0 -.6rem'><code>{html.escape(_f.column)}</code> "
+                            f"<span style='color:var(--muted);font-size:.85rem'>— {_sev}: "
+                            f"{html.escape(', '.join(_f.entity_types))} "
+                            f"(in {_f.hit_rate:.0%} of sampled values)</span></div>",
+                            unsafe_allow_html=True)
                         _choice = st.radio(
-                            f"`{_f.column}` — {_sev}: {', '.join(_f.entity_types)} "
-                            f"(in {_f.hit_rate:.0%} of sampled values)",
+                            f"What to do with {_f.column}",       # a11y only — visually hidden
                             ["Drop", "Mask", "Keep"],
                             index={"drop": 0, "mask": 1, "keep": 2}[_f.suggested],
                             horizontal=True, key=f"deid_{_f.column}")

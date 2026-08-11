@@ -220,3 +220,20 @@ def test_assurance_line_never_claims_compliance(monkeypatch):
 def test_assurance_line_adds_the_local_claim_only_on_loopback(monkeypatch):
     monkeypatch.setenv("OPENAI_BASE_URL", "http://localhost:11434/v1")
     assert "nothing left this machine" in deid.assurance_line(scrubbed=True).lower()
+
+
+def test_a_short_coded_categorical_is_not_treated_as_a_name(monkeypatch):
+    """The model labels sex values M/F as `first_name` — single letters look like initials. A
+    column of a few very short codes is a categorical, not a name field, and sex is the second
+    most common covariate in the modeling suite after age."""
+    monkeypatch.setattr(deid, "_load_model", lambda: _fake_model(
+        {"M": [("first_name", 0, 1)], "F": [("first_name", 0, 1)]}))
+    finding = deid.scan_columns(pd.DataFrame({"sex": ["M", "F", "M", "F"]}))[0]
+    assert finding.severity == "quasi"
+    assert finding.suggested == "keep"
+
+
+def test_a_real_name_column_is_not_downgraded_by_the_coded_guard(monkeypatch):
+    monkeypatch.setattr(deid, "_load_model", lambda: _fake_model(_NAMES))
+    finding = deid.scan_columns(pd.DataFrame({"patient": ["John Doe", "Jane Roe"]}))[0]
+    assert finding.severity == "direct"

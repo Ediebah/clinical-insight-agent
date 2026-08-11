@@ -89,6 +89,22 @@ def _merge_spans(spans: list[tuple[int, int, str]]) -> list[tuple[int, int]]:
     return merged
 
 
+CODED_MAX_DISTINCT = 6      # a coded categorical has few levels
+CODED_MAX_LEN = 3           # ...and short ones: M/F, Y/N, ICU, A/B
+
+
+def _looks_coded(values: list[str]) -> bool:
+    """True for a small set of very short values — a categorical code, not free text.
+
+    The model labels sex values M/F as `first_name`: single letters read as initials. Without
+    this guard, `sex` is flagged direct and DROPPED by default, and sex is the second most common
+    covariate in this agent's modeling suite after age. A column of at most six values, none
+    longer than three characters, is a coded field; real name columns fail both conditions.
+    """
+    distinct = {v.strip() for v in values}
+    return 0 < len(distinct) <= CODED_MAX_DISTINCT and all(len(v) <= CODED_MAX_LEN for v in distinct)
+
+
 def _load_model():
     """Load the ONNX model. Separate from _model() so tests can monkeypatch just the load."""
     import openmed
@@ -174,6 +190,8 @@ def scan_columns(df: pd.DataFrame, sample: int = 20) -> list[ColumnFinding]:
         # "direct" if ANY label is a direct identifier: a notes column holding both an age and a
         # name must not be softened to quasi just because one of its labels is demographic.
         severity = "quasi" if all(k in QUASI_LABELS for k in kinds) else "direct"
+        if severity == "direct" and _looks_coded(values):
+            severity = "quasi"          # a handful of very short codes is a categorical, not a name
         if severity == "quasi":
             suggested = "keep"                          # see QUASI_LABELS — dropping guts analysis
         else:
