@@ -1528,6 +1528,8 @@ if _byod_mode:
                 "deid_columns": [c for c in _deid_kept if c in _clean.columns]}
             st.session_state.pop("result", None)     # new data → drop the stale prior result
             st.success(f"Loaded **{_tbl}** — {len(_clean):,} rows × {len(_clean.columns)} columns.")
+            if deid.available():
+                st.caption(deid.assurance_line(scrubbed=True))
             if _orig_rows > len(_clean) or _orig_cols > len(_clean.columns):   # honest about what was kept
                 st.info(f"Analyzing the first {len(_clean):,} of {_orig_rows:,} rows and "
                         f"{len(_clean.columns)} of {_orig_cols} columns "

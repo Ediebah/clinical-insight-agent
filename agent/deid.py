@@ -18,7 +18,9 @@ transformers pulls torch (111 MB) for a job that is pure ONNX inference. Verifie
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass, field
+from urllib.parse import urlparse
 
 import pandas as pd
 
@@ -209,3 +211,38 @@ def scrub_frame(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
     for col in cols:
         out[col] = scrub_values([str(v) for v in out[col]])
     return out
+
+
+_LOOPBACK = {"localhost", "127.0.0.1", "::1", "[::1]"}
+
+
+def llm_is_on_this_machine() -> bool:
+    """True only when OPENAI_BASE_URL points at loopback.
+
+    Deliberately NOT llm._is_local(), whose own docstring says it is true for "Ollama, LM Studio,
+    vLLM, a free-tier API" — a REMOTE endpoint such as Groq also sets OPENAI_BASE_URL. Using it
+    would assert "nothing left this machine" in precisely the case where that is false.
+    """
+    url = os.getenv("OPENAI_BASE_URL", "")
+    if not url:
+        return False                     # unset -> hosted OpenAI
+    try:
+        host = urlparse(url).hostname or ""
+    except Exception:  # noqa: BLE001
+        return False
+    return host in _LOOPBACK
+
+
+def assurance_line(scrubbed: bool) -> str:
+    """The ONLY sanctioned wording. Defaults to the weaker claim; never mentions compliance.
+
+    The model publishes no recall figures and its card states that local execution does not by
+    itself guarantee regulatory compliance, so nothing here may imply the data is de-identified,
+    HIPAA-compliant, or safe to share.
+    """
+    if not scrubbed:
+        return "On-device de-identification did not run."
+    line = "Identifiers were removed before anything reached the language model."
+    if llm_is_on_this_machine():
+        line += " With a local model, nothing left this machine."
+    return line

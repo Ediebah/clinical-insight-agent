@@ -187,3 +187,36 @@ def test_a_mixed_column_is_direct_when_any_label_is_direct(monkeypatch):
         {"aged 41, John Doe": [("age", 5, 7), ("first_name", 9, 13)]}))
     finding = deid.scan_columns(pd.DataFrame({"notes": ["aged 41, John Doe"]}))[0]
     assert finding.severity == "direct"
+
+
+# ── honest claim wording ────────────────────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize("url,expected", [
+    ("http://localhost:11434/v1", True),
+    ("http://127.0.0.1:11434/v1", True),
+    ("http://[::1]:11434/v1", True),
+    ("https://api.groq.com/openai/v1", False),      # a REMOTE custom endpoint
+    ("https://api.together.xyz/v1", False),
+    ("", False),                                     # unset -> hosted OpenAI
+])
+def test_loopback_check_is_true_only_for_this_machine(monkeypatch, url, expected):
+    """llm._is_local() is documented as true for remote free-tier endpoints, so it must NOT be
+    used here: it would assert 'nothing left this machine' exactly when that is false."""
+    monkeypatch.setenv("OPENAI_BASE_URL", url)
+    assert deid.llm_is_on_this_machine() is expected
+
+
+def test_assurance_line_never_claims_compliance(monkeypatch):
+    monkeypatch.setenv("OPENAI_BASE_URL", "")
+    line = deid.assurance_line(scrubbed=True)
+    lowered = line.lower()
+    assert "identifiers were removed" in lowered
+    assert "nothing left this machine" not in lowered
+    for forbidden in ("hipaa", "compliant", "de-identified", "safe to share", "anonymised",
+                      "anonymized"):
+        assert forbidden not in lowered
+
+
+def test_assurance_line_adds_the_local_claim_only_on_loopback(monkeypatch):
+    monkeypatch.setenv("OPENAI_BASE_URL", "http://localhost:11434/v1")
+    assert "nothing left this machine" in deid.assurance_line(scrubbed=True).lower()
