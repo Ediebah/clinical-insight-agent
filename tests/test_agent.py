@@ -317,3 +317,30 @@ def test_model_hint_leaves_every_answerable_gold_question_on_the_sql_path():
     from agent.eval_dataset import ANSWERABLE
     strays = [(g.id, g.question) for g in ANSWERABLE if agent._MODEL_HINT.search(g.question)]
     assert strays == [], f"aggregation questions routed to _route: {strays}"
+
+
+def test_preview_csv_scrubs_only_the_policy_columns(monkeypatch):
+    monkeypatch.setattr("agent.deid.scrub_frame",
+                        lambda df, cols: df.assign(**{c: "[REDACTED]" for c in cols}))
+    df = pd.DataFrame({"notes": ["John Doe"], "n": [1]})
+    out = agent._preview_csv(df, 30, deid_columns=["notes"])
+    assert "John Doe" not in out
+    assert "[REDACTED]" in out
+
+
+def test_preview_csv_does_not_touch_deid_when_policy_is_empty(monkeypatch):
+    """The demo-warehouse path must be byte-for-byte unchanged: no scrub, no model load."""
+    def boom(_df, _cols):
+        raise AssertionError("deid must not be called when deid_columns is falsy")
+    monkeypatch.setattr("agent.deid.scrub_frame", boom)
+    df = pd.DataFrame({"a": ["x"], "n": [1]})
+    assert "x" in agent._preview_csv(df, 30)
+    assert "x" in agent._preview_csv(df, 30, deid_columns=[])
+    assert "x" in agent._preview_csv(df, 30, deid_columns=None)
+
+
+def test_run_analysis_accepts_a_deid_columns_argument():
+    import inspect
+    sig = inspect.signature(agent.run_analysis)
+    assert "deid_columns" in sig.parameters
+    assert sig.parameters["deid_columns"].default is None
