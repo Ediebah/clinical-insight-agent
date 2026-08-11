@@ -54,7 +54,14 @@ What can actually reach the language model from an upload, read out of the code 
 |---|---|---|
 | Column names | ≤60 | `userdata.MAX_COLS` |
 | Example values in the catalog | ≤180 strings, each ≤28 chars | `build_catalog` — `[str(v)[:28] for v in pd.unique(s.dropna())[:3]]` |
-| Query results | ≤1,000 rows | `warehouse.MAX_ROWS` |
+| Query results | **≤30 rows** | `agent._preview_csv`, the only path frame content takes into a prompt |
+
+The result-row figure is worth stating carefully, because the obvious number is wrong. A query
+returns up to 1,000 rows (`warehouse.MAX_ROWS`) and the UI displays them, but only
+`agent._preview_csv` ever renders frame content into a prompt, and its two callers cap it at 15 rows
+(`_verify`) and 30 rows (`_interpret`). The model path does not widen this: `_interpret_model`
+receives a `ModelResult` — terms, curve points, arms, fit statistics — which carries no raw cells,
+so the 100,000-row analytic frame it fits on never reaches the model.
 
 The uploaded frame itself is up to **200,000 rows × 60 columns = 12M cells** (`userdata.MAX_ROWS`).
 Running a transformer NER over that on CPU inside a Streamlit session is not viable, and it is not
@@ -106,11 +113,12 @@ unflagged columns too costs nothing at this size and covers scan misses.
 The upload produces a **de-id policy**: the list of columns the user was warned about and kept
 unmasked — computed in the BYOD block as `{f.column for f in findings} - set(drop) - set(mask)`, and
 stored in session state alongside the existing `byod` entry. `run_analysis` gains one optional
-parameter, `deid_columns: list[str] | None = None`; when truthy, result frames pass through
-`scrub_frame` on those columns before any LLM call.
+parameter, `deid_columns: list[str] | None = None`, threaded to **`_preview_csv`** — the single
+choke point through which frame content reaches any prompt. Scrubbing there makes the guarantee
+structurally true in one place rather than relying on every future call site remembering.
 
-Bounded by construction: typically 0–2 columns at the 1,000-row cap, so ~1,000 short strings per
-question rather than 10,000+.
+Bounded by construction: typically 0–2 columns × ≤30 rows, so a few dozen short strings per
+question. This is small enough that the scrub is not a perceptible latency cost.
 
 **The demo-warehouse path passes nothing and must be byte-for-byte unchanged** — no scrub, no
 latency, no model load. §8 has a regression test asserting exactly that, because this is the one
