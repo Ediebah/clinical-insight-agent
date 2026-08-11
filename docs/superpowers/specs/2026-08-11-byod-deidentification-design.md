@@ -204,11 +204,20 @@ Hub availability and add tens of megabytes to every run.
 - `tests/test_userdata.py`: `build_catalog` example values pass through `scrub_values`.
 - The UI panel is covered by an `AppTest` case in the existing smoke test.
 
-**What the tests deliberately do not establish:** whether the model's recall is good enough. Mocked
-tests verify plumbing, not detection quality. Before relying on this for real data, recall should be
-measured on a governed corpus — the i2b2/n2c2 de-identification sets are the standard, though
-access-controlled. Until that is done, the feature's honest status is "reduces exposure by an
-unmeasured amount", and §6's wording reflects that.
+**What the tests deliberately do not establish:** whether the model's recall is good enough on real
+clinical text. Mocked tests verify plumbing, not detection quality — that is now supplied
+separately by `agent/deid_eval.py`, which scores the model against Synthea's own generated
+identifiers (200 patients, both the raw Synthea corpus and a normalised variant with Synthea's
+synthetic markers stripped). Measured: normalised span recall **99.9%** overall (every entity type
+at 100% except `first_name` at 99%, one survivor), raw span recall **100%**; column-level recall
+**100%** (every identifier column flagged), column-level precision **70%** — a **floor, not the
+model's true precision**, because the scoring counts the expected quasi-identifier flags on `age`
+and `sex` as false positives by design (they must stay flagged-but-kept), plus one additional flag
+on a clean column in the measured run. This is **not a governed-corpus figure**: the i2b2/n2c2
+de-identification sets are the standard for that, though access-controlled, and Synthea's
+distribution and templated notes are not real clinical text — real clinical text would very likely
+score worse. Real-clinical-text recall stays an open question this benchmark does not answer, and
+§6's wording reflects that.
 
 ## 9. Scope
 
@@ -223,9 +232,14 @@ measuring the model's recall, which is prerequisite to trusting it but not to bu
 
 ## 10. Open risks
 
-1. **Unmeasured recall** is the central one. The design mitigates it structurally — dropping a
-   column does not depend on the model catching every cell — but a user who chooses Keep is relying
-   on span detection whose quality is unknown.
+1. **Recall is measured only on a Synthea-derived corpus, not real clinical text**, and that stays
+   the central risk. `agent/deid_eval.py` measured normalised span recall of **99.9%** and
+   column-level recall of **100%** against 200 Synthea patients with templated notes (column
+   precision floors at **70%**, understated by the expected `age`/`sex` quasi-identifier flags).
+   The design mitigates the risk structurally — dropping a column does not depend on the model
+   catching every cell — but a user who chooses Keep is relying on span detection measured on a
+   synthetic, templated corpus; real clinical text, with its messier phrasing and formats, would
+   very likely score worse.
 2. **Dependency weight on Streamlit Cloud.** `openmed[hf]` pulls `transformers`; pin both it and
    `onnxruntime` and watch the first deploy, given this project's history of rebuild failures.
 3. **First-use latency.** The 44M model downloads on the first upload of a session. Acceptable, and
