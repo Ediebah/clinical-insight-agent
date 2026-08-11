@@ -53,3 +53,12 @@ def test_load_rows_names_the_rebuild_step_when_raw_is_missing(tmp_path):
     with pytest.raises(SystemExit) as e:
         deid_eval.load_rows(p, limit=10)
     assert "load_raw.py" in str(e.value)
+
+
+def test_load_rows_does_not_misreport_bad_limit_as_missing_table(tmp_path):
+    """Invalid limit must raise ValueError, not misreport as raw.patients not found."""
+    import duckdb
+    p = tmp_path / "test.duckdb"
+    duckdb.connect(str(p)).close()
+    with pytest.raises(ValueError):
+        deid_eval.load_rows(p, limit="not-a-number")

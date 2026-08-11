@@ -98,9 +98,10 @@ def load_rows(db_path: str | Path = DB_PATH, limit: int = 200) -> list[dict]:
         con = duckdb.connect(str(db_path), read_only=True)
     except Exception as exc:  # noqa: BLE001
         raise SystemExit(f"Cannot open {db_path}: {exc}\nBuild it first: python scripts/load_raw.py")
+    limit_int = int(limit)
     try:
         rows = con.execute(
-            f"select {', '.join(cols)} from raw.patients limit {int(limit)}").fetchall()
+            f"select {', '.join(cols)} from raw.patients limit {limit_int}").fetchall()
     except Exception:  # noqa: BLE001
         raise SystemExit(
             f"raw.patients not found in {db_path}.\n"
