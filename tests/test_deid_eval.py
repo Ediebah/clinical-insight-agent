@@ -1,7 +1,7 @@
 """Benchmark harness tests. agent.deid is mocked: CI must never download a model."""
 import pytest
 
-from agent import deid_eval
+from agent import deid, deid_eval
 
 _ROW = {
     "Id": "d545798e-09a4-ef89-abc5-9f62dc5a5095",
@@ -62,3 +62,58 @@ def test_load_rows_does_not_misreport_bad_limit_as_missing_table(tmp_path):
     duckdb.connect(str(p)).close()
     with pytest.raises(ValueError):
         deid_eval.load_rows(p, limit="not-a-number")
+
+
+def _identities(n=3):
+    rows = [dict(_ROW, Id=f"id-{i}", FIRST=f"Ashely{i}", LAST=f"Brekke{i}") for i in range(n)]
+    return deid_eval.normalise(rows)
+
+
+def test_build_frame_labels_identifier_columns_and_includes_clean_ones():
+    df, truth = deid_eval.build_frame(_identities())
+    assert {"first", "last", "ssn", "address", "zip", "mrn", "birthdate"} <= truth
+    assert {"systolic_bp", "cured", "encounter_count", "cost_usd"} <= set(df.columns)
+    assert not ({"systolic_bp", "cured", "encounter_count", "cost_usd"} & truth)
+    assert len(df) == 3
+
+
+def test_score_columns_is_perfect_when_every_identifier_column_is_flagged(monkeypatch):
+    df, truth = deid_eval.build_frame(_identities())
+
+    def fake_scan(frame, sample=20):
+        return [deid.ColumnFinding(column=c, entity_types=["x"], hit_rate=1.0,
+                                   examples=[], suggested="drop", severity="direct")
+                for c in truth]
+    monkeypatch.setattr(deid, "scan_columns", fake_scan)
+    out = deid_eval.score_columns(df, truth)
+    assert out["recall"] == 1.0
+    assert out["precision"] == 1.0
+    assert out["missed"] == []
+
+
+def test_score_columns_reports_misses_and_false_positives(monkeypatch):
+    df, truth = deid_eval.build_frame(_identities())
+
+    def fake_scan(frame, sample=20):
+        # flags one real identifier, misses the rest, and flags one clean column
+        return [deid.ColumnFinding(column="first", entity_types=["first_name"], hit_rate=1.0,
+                                   examples=[], suggested="drop", severity="direct"),
+                deid.ColumnFinding(column="cured", entity_types=["age"], hit_rate=1.0,
+                                   examples=[], suggested="keep", severity="quasi")]
+    monkeypatch.setattr(deid, "scan_columns", fake_scan)
+    out = deid_eval.score_columns(df, truth)
+    assert out["recall"] == 1 / len(truth)
+    assert out["precision"] == 0.5
+    assert "cured" in out["false_positives"]
+    assert "ssn" in out["missed"]
+
+
+def test_score_columns_checks_that_age_and_sex_stay_quasi(monkeypatch):
+    """A regression here silently destroys the covariates the modeling suite depends on."""
+    df, truth = deid_eval.build_frame(_identities())
+
+    def fake_scan(frame, sample=20):
+        return [deid.ColumnFinding(column="age", entity_types=["age"], hit_rate=1.0,
+                                   examples=[], suggested="drop", severity="direct")]
+    monkeypatch.setattr(deid, "scan_columns", fake_scan)
+    assert deid_eval.score_columns(df, truth)["quasi_ok"] is False

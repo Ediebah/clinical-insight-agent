@@ -23,6 +23,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import duckdb
+import pandas as pd
+
+from . import deid
 
 ROOT = Path(__file__).resolve().parent.parent
 DB_PATH = ROOT / "data" / "healthcare.duckdb"
@@ -110,3 +113,52 @@ def load_rows(db_path: str | Path = DB_PATH, limit: int = 200) -> list[dict]:
     finally:
         con.close()
     return [dict(zip(cols, r)) for r in rows]
+
+
+# Columns holding real identifiers, and columns that must NOT be flagged. A clean column flagged
+# is a false positive that costs the user an unnecessary decision.
+IDENTIFIER_COLUMNS = {"first", "last", "ssn", "address", "zip", "mrn", "birthdate"}
+CLEAN_COLUMNS = ("systolic_bp", "cured", "encounter_count", "cost_usd")
+
+
+def build_frame(identities: list[Identity]) -> tuple[pd.DataFrame, set[str]]:
+    """A frame with known identifier columns, known-clean columns, and the two quasi covariates."""
+    n = len(identities)
+    df = pd.DataFrame({
+        "first": [i.first for i in identities],
+        "last": [i.last for i in identities],
+        "ssn": [i.ssn for i in identities],
+        "address": [i.address for i in identities],
+        "zip": [i.zip for i in identities],
+        "mrn": [i.mrn for i in identities],
+        "birthdate": [i.birthdate for i in identities],
+        # quasi covariates — must survive as `quasi`, not be suggested for dropping
+        "age": [40 + (k % 45) for k in range(n)],
+        "sex": ["M" if k % 2 else "F" for k in range(n)],
+        # known-clean
+        "systolic_bp": [110 + (k % 40) for k in range(n)],
+        "cured": [k % 2 for k in range(n)],
+        "encounter_count": [1 + (k % 9) for k in range(n)],
+        "cost_usd": [100.0 + k for k in range(n)],
+    })
+    return df, set(IDENTIFIER_COLUMNS)
+
+
+def score_columns(df: pd.DataFrame, truth: set[str]) -> dict:
+    """Precision and recall over COLUMNS, plus the quasi-severity check."""
+    findings = deid.scan_columns(df)
+    flagged = {f.column for f in findings}
+    hits = flagged & truth
+    missed = truth - flagged
+    false_positives = {c for c in flagged - truth if c in CLEAN_COLUMNS}
+    # age and sex are expected to be flagged, but as `quasi` suggesting keep — never dropped.
+    quasi_ok = all(f.severity == "quasi" and f.suggested == "keep"
+                   for f in findings if f.column in ("age", "sex"))
+    return {
+        "recall": len(hits) / len(truth) if truth else 1.0,
+        "precision": len(hits) / len(flagged) if flagged else 1.0,
+        "flagged": sorted(flagged),
+        "missed": sorted(missed),
+        "false_positives": sorted(false_positives),
+        "quasi_ok": quasi_ok,
+    }
