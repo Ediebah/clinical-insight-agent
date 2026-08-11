@@ -297,14 +297,20 @@ Upload a CSV or Excel file and the same agent runs on it. The table is registere
 a semantic catalog is generated from its columns, and the full pipeline (SQL, guardrail, and any model,
 including A/B and non-inferiority) answers questions about your data. Before anything reaches the LLM, a
 local ONNX model scans each column for identifiers and lets you drop, mask, or keep it per column, with the
-scan running on-machine. Measured against 200 Synthea-derived patients with templated notes
+scan running on-machine. Measured against 200 Synthea-derived patients
 (`agent/deid_eval.py`; run: `python -m agent.deid_eval --limit=200`), it caught **99.9%** of the identifier
 text spans it was asked to mask and flagged **100%** of the identifier columns; column-level precision
 floors at **70%**, understated because the score counts the expected `age`/`sex` quasi-identifier flags as
-false positives. That figure is Synthea-derived and templated, not a real-world recall number, and real
-clinical text would very likely score worse. The scan reduces what reaches the language model; it does
-**not** make the data de-identified or safe to share, and a notice reminds you to upload non-sensitive data
-only, since column names and a few example values are sent to the LLM.
+false positives. The 99.9% is a **ceiling, not a real-world recall number**: the benchmark's notes state
+each identifier next to an explicit label — `"MRN {mrn}"`, `"DOB {date}"`, `"SSN {ssn}"`, `"resides at
+{address}"` — which hands the model close to the easiest possible cue, and ordinary clinical text does not
+announce its identifiers that way. (The raw, un-normalised corpus scored even higher — 100% versus the
+normalised 99.9% — because Synthea's numeric name suffixes, like `Brekke496`, make those tokens easier to
+flag than an ordinary name; the single miss was the first name **"Manual"**, an unremarkable English word
+once its suffix is stripped.) Real clinical text, unlabelled and without those markers, would very likely
+score worse. The scan reduces what reaches the language model; it does **not** make the data de-identified
+or safe to share, and a notice reminds you to upload non-sensitive data only, since column names and a few
+example values are sent to the LLM.
 
 ### Automation
 - Automated dbt model generation (`agent/model_builder.py`): from plain English, the agent drafts a dbt model
