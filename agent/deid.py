@@ -36,6 +36,19 @@ SCORE_THRESHOLD = 0.35
 # suggested action becomes "drop" — structurally certain, rather than trusting per-cell recall.
 DROP_THRESHOLD = 0.8
 
+# Quasi-identifiers: attributes that raise re-identification risk IN COMBINATION but are not
+# direct identifiers on their own, and which are load-bearing covariates for this agent.
+#
+# `age` is the case that forced this. Under HIPAA Safe Harbor an age is an identifier only above
+# 89, but the model flags every age — and a real scan of ages 41/52/63 suggested dropping the
+# column. Age is the most common covariate in the modeling suite ("adjusting for age and sex",
+# every Cox model), so a default of drop would gut the analysis the feature exists to enable.
+# These are surfaced to the user, but default to KEEP.
+QUASI_LABELS = frozenset({
+    "age", "gender", "sex", "race", "ethnicity", "religion", "religious_belief", "sexuality",
+    "sexual_orientation", "marital_status", "nationality", "language",
+})
+
 # Loading the ONNX model takes ~12s (6 files from HF Hub on first use), so it is cached here.
 # _LOAD_FAILED latches: without it, a 60-column scan would retry a 12s failing load per value.
 _MODEL = None
@@ -49,7 +62,29 @@ class ColumnFinding:
     entity_types: list[str] = field(default_factory=list)
     hit_rate: float = 0.0
     examples: list[str] = field(default_factory=list)
-    suggested: str = "mask"          # "drop" | "mask"
+    suggested: str = "mask"          # "drop" | "mask" | "keep"
+    severity: str = "direct"         # "direct" | "quasi"
+
+
+def _merge_spans(spans: list[tuple[int, int, str]]) -> list[tuple[int, int]]:
+    """Collapse adjacent and overlapping spans into single ranges.
+
+    The real model emits `first_name` and `last_name` as separate touching spans, which produced
+    `[REDACTED][REDACTED]` for one name; overlapping spans on an MRN produced
+    `[REDACTED]RN[REDACTED]`, leaving a fragment of the identifier in the clear. Merging first
+    means one redaction per contiguous run, with nothing left between.
+    """
+    if not spans:
+        return []
+    ordered = sorted((s, e) for s, e, _label in spans)
+    merged = [ordered[0]]
+    for start, end in ordered[1:]:
+        last_start, last_end = merged[-1]
+        if start <= last_end:                 # touching (==) or overlapping (<)
+            merged[-1] = (last_start, max(last_end, end))
+        else:
+            merged.append((start, end))
+    return merged
 
 
 def _load_model():
@@ -99,8 +134,9 @@ def scrub_values(values: list[str]) -> list[str]:
     for v in values:
         text = str(v)
         try:
-            # Replace from the END so an earlier substitution can't shift later offsets.
-            for start, end, _label in sorted(_spans(text), key=lambda s: s[0], reverse=True):
+            # Merge first (adjacent/overlapping spans would otherwise leave fragments), then
+            # replace from the END so an earlier substitution can't shift later offsets.
+            for start, end in sorted(_merge_spans(_spans(text)), reverse=True):
                 text = text[:start] + REDACTION + text[end:]
             out.append(text)
         except Exception as exc:  # noqa: BLE001
@@ -132,12 +168,21 @@ def scan_columns(df: pd.DataFrame, sample: int = 20) -> list[ColumnFinding]:
         if not hits:
             continue
         rate = hits / len(values)
+        kinds = sorted(set(labels))
+        # "direct" if ANY label is a direct identifier: a notes column holding both an age and a
+        # name must not be softened to quasi just because one of its labels is demographic.
+        severity = "quasi" if all(k in QUASI_LABELS for k in kinds) else "direct"
+        if severity == "quasi":
+            suggested = "keep"                          # see QUASI_LABELS — dropping guts analysis
+        else:
+            suggested = "drop" if rate >= DROP_THRESHOLD else "mask"
         findings.append(ColumnFinding(
             column=str(col),
-            entity_types=sorted(set(labels)),
+            entity_types=kinds,
             hit_rate=rate,
             examples=scrub_values(values[:3]),          # redacted previews only
-            suggested="drop" if rate >= DROP_THRESHOLD else "mask",
+            suggested=suggested,
+            severity=severity,
         ))
     return findings
 

@@ -138,3 +138,52 @@ def test_scrub_frame_is_a_noop_for_an_empty_column_list(monkeypatch):
     monkeypatch.setattr(deid, "_load_model", lambda: _fake_model({}))
     df = pd.DataFrame({"a": ["x"]})
     assert deid.scrub_frame(df, []) is df
+
+
+# ── span merging and quasi-identifiers (found by running the real model) ────────────────────────
+
+def test_adjacent_spans_merge_into_one_redaction(monkeypatch):
+    """The real model returns first_name and last_name as separate adjacent spans, which produced
+    '[REDACTED][REDACTED]' for 'John Doe'."""
+    monkeypatch.setattr(deid, "_load_model", lambda: _fake_model(
+        {"John Doe": [("first_name", 0, 4), ("last_name", 4, 8)]}))
+    assert deid.scrub_values(["John Doe"]) == ["[REDACTED]"]
+
+
+def test_overlapping_spans_merge_without_leaving_fragments(monkeypatch):
+    """Overlapping spans produced '[REDACTED]RN[REDACTED]' — a fragment of the identifier left
+    in the clear. Merged spans must cover the whole run."""
+    monkeypatch.setattr(deid, "_load_model", lambda: _fake_model(
+        {"MRN 123456": [("medical_record_number", 0, 3), ("biometric_identifier", 2, 10)]}))
+    assert deid.scrub_values(["MRN 123456"]) == ["[REDACTED]"]
+
+
+def test_separated_spans_do_not_merge(monkeypatch):
+    monkeypatch.setattr(deid, "_load_model", lambda: _fake_model(
+        {"John saw Jane": [("first_name", 0, 4), ("first_name", 9, 13)]}))
+    assert deid.scrub_values(["John saw Jane"]) == ["[REDACTED] saw [REDACTED]"]
+
+
+def test_age_is_a_quasi_identifier_and_defaults_to_keep(monkeypatch):
+    """age is a HIPAA identifier only above 89, and it is the most common covariate in the
+    modeling suite. Defaulting it to drop would gut the analysis the feature protects."""
+    monkeypatch.setattr(deid, "_load_model", lambda: _fake_model(
+        {"41": [("age", 0, 2)], "52": [("age", 0, 2)]}))
+    finding = deid.scan_columns(pd.DataFrame({"age": ["41", "52"]}))[0]
+    assert finding.severity == "quasi"
+    assert finding.suggested == "keep"          # NOT "drop", despite a 100% hit rate
+
+
+def test_a_direct_identifier_at_high_hit_rate_still_suggests_drop(monkeypatch):
+    monkeypatch.setattr(deid, "_load_model", lambda: _fake_model(_NAMES))
+    finding = deid.scan_columns(pd.DataFrame({"patient": ["John Doe", "Jane Roe"]}))[0]
+    assert finding.severity == "direct"
+    assert finding.suggested == "drop"
+
+
+def test_a_mixed_column_is_direct_when_any_label_is_direct(monkeypatch):
+    """A notes column holding both an age and a name must not be softened to quasi."""
+    monkeypatch.setattr(deid, "_load_model", lambda: _fake_model(
+        {"aged 41, John Doe": [("age", 5, 7), ("first_name", 9, 13)]}))
+    finding = deid.scan_columns(pd.DataFrame({"notes": ["aged 41, John Doe"]}))[0]
+    assert finding.severity == "direct"
