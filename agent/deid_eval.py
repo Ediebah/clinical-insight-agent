@@ -1,0 +1,111 @@
+"""Measure the de-identification model against identifiers Synthea already knows.
+
+`agent/deid.py` reduces exposure by an amount nobody has measured: OpenMed publishes no recall
+figures for the model. This harness supplies the missing number, using Synthea's own generated
+identifiers as labels — no annotation, and no data-use agreement, which matters because the
+standard corpora (i2b2/n2c2) are access-controlled.
+
+Run:  .venv/bin/python -m agent.deid_eval
+
+NOT run in CI: the model is a 453 MB download. CI unit-tests this harness against a mock, in the
+same way route_eval and bayes_eval sit outside CI while guardrail_eval runs inside it.
+
+Two corpus variants are scored. Synthea marks its output as fake — names carry numeric suffixes,
+ZIP is 00000, SSNs use the reserved 999 prefix — so a figure measured on the raw form describes
+Synthea rather than clinical text. The normalised variant is the headline; the gap between the two
+measures how much those markers distort the result.
+"""
+from __future__ import annotations
+
+import hashlib
+import re
+from dataclasses import dataclass
+from pathlib import Path
+
+import duckdb
+
+ROOT = Path(__file__).resolve().parent.parent
+DB_PATH = ROOT / "data" / "healthcare.duckdb"
+HISTORY = Path(__file__).resolve().parent / "deid_eval_history.jsonl"
+
+_SUFFIX = re.compile(r"\d+$")
+
+
+@dataclass(frozen=True)
+class Identity:
+    """One patient's identifiers, as ground truth."""
+    first: str
+    last: str
+    ssn: str
+    address: str
+    city: str
+    zip: str
+    mrn: str
+    birthdate: str
+
+
+def _stable_digits(seed: str, n: int) -> str:
+    """Deterministic digits from a seed — a benchmark that moves between runs is useless."""
+    h = hashlib.sha256(seed.encode()).hexdigest()
+    return "".join(str(int(c, 16) % 10) for c in h[:n])
+
+
+def _mrn(patient_id: str) -> str:
+    return f"MRN {_stable_digits(patient_id, 6)}"
+
+
+def raw_identities(rows: list[dict]) -> list[Identity]:
+    """Exactly what Synthea emits, markers and all."""
+    return [Identity(
+        first=r["FIRST"], last=r["LAST"], ssn=r["SSN"], address=r["ADDRESS"],
+        city=r["CITY"], zip=r["ZIP"], mrn=_mrn(r["Id"]), birthdate=r["BIRTHDATE"],
+    ) for r in rows]
+
+
+def normalise(rows: list[dict]) -> list[Identity]:
+    """Strip Synthea's synthetic markers so the corpus reads like clinical text.
+
+    Names lose their trailing digits (Brekke496 -> Brekke); the 00000 ZIP and the reserved
+    999-prefix SSN are replaced with format-valid fakes derived deterministically from the
+    patient id. This does NOT make the distribution real — see the spec's open risks — it only
+    removes markers that would make the model's job artificially different.
+    """
+    out = []
+    for r in rows:
+        pid = r["Id"]
+        out.append(Identity(
+            first=_SUFFIX.sub("", r["FIRST"]),
+            last=_SUFFIX.sub("", r["LAST"]),
+            ssn=f"{_stable_digits(pid + 'a', 3)}-{_stable_digits(pid + 'b', 2)}-"
+                f"{_stable_digits(pid + 'c', 4)}",
+            address=r["ADDRESS"],
+            city=r["CITY"],
+            zip=_stable_digits(pid + "z", 5),
+            mrn=_mrn(pid),
+            birthdate=r["BIRTHDATE"],
+        ))
+    return out
+
+
+def load_rows(db_path: str | Path = DB_PATH, limit: int = 200) -> list[dict]:
+    """Read raw.patients, or exit with the rebuild instruction.
+
+    raw.patients exists only in the FULL local warehouse. The committed demo database ships the
+    modelled tables only, and dim_patient deliberately carries no name, SSN or address.
+    """
+    cols = ["Id", "FIRST", "LAST", "SSN", "ADDRESS", "CITY", "ZIP", "BIRTHDATE"]
+    try:
+        con = duckdb.connect(str(db_path), read_only=True)
+    except Exception as exc:  # noqa: BLE001
+        raise SystemExit(f"Cannot open {db_path}: {exc}\nBuild it first: python scripts/load_raw.py")
+    try:
+        rows = con.execute(
+            f"select {', '.join(cols)} from raw.patients limit {int(limit)}").fetchall()
+    except Exception:  # noqa: BLE001
+        raise SystemExit(
+            f"raw.patients not found in {db_path}.\n"
+            "This benchmark needs the FULL warehouse, not the slim demo database. Generate the "
+            "Synthea data, then run: python scripts/load_raw.py")
+    finally:
+        con.close()
+    return [dict(zip(cols, r)) for r in rows]
