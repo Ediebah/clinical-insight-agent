@@ -265,3 +265,13 @@ def test_analyze_view_renders_without_exception():
     at.run()
     at.segmented_control[0].set_value("🔬 Analyze").run()
     assert not at.exception, [str(e.value) for e in at.exception]
+
+
+def test_byod_upload_still_works_when_deid_is_unavailable(monkeypatch):
+    """Fail open: a missing model must never block an upload."""
+    monkeypatch.setattr("agent.deid.available", lambda: False)
+    at = AppTest.from_file("app.py", default_timeout=120).run()
+    at.segmented_control[0].set_value("🔬 Analyze").run()
+    at.radio[0].set_value("Bring your own data").run()
+    assert not at.exception, [str(e.value) for e in at.exception]
+    assert at.file_uploader
