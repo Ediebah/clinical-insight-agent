@@ -1475,14 +1475,69 @@ if _byod_mode:
             for _n in _notes:
                 st.warning(_n)
             _orig_rows, _orig_cols = _df.shape       # remember pre-cap size so we can disclose truncation
+
+            # ── on-device identifier scan ──────────────────────────────────────────────────
+            # Runs BEFORE prepare_upload, so a dropped column never reaches DuckDB and can
+            # therefore appear in neither the catalog's example values nor any query result.
+            from agent import deid
+            _deid_kept: list[str] = []
+            if deid.available():
+                _findings = deid.scan_columns(_df)
+                if _findings:
+                    st.markdown("<div class='eyebrow'>Possible identifiers found</div>",
+                                unsafe_allow_html=True)
+                    st.markdown(
+                        f"A local model scanned {len(_df.columns)} columns and flagged "
+                        f"**{len(_findings)}**. Nothing has been sent anywhere — the scan ran on "
+                        "this machine. Choose what to do with each.")
+                    st.caption("**Drop** removes the column outright and is the reliable option. "
+                               "**Mask** depends on the model catching every instance, which its "
+                               "authors have not measured — on a test record it masked an MRN in "
+                               "one row and left the digits exposed in another. **Keep** leaves "
+                               "the column as-is; its values are still scrubbed on the way to the "
+                               "language model.")
+                    _drop, _mask = [], []
+                    for _f in _findings:
+                        _sev = "quasi-identifier" if _f.severity == "quasi" else "identifier"
+                        # The column header is rendered as markdown, NOT as the radio's label:
+                        # the app's CSS hides every stWidgetLabel for a11y, so a label here would
+                        # be invisible and the panel would show identical unlabelled rows.
+                        st.markdown(
+                            f"<div style='margin:.9rem 0 -.6rem'><code>{html.escape(_f.column)}</code> "
+                            f"<span style='color:var(--muted);font-size:.85rem'>— {_sev}: "
+                            f"{html.escape(', '.join(_f.entity_types))} "
+                            f"(in {_f.hit_rate:.0%} of sampled values)</span></div>",
+                            unsafe_allow_html=True)
+                        _choice = st.radio(
+                            f"What to do with {_f.column}",       # a11y only — visually hidden
+                            ["Drop", "Mask", "Keep"],
+                            index={"drop": 0, "mask": 1, "keep": 2}[_f.suggested],
+                            horizontal=True, key=f"deid_{_f.column}")
+                        if _choice == "Drop":
+                            _drop.append(_f.column)
+                        elif _choice == "Mask":
+                            _mask.append(_f.column)
+                        else:
+                            _deid_kept.append(_f.column)
+                    _df = deid.apply_decisions(_df, _drop, _mask)
+            else:
+                st.caption("On-device identifier scanning is unavailable — install "
+                           "`openmed[onnx-runtime]` to enable it. The warning above still applies.")
+
             _clear_byod()                            # delete the previous upload's temp dir before the new one
             _dbp, _cat, _tbl, _clean = userdata.prepare_upload(_df, _up.name)
             _cols = ", ".join(f"`{c['name']}`" for c in _cat["tables"][0]["columns"])
             st.session_state.byod = {
                 "db_path": str(_dbp), "dir": str(_dbp.parent), "catalog": _cat, "table": _tbl,
-                "file_id": _fid, "rows": len(_clean), "ncols": len(_clean.columns), "cols": _cols}
+                "file_id": _fid, "rows": len(_clean), "ncols": len(_clean.columns), "cols": _cols,
+                # flagged − dropped − masked: the columns the user was warned about and kept.
+                # Only these need scrubbing in query results; dropped ones are gone and masked
+                # ones already carry no identifiers.
+                "deid_columns": [c for c in _deid_kept if c in _clean.columns]}
             st.session_state.pop("result", None)     # new data → drop the stale prior result
             st.success(f"Loaded **{_tbl}** — {len(_clean):,} rows × {len(_clean.columns)} columns.")
+            if deid.available():
+                st.caption(deid.assurance_line(scrubbed=True))
             if _orig_rows > len(_clean) or _orig_cols > len(_clean.columns):   # honest about what was kept
                 st.info(f"Analyzing the first {len(_clean):,} of {_orig_rows:,} rows and "
                         f"{len(_clean.columns)} of {_orig_cols} columns "
@@ -1782,7 +1837,8 @@ elif go and question:
     _b = st.session_state.byod
     with st.spinner("Retrieving context → planning → writing SQL → executing → interpreting…"):
         st.session_state.result = run_analysis(
-            question, catalog=(_b or {}).get("catalog"), db_path=(_b or {}).get("db_path"))
+            question, catalog=(_b or {}).get("catalog"), db_path=(_b or {}).get("db_path"),
+            deid_columns=(_b or {}).get("deid_columns"))
         st.session_state.result_q = question
 
 result = st.session_state.get("result")

@@ -195,18 +195,26 @@ def _truncate_cell(v, width: int = _CELL_WIDTH) -> str:
     return s if len(s) <= width else s[:width] + "…"
 
 
-def _preview_csv(df: pd.DataFrame, rows: int) -> str:
+def _preview_csv(df: pd.DataFrame, rows: int, deid_columns: list[str] | None = None) -> str:
     """CSV preview capped in BOTH dimensions — at most `rows` rows AND _CELL_WIDTH chars per cell —
-    so one huge cell (e.g. a whole file dumped into an uploaded column) can't blow up the token count."""
+    so one huge cell (e.g. a whole file dumped into an uploaded column) can't blow up the token count.
+
+    This is the ONLY path by which frame content reaches a prompt, which is why the BYOD de-id
+    policy is applied here: one choke point, rather than trusting every future call site to
+    remember. `deid_columns` is empty for the demo warehouse, and the import is skipped entirely
+    then — so that path loads no model and pays no cost."""
     head = df.head(rows).copy()
+    if deid_columns:
+        from . import deid
+        head = deid.scrub_frame(head, deid_columns)
     for col in head.columns:
         head[col] = head[col].map(_truncate_cell)
     return head.to_csv(index=False)
 
 
-def _verify(question: str, sql: str, df: pd.DataFrame) -> dict:
+def _verify(question: str, sql: str, df: pd.DataFrame, deid_columns: list[str] | None = None) -> dict:
     """Critic pass: does the SQL actually answer THIS question? Confidence + issues."""
-    preview = _preview_csv(df, 15)
+    preview = _preview_csv(df, 15, deid_columns)
     out = llm.complete_json(
         _SYSTEM,
         f"QUESTION: {question}\n\nSQL:\n{sql}\n\nRESULT (up to 15 rows):\n{preview}\n\n"
@@ -232,8 +240,9 @@ def _truncation_finding(df) -> guardrails.Finding | None:
         "for exact totals.")
 
 
-def _interpret(question: str, sql: str, df: pd.DataFrame, findings: list[guardrails.Finding]) -> str:
-    preview = _preview_csv(df, 30)
+def _interpret(question: str, sql: str, df: pd.DataFrame, findings: list[guardrails.Finding],
+               deid_columns: list[str] | None = None) -> str:
+    preview = _preview_csv(df, 30, deid_columns)
     caveats = guardrails.render(findings)
     total = (f"at least {len(df):,} — TRUNCATED at the row cap, treat every count as a lower bound"
              if df.attrs.get("truncated") else f"{len(df)}")
@@ -660,7 +669,8 @@ def _run_assurance(question: str, spec: dict, result: AgentResult,
 
 
 def run_analysis(question: str, max_tries: int = MAX_SQL_TRIES,
-                 catalog: dict | None = None, db_path=None) -> AgentResult:
+                 catalog: dict | None = None, db_path=None,
+                 deid_columns: list[str] | None = None) -> AgentResult:
     result = AgentResult(question=question)
     llm.reset_trace()
     start = time.monotonic()                                    # anchor for the per-run wall-clock deadline
@@ -797,9 +807,9 @@ def run_analysis(question: str, max_tries: int = MAX_SQL_TRIES,
         if (tf := _truncation_finding(df)):
             result.findings.append(tf)
         _check_deadline(start)
-        result.verification = _verify(question, sql, df)
+        result.verification = _verify(question, sql, df, deid_columns)
         _check_deadline(start)
-        result.interpretation = _interpret(question, sql, df, result.findings)
+        result.interpretation = _interpret(question, sql, df, result.findings, deid_columns)
     except _Timeout:
         result.error = _TIMEOUT_MSG
     except llm.LLMError as e:

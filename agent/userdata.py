@@ -99,6 +99,13 @@ def build_catalog(df: pd.DataFrame, table: str) -> dict:
     for c in df.columns:
         s = df[c]
         examples = [str(v)[:28] for v in pd.unique(s.dropna())[:3]]
+        # These values reach the LLM verbatim (see the module docstring), so they are the one
+        # place a KEPT column can still leak. Fail open: a broken scrubber must not break upload.
+        try:
+            from . import deid
+            examples = deid.scrub_values(examples)
+        except Exception:  # noqa: BLE001
+            pass
         columns.append({"name": c, "type": str(s.dtype), "description": "", "example_values": examples})
     table_doc = {
         "name": table,
