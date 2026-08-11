@@ -6,9 +6,34 @@
 
 **Architecture:** Three layers. A structural layer drops or masks flagged columns from the DataFrame before it reaches DuckDB, closing two exits at once. A boundary layer scrubs the catalog's example values. A policy layer threads the list of flagged-but-kept columns into `agent._preview_csv`, the single choke point through which frame content reaches any prompt. A new `agent/deid.py` is the only module that imports `openmed`.
 
-**Tech Stack:** Python 3.12, `openmed` 2.0.0 (Apache-2.0), ONNX Runtime, pandas, Streamlit, pytest.
+**Tech Stack:** Python 3.12, `openmed[onnx-runtime]` 2.0.0 (Apache-2.0), ONNX Runtime 1.28.0, pandas, Streamlit, pytest.
 
 **Spec:** `docs/superpowers/specs/2026-08-11-byod-deidentification-design.md`
+
+## Verified API facts
+
+Established by installing the package and calling it, **not** from documentation. Do not
+substitute the docs' examples for these.
+
+- **Use `openmed[onnx-runtime]`, never `[hf]` or `[onnx]`.** Both of those pull **torch 2.13.0
+  (111 MB)** plus transformers. The runtime extra resolves to 11 packages with no torch:
+  `faker filelock flatbuffers fsspec hf-xet huggingface_hub jieba onnxruntime openmed pysbd tokenizers`.
+- **`openmed.deidentify()` and `openmed.extract_pii()` are unusable here.** They exist as symbols
+  but raise `ImportError: HuggingFace transformers is required` at call time.
+- **The working path is `OnnxModel`:**
+  ```python
+  m = openmed.OnnxModel.from_pretrained("OpenMed/OpenMed-PII-SuperClinical-Small-44M-v1-onnx-android")
+  entities = m("Patient John Doe, MRN 123456")     # -> list[OnnxEntity]
+  ```
+- **`OnnxEntity` fields:** `label`, `score`, `start`, `end`, `text`. `start`/`end` are character
+  offsets into the input, so masking slices rather than string-replaces.
+- **Labels are lowercase snake_case:** `first_name`, `last_name`, `medical_record_number`, `date`,
+  `city`. Not uppercase.
+- **Loading costs ~12s** (6 files from HF Hub on first use). A module-level cache is therefore
+  mandatory, not an optimisation.
+- **Observed scores** on `"Patient John Doe, MRN 123456, DOB 01/15/1970, seen at Mass General."`:
+  first_name 0.999, last_name 0.998, medical_record_number 0.745, date 0.719, city 0.485
+  ("Mass General" mislabelled as a city, but correctly flagged as an identifier).
 
 ## Global Constraints
 
@@ -19,6 +44,9 @@
 - **Never echo a detected identifier back to the screen.** Previews in the UI are redacted.
 - Python floor is **3.10** (`openmed` requirement); this project runs 3.12.
 - Model id, used verbatim: `OpenMed/OpenMed-PII-SuperClinical-Small-44M-v1-onnx-android`
+- **Detection threshold defaults low (0.35).** A false positive costs the user one unnecessary
+  question about a column; a miss is a disclosure. Bias toward recall. "Mass General" scored 0.485,
+  so a 0.5 threshold would already have dropped a real identifier.
 
 ---
 
@@ -59,24 +87,23 @@ import pytest
 from agent import deid
 
 
-def _fake_openmed(spans_by_text):
-    """A stand-in openmed module. spans_by_text maps input text -> [(label, substring)]."""
-    mod = types.ModuleType("openmed")
+@pytest.fixture(autouse=True)
+def _reset_model_cache():
+    """The real OnnxModel takes ~12s to load, so deid caches it module-level. Reset per test."""
+    deid._MODEL = None
+    deid._LOAD_FAILED = False
+    yield
+    deid._MODEL = None
+    deid._LOAD_FAILED = False
 
-    def deidentify(text, method="mask"):
-        result = text
-        for _label, sub in spans_by_text.get(text, []):
-            result = result.replace(sub, "[REDACTED]")
-        return types.SimpleNamespace(deidentified_text=result)
 
-    def extract_pii(text, model_name=None):
-        ents = [types.SimpleNamespace(label=label, text=sub)
-                for label, sub in spans_by_text.get(text, [])]
-        return types.SimpleNamespace(entities=ents)
-
-    mod.deidentify = deidentify
-    mod.extract_pii = extract_pii
-    return mod
+def _fake_model(spans_by_text):
+    """Stand-in for a loaded OnnxModel: callable, returning objects with the real OnnxEntity
+    fields (label, score, start, end, text). spans_by_text maps text -> [(label, start, end)]."""
+    def _call(text):
+        return [types.SimpleNamespace(label=label, score=0.99, start=s, end=e, text=text[s:e])
+                for label, s, e in spans_by_text.get(text, [])]
+    return _call
 
 
 def test_available_is_false_when_openmed_is_absent(monkeypatch):
@@ -84,21 +111,48 @@ def test_available_is_false_when_openmed_is_absent(monkeypatch):
     assert deid.available() is False
 
 
-def test_available_never_raises_on_a_broken_import(monkeypatch):
-    broken = types.ModuleType("openmed")   # importable but missing the API we need
-    monkeypatch.setitem(sys.modules, "openmed", broken)
+def test_available_never_raises_when_the_model_fails_to_load(monkeypatch):
+    def boom(*_a, **_k):
+        raise OSError("no network")
+    monkeypatch.setattr(deid, "_load_model", boom)
     assert deid.available() is False
 
 
-def test_scrub_values_masks_detected_spans(monkeypatch):
-    monkeypatch.setitem(sys.modules, "openmed",
-                        _fake_openmed({"John Doe": [("NAME", "John Doe")]}))
-    assert deid.scrub_values(["John Doe", "42"]) == ["[REDACTED]", "42"]
+def test_a_failed_load_is_not_retried(monkeypatch):
+    """A 12s load that failed must not be re-attempted on every value in a 60-column scan."""
+    calls = []
+
+    def boom(*_a, **_k):
+        calls.append(1)
+        raise OSError("no network")
+    monkeypatch.setattr(deid, "_load_model", boom)
+    deid.available(); deid.available(); deid.available()
+    assert len(calls) == 1
+
+
+def test_scrub_values_masks_detected_spans_by_offset(monkeypatch):
+    monkeypatch.setattr(deid, "_load_model",
+                        lambda: _fake_model({"John Doe is 42": [("first_name", 0, 4)]}))
+    assert deid.scrub_values(["John Doe is 42"]) == ["[REDACTED] Doe is 42"]
+
+
+def test_scrub_values_masks_multiple_spans_right_to_left(monkeypatch):
+    """Offsets are applied in reverse so earlier replacements can't shift later ones."""
+    monkeypatch.setattr(deid, "_load_model", lambda: _fake_model(
+        {"John saw Jane": [("first_name", 0, 4), ("first_name", 9, 13)]}))
+    assert deid.scrub_values(["John saw Jane"]) == ["[REDACTED] saw [REDACTED]"]
 
 
 def test_scrub_values_returns_input_unchanged_when_unavailable(monkeypatch):
     monkeypatch.setitem(sys.modules, "openmed", None)
     assert deid.scrub_values(["John Doe"]) == ["John Doe"]
+
+
+def test_scrub_values_ignores_low_confidence_spans(monkeypatch):
+    def _low(text):
+        return [types.SimpleNamespace(label="city", score=0.1, start=0, end=4, text="Mass")]
+    monkeypatch.setattr(deid, "_load_model", lambda: _low)
+    assert deid.scrub_values(["Mass General"]) == ["Mass General"]
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -134,9 +188,15 @@ log = logging.getLogger(__name__)
 MODEL_ID = "OpenMed/OpenMed-PII-SuperClinical-Small-44M-v1-onnx-android"
 REDACTION = "[REDACTED]"
 
-# No module-level model cache here: openmed's top-level API caches the loaded model itself, and
-# the import is resolved from sys.modules after the first call. Lazy by construction — importing
-# this module costs nothing, and the 44M model downloads only on the first real scan.
+# Bias toward RECALL. A false positive costs the user one unnecessary question about a column; a
+# miss is a disclosure. Measured: "Mass General" scored 0.485, so a 0.5 cut would already drop a
+# real identifier.
+SCORE_THRESHOLD = 0.35
+
+# Loading the ONNX model takes ~12s (6 files from HF Hub on first use), so it is cached here.
+# _LOAD_FAILED latches: without it, a 60-column scan would retry a 12s failing load per value.
+_MODEL = None
+_LOAD_FAILED = False
 
 
 @dataclass
@@ -149,32 +209,62 @@ class ColumnFinding:
     suggested: str = "mask"          # "drop" | "mask"
 
 
-def _openmed():
-    """Import openmed, or return None. Never raises — a missing model must not break an upload."""
+def _load_model():
+    """Load the ONNX model. Separate from _model() so tests can monkeypatch just the load.
+
+    Uses OnnxModel, NOT openmed.deidentify()/extract_pii() — those require transformers, which
+    pulls torch (111 MB) and is deliberately not installed. Verified: they raise ImportError.
+    """
+    import openmed
+    return openmed.OnnxModel.from_pretrained(MODEL_ID)
+
+
+def _model():
+    """The cached model, or None. Never raises — a missing model must not break an upload."""
+    global _MODEL, _LOAD_FAILED
+    if _MODEL is not None:
+        return _MODEL
+    if _LOAD_FAILED:
+        return None
     try:
-        import openmed
+        _MODEL = _load_model()
     except Exception as exc:  # noqa: BLE001
-        log.info("openmed unavailable: %s", exc)
+        log.info("de-identification model unavailable: %s", exc)
+        _LOAD_FAILED = True
         return None
-    if openmed is None or not hasattr(openmed, "deidentify") or not hasattr(openmed, "extract_pii"):
-        log.info("openmed present but missing the expected API")
-        return None
-    return openmed
+    return _MODEL
 
 
 def available() -> bool:
-    return _openmed() is not None
+    return _model() is not None
+
+
+def _spans(text: str) -> list[tuple[int, int, str]]:
+    """(start, end, label) for entities above the threshold. Empty on any failure."""
+    m = _model()
+    if m is None:
+        return []
+    try:
+        return [(e.start, e.end, e.label) for e in m(text)
+                if getattr(e, "score", 1.0) >= SCORE_THRESHOLD]
+    except Exception as exc:  # noqa: BLE001
+        log.warning("detection failed for one value: %s", exc)
+        return []
 
 
 def scrub_values(values: list[str]) -> list[str]:
     """Mask detected identifiers in each string. Returns the input unchanged if unavailable."""
-    om = _openmed()
-    if om is None:
+    if _model() is None:
         return list(values)
     out = []
     for v in values:
+        text = str(v)
         try:
-            out.append(om.deidentify(str(v), method="mask").deidentified_text)
+            spans = _spans(text)
+            # Replace from the END so an earlier substitution can't shift later offsets.
+            for start, end, _label in sorted(spans, key=lambda s: s[0], reverse=True):
+                text = text[:start] + REDACTION + text[end:]
+            out.append(text)
         except Exception as exc:  # noqa: BLE001
             log.warning("scrub failed for one value: %s", exc)
             out.append(REDACTION)      # fail CLOSED per value: an unscrubbable value is redacted
@@ -184,13 +274,13 @@ def scrub_values(values: list[str]) -> list[str]:
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `.venv/bin/python -m pytest tests/test_deid.py -v`
-Expected: PASS — 4 tests
+Expected: PASS — 7 tests
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add agent/deid.py tests/test_deid.py
-git commit -m "Add a fail-open de-identification wrapper over openmed"
+git commit -m "Add a fail-open de-identification wrapper over OpenMed's ONNX model"
 ```
 
 ---
@@ -202,7 +292,7 @@ git commit -m "Add a fail-open de-identification wrapper over openmed"
 - Test: `tests/test_deid.py`
 
 **Interfaces:**
-- Consumes: `ColumnFinding`, `_openmed()`, `REDACTION` from Task 1.
+- Consumes: `ColumnFinding`, `_model()`, `_spans()`, `scrub_values()`, `REDACTION` from Task 1.
 - Produces: `scan_columns(df: pd.DataFrame, sample: int = 20) -> list[ColumnFinding]`, `apply_decisions(df: pd.DataFrame, drop: list[str], mask: list[str]) -> pd.DataFrame`, `scrub_frame(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame`.
 
 - [ ] **Step 1: Write the failing test**
@@ -210,35 +300,28 @@ git commit -m "Add a fail-open de-identification wrapper over openmed"
 ```python
 # append to tests/test_deid.py
 
+_NAMES = {"John Doe": [("first_name", 0, 8)], "Jane Roe": [("first_name", 0, 8)]}
+
+
 def test_scan_flags_an_identifying_column_and_ignores_a_numeric_one(monkeypatch):
-    monkeypatch.setitem(sys.modules, "openmed", _fake_openmed({
-        "John Doe": [("NAME", "John Doe")],
-        "Jane Roe": [("NAME", "Jane Roe")],
-    }))
+    monkeypatch.setattr(deid, "_load_model", lambda: _fake_model(_NAMES))
     df = pd.DataFrame({"patient": ["John Doe", "Jane Roe"], "age": [41, 52]})
     findings = deid.scan_columns(df)
     assert [f.column for f in findings] == ["patient"]
-    assert findings[0].entity_types == ["NAME"]
+    assert findings[0].entity_types == ["first_name"]     # lowercase snake_case, per the real model
     assert findings[0].hit_rate == 1.0
 
 
 def test_scan_suggests_drop_at_high_hit_rate_and_mask_below(monkeypatch):
-    monkeypatch.setitem(sys.modules, "openmed", _fake_openmed({
-        "John Doe": [("NAME", "John Doe")],
-        "seen in clinic": [],
-        "no issues": [],
-        "no concerns": [],
-        "stable": [],
-    }))
-    high = pd.DataFrame({"name": ["John Doe"] * 4})
+    monkeypatch.setattr(deid, "_load_model", lambda: _fake_model(_NAMES))
+    high = pd.DataFrame({"name": ["John Doe", "Jane Roe"]})
     low = pd.DataFrame({"notes": ["John Doe", "seen in clinic", "no issues", "stable"]})
     assert deid.scan_columns(high)[0].suggested == "drop"
     assert deid.scan_columns(low)[0].suggested == "mask"
 
 
 def test_scan_examples_never_contain_the_raw_identifier(monkeypatch):
-    monkeypatch.setitem(sys.modules, "openmed", _fake_openmed({
-        "John Doe": [("NAME", "John Doe")]}))
+    monkeypatch.setattr(deid, "_load_model", lambda: _fake_model(_NAMES))
     finding = deid.scan_columns(pd.DataFrame({"patient": ["John Doe"]}))[0]
     assert all("John Doe" not in e for e in finding.examples)
 
@@ -249,8 +332,7 @@ def test_scan_returns_nothing_when_unavailable(monkeypatch):
 
 
 def test_apply_decisions_drops_and_masks_exactly_the_named_columns(monkeypatch):
-    monkeypatch.setitem(sys.modules, "openmed", _fake_openmed({
-        "John Doe": [("NAME", "John Doe")]}))
+    monkeypatch.setattr(deid, "_load_model", lambda: _fake_model(_NAMES))
     df = pd.DataFrame({"a": ["John Doe"], "b": ["John Doe"], "c": [7]})
     out = deid.apply_decisions(df, drop=["a"], mask=["b"])
     assert list(out.columns) == ["b", "c"]
@@ -259,8 +341,7 @@ def test_apply_decisions_drops_and_masks_exactly_the_named_columns(monkeypatch):
 
 
 def test_scrub_frame_touches_only_the_named_columns(monkeypatch):
-    monkeypatch.setitem(sys.modules, "openmed", _fake_openmed({
-        "John Doe": [("NAME", "John Doe")]}))
+    monkeypatch.setattr(deid, "_load_model", lambda: _fake_model(_NAMES))
     df = pd.DataFrame({"keep": ["John Doe"], "other": ["John Doe"]})
     out = deid.scrub_frame(df, ["keep"])
     assert out["keep"].iloc[0] == "[REDACTED]"
@@ -268,7 +349,7 @@ def test_scrub_frame_touches_only_the_named_columns(monkeypatch):
 
 
 def test_scrub_frame_is_a_noop_for_an_empty_column_list(monkeypatch):
-    monkeypatch.setitem(sys.modules, "openmed", _fake_openmed({}))
+    monkeypatch.setattr(deid, "_load_model", lambda: _fake_model({}))
     df = pd.DataFrame({"a": ["x"]})
     assert deid.scrub_frame(df, []) is df
 ```
@@ -286,18 +367,6 @@ Expected: FAIL — `AttributeError: module 'agent.deid' has no attribute 'scan_c
 DROP_THRESHOLD = 0.8       # at/above this share of sampled values, the column IS identifiers
 
 
-def _detect(text: str) -> list[str]:
-    """Entity labels found in one string. Empty on any failure — callers treat that as 'no hit'."""
-    om = _openmed()
-    if om is None:
-        return []
-    try:
-        return [e.label for e in om.extract_pii(str(text), model_name=MODEL_ID).entities]
-    except Exception as exc:  # noqa: BLE001
-        log.warning("detect failed for one value: %s", exc)
-        return []
-
-
 def scan_columns(df: pd.DataFrame, sample: int = 20) -> list[ColumnFinding]:
     """Sample each column and report which look like they hold identifiers.
 
@@ -305,7 +374,7 @@ def scan_columns(df: pd.DataFrame, sample: int = 20) -> list[ColumnFinding]:
     scan exists to inform a per-COLUMN decision, not to find every cell. That structural framing
     is what keeps the feature honest despite the model's unpublished recall.
     """
-    if _openmed() is None:
+    if _model() is None:
         return []
     findings: list[ColumnFinding] = []
     for col in df.columns:
@@ -314,7 +383,7 @@ def scan_columns(df: pd.DataFrame, sample: int = 20) -> list[ColumnFinding]:
             continue
         labels, hits = [], 0
         for v in values:
-            found = _detect(v)
+            found = [label for _s, _e, label in _spans(v)]
             if found:
                 hits += 1
                 labels.extend(found)
@@ -358,7 +427,7 @@ def scrub_frame(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `.venv/bin/python -m pytest tests/test_deid.py -v`
-Expected: PASS — 11 tests
+Expected: PASS — 14 tests
 
 - [ ] **Step 5: Commit**
 
@@ -798,8 +867,12 @@ Append to `requirements.txt`, after `openpyxl==3.1.5`:
 # On-device PII/PHI detection for uploaded data (agent/deid.py). Apache-2.0. The 44M ONNX model
 # downloads from HF Hub on FIRST UPLOAD only — importing the package costs nothing, so app
 # cold-start is unaffected and a user who never uploads never pays for it.
-openmed==2.0.0
-onnxruntime==1.24.0
+#
+# [onnx-runtime], NOT [hf] or [onnx]: those pull torch (111 MB) + transformers, which this never
+# needs. Inference goes through OnnxModel. Verified: openmed.deidentify() raises ImportError
+# without transformers, which is why agent/deid.py does not use it.
+openmed[onnx-runtime]==2.0.0
+onnxruntime==1.28.0
 ```
 
 Also bump the rebuild marker comment near the top of the file, which this project uses to force a
@@ -812,22 +885,25 @@ Streamlit Cloud rebuild:
 - [ ] **Step 2: Verify the install resolves locally**
 
 Run: `uv pip install -r requirements.txt --python .venv/bin/python`
-Expected: resolves with no conflict against the existing pandas 3.0.3 / numpy 2.5.0 pins. **If it
-conflicts, stop and report** — do not loosen the existing pins, which are the versions the app is
-verified against.
+Expected: resolves with no conflict against the existing pandas 3.0.3 / numpy 2.5.0 pins. Already
+confirmed by dry-run — 11 packages, no torch. **If it conflicts, stop and report**; do not loosen
+the existing pins, which are the versions the app is verified against.
 
-- [ ] **Step 3: Confirm the real package satisfies the wrapper's expectations**
+- [ ] **Step 3: Confirm no torch crept in, and the wrapper works end to end**
 
 Run:
 ```bash
 .venv/bin/python -c "
+import importlib.util as u
+assert u.find_spec('torch') is None, 'torch was pulled in — wrong extra'
 from agent import deid
 print('available:', deid.available())
-print(deid.scrub_values(['Patient John Doe, MRN 123456']))"
+print(deid.scrub_values(['Patient John Doe, MRN 123456, DOB 01/15/1970, seen at Mass General.']))"
 ```
-Expected: `available: True`, and the output string has the name and MRN replaced. This is the first
-point at which the real model downloads. **If detection is obviously poor, record what you saw** —
-the spec's §10 lists unmeasured recall as the central open risk.
+Expected: no assertion, `available: True`, and every identifier replaced with `[REDACTED]`.
+Reference run of the raw model on this exact string detected: first_name 0.999, last_name 0.998,
+medical_record_number 0.745, date 0.719, city 0.485. **If the output differs materially, record
+what you saw** — the spec's §10 lists unmeasured recall as the central open risk.
 
 - [ ] **Step 4: Run the full suite**
 
