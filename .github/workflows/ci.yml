@@ -43,6 +43,18 @@ jobs:
       - name: assurance package tests (standalone, no warehouse)
         run: pytest packages/assurance/tests -q
 
+      # Fail fast on a broken project BEFORE the expensive part. A bad ref(), an unresolved
+      # source, or malformed schema YAML would otherwise surface only at `dbt build` below —
+      # after downloading the Synthea jar and generating a dataset in Java, minutes in.
+      # `dbt parse` catches all three in ~2s and never opens a warehouse connection, so it runs
+      # here, before data exists. `dbt deps` first: the models use dbt_utils macros, and parse
+      # exits 2 without them.
+      - name: Validate the dbt project (parse only — no warehouse needed)
+        working-directory: warehouse
+        run: |
+          dbt deps
+          dbt parse --profiles-dir .
+
       - name: Generate a small, reproducible Synthea dataset
         # Pinned release (NOT master-branch-latest, a moving target that can break CI with no code
         # change and silently varies the generated data over time). Bump deliberately.
