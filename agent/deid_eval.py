@@ -17,8 +17,11 @@ measures how much those markers distort the result.
 """
 from __future__ import annotations
 
+import datetime as _dt
 import hashlib
+import json
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -212,3 +215,81 @@ def score_spans(notes: list[tuple[str, dict[str, str]]]) -> dict:
     return {"recall": recall,
             "overall": all_found / all_total if all_total else 1.0,
             "leaks": leaks}
+
+
+def append_history(record: dict) -> None:
+    """One JSON object per line, matching route_eval_history.jsonl and its siblings."""
+    with HISTORY.open("a") as fh:
+        fh.write(json.dumps(record) + "\n")
+
+
+def _score_variant(identities: list[Identity]) -> dict:
+    df, truth = build_frame(identities)
+    cols = score_columns(df, truth)
+    spans = score_spans(build_notes(identities))
+    return {
+        "column_recall": round(cols["recall"], 3),
+        "column_precision": round(cols["precision"], 3),
+        "column_missed": cols["missed"],
+        "column_false_positives": cols["false_positives"],
+        "quasi_ok": cols["quasi_ok"],
+        "span_overall": round(spans["overall"], 3),
+        "span_recall": {k: round(v, 3) for k, v in spans["recall"].items()},
+        "leaks": spans["leaks"],
+    }
+
+
+def run(limit: int = 200, db_path=DB_PATH) -> dict:
+    """Score both corpus variants and return the record."""
+    rows = load_rows(db_path, limit)
+    return {
+        "ts": _dt.datetime.now().replace(microsecond=0).isoformat(),
+        "model": deid.MODEL_ID,
+        "threshold": deid.SCORE_THRESHOLD,
+        "n_patients": len(rows),
+        "normalised": _score_variant(normalise(rows)),
+        "raw": _score_variant(raw_identities(rows)),
+    }
+
+
+def _print(rec: dict) -> None:
+    print(f"\n  model={rec['model']}")
+    print(f"  threshold={rec['threshold']}  n={rec['n_patients']}\n")
+    for variant in ("normalised", "raw"):
+        v = rec[variant]
+        print(f"  {variant.upper()}")
+        print(f"    columns   recall={v['column_recall']:.0%}  "
+              f"precision={v['column_precision']:.0%}  quasi_ok={v['quasi_ok']}")
+        if v["column_missed"]:
+            print(f"      missed: {v['column_missed']}")
+        if v["column_false_positives"]:
+            print(f"      false positives: {v['column_false_positives']}")
+        print(f"    spans     overall={v['span_overall']:.0%}")
+        for kind, score in v["span_recall"].items():
+            leak = v["leaks"].get(kind) or []
+            note = f"   e.g. survived: {leak[0]!r}" if leak else ""
+            print(f"      {kind:<9} {score:.0%}{note}")
+        print()
+    head = rec["normalised"]["span_overall"]
+    print(f"  HEADLINE (normalised span recall): {head:.1%}")
+    print("  Not a real-world figure — the distribution is still Synthea's.\n")
+
+
+def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    if not deid.available():
+        print("De-identification model unavailable — install openmed[onnx-runtime] first.")
+        return 1
+    limit = 200
+    for a in argv:
+        if a.startswith("--limit="):
+            limit = int(a.split("=", 1)[1])
+    rec = run(limit=limit)
+    _print(rec)
+    append_history(rec)
+    print(f"  appended to {HISTORY.name}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

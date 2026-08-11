@@ -1,4 +1,6 @@
 """Benchmark harness tests. agent.deid is mocked: CI must never download a model."""
+import json
+
 import pytest
 
 from agent import deid, deid_eval
@@ -193,3 +195,47 @@ def test_score_spans_raises_on_wrong_output_length(monkeypatch):
     monkeypatch.setattr(deid, "scrub_values", returns_fewer_items)
     with pytest.raises(ValueError, match="scrub_values returned .* expected"):
         deid_eval.score_spans(notes)
+
+
+def test_run_scores_both_variants_and_records_the_gap(monkeypatch):
+    monkeypatch.setattr(deid_eval, "load_rows",
+                        lambda db_path=None, limit=200: [dict(_ROW, Id=f"id-{i}")
+                                                         for i in range(3)])
+    monkeypatch.setattr(deid, "available", lambda: True)
+    monkeypatch.setattr(deid, "scan_columns", lambda frame, sample=20: [])
+    monkeypatch.setattr(deid, "scrub_values", lambda vals: list(vals))
+    rec = deid_eval.run(limit=3)
+    assert set(rec) >= {"ts", "model", "threshold", "n_patients", "normalised", "raw"}
+    assert rec["n_patients"] == 3
+    for variant in ("normalised", "raw"):
+        assert "column_recall" in rec[variant]
+        assert "span_recall" in rec[variant]
+        assert set(rec[variant]["span_recall"]) == set(deid_eval.ENTITY_TYPES)
+
+
+def test_run_records_the_threshold_and_model_it_measured_at(monkeypatch):
+    """A score without its threshold and model id cannot be compared against a later run."""
+    monkeypatch.setattr(deid_eval, "load_rows",
+                        lambda db_path=None, limit=200: [dict(_ROW, Id="id-0")])
+    monkeypatch.setattr(deid, "scan_columns", lambda frame, sample=20: [])
+    monkeypatch.setattr(deid, "scrub_values", lambda vals: list(vals))
+    monkeypatch.setattr(deid, "SCORE_THRESHOLD", 0.42)
+    rec = deid_eval.run(limit=1)
+    assert rec["threshold"] == 0.42
+    assert rec["model"] == deid.MODEL_ID
+
+
+def test_main_exits_nonzero_and_says_so_when_the_model_is_unavailable(monkeypatch, capsys):
+    monkeypatch.setattr(deid, "available", lambda: False)
+    assert deid_eval.main([]) == 1
+    assert "unavailable" in capsys.readouterr().out.lower()
+
+
+def test_history_record_is_one_json_object_per_line(tmp_path, monkeypatch):
+    hist = tmp_path / "h.jsonl"
+    monkeypatch.setattr(deid_eval, "HISTORY", hist)
+    deid_eval.append_history({"ts": "x", "overall": 1.0})
+    deid_eval.append_history({"ts": "y", "overall": 0.5})
+    lines = hist.read_text().strip().split("\n")
+    assert len(lines) == 2
+    assert json.loads(lines[1])["ts"] == "y"
