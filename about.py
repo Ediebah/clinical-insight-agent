@@ -89,9 +89,13 @@ BYOD_NOTE = (
     "Upload a CSV or Excel file and the agent profiles it, infers each column's structural role, "
     "and runs the same modeling suite against it. A local model first scans the columns for "
     "identifiers and asks you what to drop, mask, or keep — that scan runs on this machine and "
-    "sends nothing anywhere. It reduces what reaches the language model; it does **not** make the "
-    "data de-identified or safe to share, and on this hosted demo the file has already reached "
-    "the server. Use **synthetic or non-sensitive data only** here."
+    "sends nothing anywhere. Measured against 200 Synthea-derived patients (`agent/deid_eval.py`), "
+    "it caught 99.9% of the identifier text spans it was asked to mask — a **ceiling**, not a "
+    "real-world figure: those notes label every identifier explicitly (MRN, DOB, SSN, resides "
+    "at), which ordinary clinical text does not, and would likely score worse. It reduces what "
+    "reaches the language model; it does **not** make the data de-identified or safe to share, "
+    "and on this hosted demo the file has already reached the server. Use **synthetic or "
+    "non-sensitive data only** here."
 )
 
 # ── 4 · how a question becomes an answer ────────────────────────────────────────────────────────

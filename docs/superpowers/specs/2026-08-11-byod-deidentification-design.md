@@ -204,11 +204,34 @@ Hub availability and add tens of megabytes to every run.
 - `tests/test_userdata.py`: `build_catalog` example values pass through `scrub_values`.
 - The UI panel is covered by an `AppTest` case in the existing smoke test.
 
-**What the tests deliberately do not establish:** whether the model's recall is good enough. Mocked
-tests verify plumbing, not detection quality. Before relying on this for real data, recall should be
-measured on a governed corpus — the i2b2/n2c2 de-identification sets are the standard, though
-access-controlled. Until that is done, the feature's honest status is "reduces exposure by an
-unmeasured amount", and §6's wording reflects that.
+**What the tests deliberately do not establish:** whether the model's recall is good enough on real
+clinical text. Mocked tests verify plumbing, not detection quality — that is now supplied
+separately by `agent/deid_eval.py`, which scores the model against Synthea's own generated
+identifiers (200 patients, both the raw Synthea corpus and a normalised variant with Synthea's
+synthetic markers stripped). Measured: normalised span recall **99.9%** overall (every entity type
+at 100% except `first_name` at 99%, two survivors), raw span recall **100%**; column-level recall
+**100%** (every identifier column flagged), column-level precision **70%** — a **floor, not the
+model's true precision**, because the scoring counts the expected quasi-identifier flags on `age`
+and `sex` as false positives by design (they must stay flagged-but-kept), plus one additional flag
+on a clean column in the measured run.
+
+The recall figure has the mirror-image problem: it is a **ceiling, not the model's true recall**.
+The benchmark's synthetic note template states each identifier next to an explicit label —
+`"Patient {name} (MRN {mrn_digits}), DOB {date}, SSN {ssn}, resides at {address}, {city} {zip}."`
+— so every span the model has to find is announced by the two or three words immediately before
+it. That is close to the easiest input the model could be given; ordinary clinical text does not
+label its identifiers this way, and would very likely score worse. The raw-vs-normalised gap is a
+data point in the same direction: **raw scored higher (100%) than normalised (99.9%)**, because
+Synthea's own numeric name suffixes (`Brekke496`) are an easier surface for the model to flag than
+an ordinary name — normalising strips exactly that crutch, which is why it is the harder, more
+representative variant and the headline. The two normalised misses were both the first name
+**"Manual"** — one distinct value, two instances across the 200 patients — an ordinary English
+word once its numeric suffix is stripped, a concrete instance of the harder
+case a labelled template does not otherwise expose. This is **not a governed-corpus figure**
+either: the i2b2/n2c2 de-identification sets are the standard for that, though access-controlled,
+and Synthea's distribution, labelled template, and lack of clinical narrative are not real
+clinical text. Real-clinical-text recall stays an open question this benchmark does not answer,
+and §6's wording reflects that.
 
 ## 9. Scope
 
@@ -223,9 +246,17 @@ measuring the model's recall, which is prerequisite to trusting it but not to bu
 
 ## 10. Open risks
 
-1. **Unmeasured recall** is the central one. The design mitigates it structurally — dropping a
-   column does not depend on the model catching every cell — but a user who chooses Keep is relying
-   on span detection whose quality is unknown.
+1. **The measured recall is a ceiling, not real-world recall**, and that stays the central risk.
+   `agent/deid_eval.py` measured normalised span recall of **99.9%** and column-level recall of
+   **100%** against 200 Synthea patients (column precision floors at **70%**, understated by the
+   expected `age`/`sex` quasi-identifier flags). The recall figure is a ceiling because the
+   benchmark's notes label every identifier explicitly (`"MRN {mrn}, DOB {date}, SSN {ssn},
+   resides at {address}"`), handing the model close to the easiest input it could get — ordinary
+   clinical text does not announce its identifiers that way. The design mitigates the risk
+   structurally — dropping a column does not depend on the model catching every cell — but a user
+   who chooses Keep is relying on span detection measured on a synthetic, explicitly-labelled
+   corpus; real clinical text, unlabelled and with messier phrasing and formats, would very likely
+   score worse.
 2. **Dependency weight on Streamlit Cloud.** `openmed[hf]` pulls `transformers`; pin both it and
    `onnxruntime` and watch the first deploy, given this project's history of rebuild failures.
 3. **First-use latency.** The 44M model downloads on the first upload of a session. Acceptable, and
