@@ -209,7 +209,7 @@ clinical text. Mocked tests verify plumbing, not detection quality — that is n
 separately by `agent/deid_eval.py`, which scores the model against Synthea's own generated
 identifiers (200 patients, both the raw Synthea corpus and a normalised variant with Synthea's
 synthetic markers stripped). Measured: normalised span recall **99.9%** overall (every entity type
-at 100% except `first_name` at 99%, one survivor), raw span recall **100%**; column-level recall
+at 100% except `first_name` at 99%, two survivors), raw span recall **100%**; column-level recall
 **100%** (every identifier column flagged), column-level precision **70%** — a **floor, not the
 model's true precision**, because the scoring counts the expected quasi-identifier flags on `age`
 and `sex` as false positives by design (they must stay flagged-but-kept), plus one additional flag
@@ -224,8 +224,9 @@ label its identifiers this way, and would very likely score worse. The raw-vs-no
 data point in the same direction: **raw scored higher (100%) than normalised (99.9%)**, because
 Synthea's own numeric name suffixes (`Brekke496`) are an easier surface for the model to flag than
 an ordinary name — normalising strips exactly that crutch, which is why it is the harder, more
-representative variant and the headline. The one normalised miss was the first name **"Manual"**,
-an ordinary English word once its numeric suffix is stripped — a concrete instance of the harder
+representative variant and the headline. The two normalised misses were both the first name
+**"Manual"** — one distinct value, two instances across the 200 patients — an ordinary English
+word once its numeric suffix is stripped, a concrete instance of the harder
 case a labelled template does not otherwise expose. This is **not a governed-corpus figure**
 either: the i2b2/n2c2 de-identification sets are the standard for that, though access-controlled,
 and Synthea's distribution, labelled template, and lack of clinical narrative are not real

@@ -306,11 +306,11 @@ each identifier next to an explicit label — `"MRN {mrn}"`, `"DOB {date}"`, `"S
 {address}"` — which hands the model close to the easiest possible cue, and ordinary clinical text does not
 announce its identifiers that way. (The raw, un-normalised corpus scored even higher — 100% versus the
 normalised 99.9% — because Synthea's numeric name suffixes, like `Brekke496`, make those tokens easier to
-flag than an ordinary name; the single miss was the first name **"Manual"**, an unremarkable English word
-once its suffix is stripped.) Real clinical text, unlabelled and without those markers, would very likely
-score worse. The scan reduces what reaches the language model; it does **not** make the data de-identified
-or safe to share, and a notice reminds you to upload non-sensitive data only, since column names and a few
-example values are sent to the LLM.
+flag than an ordinary name; the two misses were both the first name **"Manual"**, an unremarkable
+English word once its suffix is stripped.) Real clinical text, unlabelled and without those markers,
+would very likely score worse. The scan reduces what reaches the language model; it does **not**
+make the data de-identified or safe to share, and a notice reminds you to upload non-sensitive data
+only, since column names and a few example values are sent to the LLM.
 
 ### Automation
 - Automated dbt model generation (`agent/model_builder.py`): from plain English, the agent drafts a dbt model
