@@ -33,11 +33,12 @@ honest number.
 ## No Monte Carlo, and why that matters
 
 Every model is conjugate, so every quantity is closed-form or deterministic quadrature on a fixed
-grid. There is no seed to manage, and re-running never changes a verdict.
+grid. There is no seed to manage. Results are deterministic for fixed inputs and environment;
+floating-point results can differ across library versions and platforms.
 
 When a programme decision turns on whether assurance is 0.78 or 0.82, a number that moves with the
-seed is not evidence. And a regulator asking you to reproduce a design two years later should get
-the same digits, not the same distribution.
+seed is not enough evidence. Record the software environment and independently check decisions near
+a threshold.
 
 ## What it does
 
@@ -107,10 +108,11 @@ compose them themselves.
 ## Install
 
 ```bash
-pip install assurance
+python -m pip install ./packages/assurance
 ```
 
-Requires numpy and scipy.
+Run from the repository root. Requires numpy and scipy. The PyPI name and ownership have not been
+verified for this project; do not use the unqualified package-index command yet.
 
 ## License
 

@@ -1,0 +1,25 @@
+name: Synthetic research case
+description: Suggest a reproducible statistical failure case or benchmark addition
+title: "[Research case]: "
+labels: ["good first issue"]
+body:
+  - type: markdown
+    attributes:
+      value: Use synthetic, public, or otherwise non-sensitive examples. Never include PHI or credentials.
+  - type: textarea
+    id: case
+    attributes:
+      label: Minimal case
+      description: Describe the input and how to reproduce the issue.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior and independent rationale
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: Actual behavior and limitations

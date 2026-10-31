@@ -128,6 +128,7 @@ class AgentResult:
     data_health: dict | None = None                           # pre-flight data-quality gate result
     trace: dict | None = None                                 # {calls, tokens, latency_ms, est_cost_usd}
     error: str | None = None
+    analysis_spec: dict | None = None
 
     @property
     def n_rows(self) -> int:
@@ -413,9 +414,8 @@ def _route(question: str, context: str) -> dict:
         "and the prior as `prior_successes` + `prior_n` or `prior_a` + `prior_b` if stated. Extract "
         "`gate_tv` and `gate_lrv` as the final posterior-probability thresholds, and `stop_lrv` as the "
         "interim predictive-probability futility threshold, ONLY when the question states them. Never "
-        "invent a gate or silently substitute one from a different design. If the "
-        "question gives no TV/LRV, use the LRV/TV from any stated goal, else tv=0.30, lrv=0.15 for a "
-        "response-rate endpoint and SAY SO in the hypothesis.\n"
+        "invent a gate or silently substitute one from a different design. If any target, reference, "
+        "decision threshold or prior is missing, leave it null and ask the user.\n"
         "For a RANDOMIZED / two-arm interim (treatment vs a concurrent control or placebo, e.g. '18/40 "
         "on the drug vs 10/38 on control') set `framing`='two_arm', and ALWAYS set ALL THREE of "
         "`outcome`=the binary response column, `group`=the arm column, and `control`=the control arm's "
@@ -496,9 +496,20 @@ def _fit_model(spec: dict, df) -> modeling.ModelResult:
         return modeling.fit_noninferiority(df, spec["group"], spec["outcome"], spec.get("margin"),
                                            spec.get("higher_is_better", True), spec.get("control"))
     if mt == "interim":
-        gate_tv = spec.get("gate_tv") if spec.get("gate_tv") is not None else 0.80
-        gate_lrv = spec.get("gate_lrv") if spec.get("gate_lrv") is not None else 0.90
-        stop_lrv = spec.get("stop_lrv") if spec.get("stop_lrv") is not None else 0.10
+        from .research import require_bayesian_inputs
+        try:
+            require_bayesian_inputs(spec)
+        except ValueError as exc:
+            return modeling.ModelResult("interim", spec.get("outcome", ""), 0, "",
+                                        error=str(exc))
+        if spec.get("framing") == "two_arm":
+            if spec.get("prior_a") is None or spec.get("prior_b") is None:
+                return modeling.ModelResult("interim", spec.get("outcome", ""), 0, "",
+                    error="Two-arm interim requires an explicit Beta prior_a and prior_b for both arms.")
+            if not spec.get("control"):
+                return modeling.ModelResult("interim", spec.get("outcome", ""), 0, "",
+                                            error="Two-arm interim requires an explicit control arm.")
+        gate_tv, gate_lrv, stop_lrv = (spec[k] for k in ("gate_tv", "gate_lrv", "stop_lrv"))
         return modeling.fit_interim(
             df, spec["outcome"], n_planned=spec.get("n_planned"), tv=spec.get("tv"),
             lrv=spec.get("lrv"), gate_tv=gate_tv, gate_lrv=gate_lrv, stop_lrv=stop_lrv,
@@ -555,17 +566,18 @@ def _interpret_model(question: str, mr: modeling.ModelResult) -> str:
 
 
 def _run_model(question: str, context: str, spec: dict, result: AgentResult, table_names: list[str],
-               db_path=None, deadline_start: float | None = None, vocab=None) -> AgentResult:
+               db_path=None, deadline_start: float | None = None, vocab=None, reviewed=False) -> AgentResult:
     sql = _clean_sql(spec.get("analytic_sql", ""))
     result.hypothesis = spec.get("hypothesis", "")
     df = None
-    for attempt in range(1, MAX_SQL_TRIES + 1):
+    max_attempts = 1 if reviewed else MAX_SQL_TRIES
+    for attempt in range(1, max_attempts + 1):
         _check_deadline(deadline_start)
         try:
             candidate = run_query(sql, max_rows=100000, db_path=db_path)   # full analytic set, not 1000 rows
         except QueryError as e:
             result.attempts.append({"sql": sql, "error": str(e)})
-            if attempt == MAX_SQL_TRIES:
+            if attempt == max_attempts:
                 result.sql = sql
                 result.error = f"Analytic SQL failed: {e}"
                 return result
@@ -574,7 +586,7 @@ def _run_model(question: str, context: str, spec: dict, result: AgentResult, tab
         # An inferential model needs a non-empty cohort. An empty result almost always means the
         # condition/category filter matched nothing (e.g. an ILIKE on a term that isn't in the
         # vocabulary) — self-heal with the resolved candidate patterns rather than fitting on 0 rows.
-        if len(candidate) == 0 and attempt < MAX_SQL_TRIES:
+        if len(candidate) == 0 and attempt < max_attempts:
             hint = vocab.heal_hint() if vocab is not None else (
                 "The query returned 0 rows — match clinical names with ILIKE on a *_description column.")
             result.attempts.append({"sql": sql, "error": hint})
@@ -587,6 +599,10 @@ def _run_model(question: str, context: str, spec: dict, result: AgentResult, tab
     result.sql = sql
     result.dataframe = df
     result.citations = _citations(sql, table_names)
+    if df is not None and df.attrs.get("truncated"):
+        result.error = ("The analytic cohort was truncated at the row limit. No model was fit; "
+                        "narrow the cohort or use a documented sampling method before analysis.")
+        return result
     # Guard: never fit a model on an empty cohort. Report the real reason (the filter matched no
     # patients) instead of the misleading "no usable predictors remained" _fit_model would emit.
     if df is None or len(df) == 0:
@@ -603,9 +619,6 @@ def _run_model(question: str, context: str, spec: dict, result: AgentResult, tab
     except Exception as e:  # noqa: BLE001 — a malformed model spec must not crash the app
         mr = modeling.ModelResult(spec.get("model_type") or "?", spec.get("outcome", ""), 0, "",
                                   error=f"the model spec was missing a required field ({e}).")
-    if df.attrs.get("truncated") and not mr.error:
-        mr.issues.append(f"The cohort hit the {len(df):,}-row cap — the model was fit on a truncated "
-                         "sample, not the full population the SQL matches.")
     # Specification-curve robustness: for an adjusted effect, refit across the covariate multiverse and
     # report whether the headline holds (the garden of forking paths). Advisory — never break the analysis.
     if not mr.error and mr.model_type in ("logistic", "ols", "cox", "survival") and mr.terms:
@@ -619,7 +632,7 @@ def _run_model(question: str, context: str, spec: dict, result: AgentResult, tab
     if not mr.error:
         _check_deadline(deadline_start)
         result.interpretation = _interpret_model(question, mr)
-    elif len(df) < _MIN_MODEL_COHORT:
+    elif len(df) < _MIN_MODEL_COHORT and "no usable predictors" in mr.error.lower():
         # A genuinely tiny cohort — often a rare condition surfaced by name (e.g. only a handful of
         # patients have it). Say THAT plainly instead of the opaque "no usable predictors" message.
         result.interpretation = (
@@ -658,6 +671,12 @@ def _run_assurance(question: str, spec: dict, result: AgentResult,
                    deadline_start: float | None = None) -> AgentResult:
     """Design-stage Bayesian go/no-go — computed from the question, queries no data."""
     result.hypothesis = spec.get("hypothesis", "")
+    from .research import require_bayesian_inputs
+    try:
+        require_bayesian_inputs(spec)
+    except ValueError as exc:
+        result.clarification = str(exc)
+        return result
     params = {k: spec[k] for k in _ASSURANCE_KEYS if spec.get(k) is not None}
     mr = modeling.calc_assurance(**params)
     result.model = mr.as_dict()
@@ -670,8 +689,15 @@ def _run_assurance(question: str, spec: dict, result: AgentResult,
 
 def run_analysis(question: str, max_tries: int = MAX_SQL_TRIES,
                  catalog: dict | None = None, db_path=None,
-                 deid_columns: list[str] | None = None) -> AgentResult:
+                 deid_columns: list[str] | None = None, approved_spec: dict | None = None,
+                 input_truncated: bool = False) -> AgentResult:
     result = AgentResult(question=question)
+    if input_truncated and approved_spec is not None and approved_spec.get("method") not in ("assurance", "sample_size"):
+        result.error = "The uploaded data was truncated before analysis. Upload a complete or explicitly sampled dataset."
+        return result
+    if re.search(r"\bcompeting[ -]risks?\b|\bfine[ -]gray\b", question, re.IGNORECASE):
+        result.error = "Competing-risk analysis is not supported; no substitute model was fit."
+        return result
     llm.reset_trace()
     start = time.monotonic()                                    # anchor for the per-run wall-clock deadline
     if _looks_like_injection(question):
@@ -730,16 +756,44 @@ def run_analysis(question: str, max_tries: int = MAX_SQL_TRIES,
 
         # Inferential questions → fit a real model. Checked BEFORE triage so a specific model
         # question ("what predicts X adjusting for Y") isn't clarified away as vague.
-        if _MODEL_HINT.search(question):
+        if approved_spec is not None or _MODEL_HINT.search(question):
+            from . import research
             _check_deadline(start)
-            spec = _route(question, context)
+            source = "uploaded dataset" if catalog is not None else "demo warehouse"
+            if approved_spec is None:
+                spec = _route(question, context)
+                method = research.ALIASES.get(spec.get("model_type"), spec.get("model_type"))
+                if method not in research.METHODS and method not in (None, "", "aggregate"):
+                    result.error = f"Unsupported analysis method: {method}; no query was run."
+                    return result
+                spec["model_type"] = method
+                if spec.get("model_type") in research.METHODS:
+                    result.analysis_spec = research.from_route(question, spec, source)
+                    return result
+            else:
+                research.validate_spec(approved_spec)
+                if approved_spec["question"] != question or approved_spec["data_source"] != source:
+                    raise ValueError("The approved specification does not match this question and data source.")
+                result.analysis_spec = approved_spec
+                spec = dict(approved_spec["parameters"])
+                spec.update(model_type=approved_spec["method"], outcome=approved_spec["outcome"],
+                            predictors=approved_spec["predictors"], analytic_sql=approved_spec["sql"])
+                if approved_spec["method"] in {"survival", "cox", "survival_ml"}:
+                    spec["event"] = approved_spec["outcome"]
+                if approved_spec["method"] == "association":
+                    spec["var_b"] = approved_spec["outcome"]
+                if approved_spec["method"] == "timeseries":
+                    spec["value_col"] = approved_spec["outcome"]
             if spec.get("model_type") == "sample_size":       # design-stage calc — no data/SQL
                 return _run_sample_size(question, spec, result, start)
             if spec.get("model_type") == "assurance":         # design-stage Bayesian go/no-go — no data
                 return _run_assurance(question, spec, result, start)
+            if approved_spec is not None and not spec.get("analytic_sql"):
+                result.error = "The approved analysis requires a read-only analytic query; no model was fit."
+                return result
             if spec.get("analytic_sql") and spec.get("model_type") not in (None, "", "aggregate"):
                 res = _run_model(question, context, spec, result, retrieved["all_table_names"],
-                                 db_path, start, vocab)
+                                 db_path, start, vocab, reviewed=True)
                 res.lineage = lineage.for_tables(res.citations, lin_cat)   # provenance of the tables used
                 return res
 

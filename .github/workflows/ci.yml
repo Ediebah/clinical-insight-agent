@@ -84,5 +84,38 @@ jobs:
       - name: Guardrail precision / recall (deterministic, no API key)
         run: python -m agent.guardrail_eval
 
+      - name: Public synthetic contract benchmark (no API key)
+        run: python -m agent.public_benchmark
+
       - name: Agent modules import cleanly
         run: python -c "import agent.agent, agent.retrieval, agent.warehouse, agent.guardrails"
+
+  package-distributions:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12"]
+        package: [caveat, assurance]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Build distributions
+        run: |
+          python -m pip install build
+          python -m build packages/${{ matrix.package }} --outdir dist/${{ matrix.package }}
+          cd dist/${{ matrix.package }}
+          sha256sum *.whl *.tar.gz > SHA256SUMS
+      - name: Install and test built wheel in a clean environment
+        run: |
+          python -m venv /tmp/package-test
+          /tmp/package-test/bin/python -m pip install pytest dist/${{ matrix.package }}/*.whl
+          cd /tmp
+          /tmp/package-test/bin/python -m pytest "$GITHUB_WORKSPACE/packages/${{ matrix.package }}/tests" -q
+      - name: Upload candidate distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.package }}-python-${{ matrix.python }}
+          path: dist/${{ matrix.package }}

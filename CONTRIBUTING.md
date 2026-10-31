@@ -28,12 +28,13 @@ it does not error — it returns a confident, well-rendered model of the *wrong 
 that matter most are the ones that discriminate between **near neighbours**.
 
 ```python
-Route("sv_competing_risk",
-      "How does time to readmission differ by sex, accounting for death as a competing risk?",
+Route("sv_adjusted",
+      "How does time to readmission differ by sex, adjusting for age?",
       "survival",
       "not logistic — the event timing varies, and a fixed-window model would discard it"),
 ```
 
+Competing-risk analysis is unsupported and must be refused, not routed to ordinary survival.
 The fourth field is the point. Record *what this case must not pick*, not just what it should. Those
 pairs are where the router's prompt spends its "prefer X over Y" rules, and therefore what a prompt
 edit breaks first. A suite of unambiguous questions proves nothing.

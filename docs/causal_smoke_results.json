@@ -1,0 +1,78 @@
+[
+  {
+    "scenario": "unequal",
+    "n": 300,
+    "replicates": 10,
+    "successful": 10,
+    "failures": [],
+    "true_effect": 2.0,
+    "bias": -0.027889045293555625,
+    "coverage": 1.0,
+    "mean_clipped_fraction": 0.023,
+    "oracle": {
+      "successful": 10,
+      "bias": 0.009773346829638818,
+      "coverage": 0.9,
+      "description": "Independent score using known data-generating functions."
+    },
+    "seed": 2026,
+    "limitation": "Monte Carlo estimates have sampling uncertainty; this synthetic scenario does not validate clinical use."
+  },
+  {
+    "scenario": "weak_overlap",
+    "n": 300,
+    "replicates": 10,
+    "successful": 10,
+    "failures": [],
+    "true_effect": 2.0,
+    "bias": 0.17231720542482343,
+    "coverage": 0.9,
+    "mean_clipped_fraction": 0.13599999999999998,
+    "oracle": {
+      "successful": 10,
+      "bias": -0.01071388257302841,
+      "coverage": 1.0,
+      "description": "Independent score using known data-generating functions."
+    },
+    "seed": 2026,
+    "limitation": "Monte Carlo estimates have sampling uncertainty; this synthetic scenario does not validate clinical use."
+  },
+  {
+    "scenario": "nonlinear",
+    "n": 300,
+    "replicates": 10,
+    "successful": 10,
+    "failures": [],
+    "true_effect": 2.0,
+    "bias": -0.12145694108985983,
+    "coverage": 1.0,
+    "mean_clipped_fraction": 0.023,
+    "oracle": {
+      "successful": 10,
+      "bias": 0.009773346829638818,
+      "coverage": 0.9,
+      "description": "Independent score using known data-generating functions."
+    },
+    "seed": 2026,
+    "limitation": "Monte Carlo estimates have sampling uncertainty; this synthetic scenario does not validate clinical use."
+  },
+  {
+    "scenario": "misspecified",
+    "n": 300,
+    "replicates": 10,
+    "successful": 10,
+    "failures": [],
+    "true_effect": 2.0,
+    "bias": 0.92900277055013,
+    "coverage": 0.1,
+    "mean_clipped_fraction": 0.0023333333333333335,
+    "oracle": {
+      "successful": 10,
+      "bias": -0.05343260958109397,
+      "coverage": 1.0,
+      "description": "Independent score using known data-generating functions."
+    },
+    "seed": 2026,
+    "limitation": "Monte Carlo estimates have sampling uncertainty; this synthetic scenario does not validate clinical use."
+  }
+]

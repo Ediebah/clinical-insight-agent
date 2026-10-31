@@ -1,8 +1,8 @@
 # Security policy
 
-This is a portfolio project that runs entirely on synthetic data (Synthea), so it holds no PHI, no PII, and
-no production secrets. Even so, the agent executes model-generated SQL, so the security posture matters and I
-take reports seriously.
+This is a research prototype. The demo warehouse uses synthetic data, while the app also accepts uploads.
+Non-sensitive uploads only are supported. Model-generated SQL, local logs, temporary files, and external
+model calls create security and privacy boundaries; see `docs/PRIVACY.md`.
 
 ## Reporting a vulnerability
 

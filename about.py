@@ -103,10 +103,9 @@ PIPELINE: list[tuple[str, str, str]] = [
     ("01", "Retrieve schema",
      "Pulls the right tables and metric definitions from the semantic catalog."),
     ("02", "Plan the approach",
-     "States a hypothesis and picks the model the question actually needs."),
-    ("03", "Write & fix SQL",
-     "Runs read-only SQL, and repairs it when a query errors, returns nothing, or comes back all "
-     "zeros."),
+     "Proposes an exploratory method and specification for the user to review."),
+    ("03", "Review & run SQL",
+     "Runs the approved read-only SQL without rewriting it after approval."),
     ("04", "Statistical guardrail",
      "Confidence intervals, FDR correction, and checks for confounding and Simpson's paradox."),
     ("05", "Self-review",
@@ -126,8 +125,8 @@ GUARDRAIL_NOTE = (
 # absent when it is recognized as a condition. Free text falls through to the zero-row self-heal.
 LIMITS: list[tuple[str, str]] = [
     ("Demo numbers are illustrative, not clinical.",
-     "Synthea data is synthetic and has no ground truth. The statistical methods themselves are "
-     "separately validated against published real-data results, enforced in CI."),
+     "Synthea data is synthetic. Public-data comparisons and automated tests are limited checks; "
+     "they do not establish clinical validity."),
     ("It will not guess at a vague question.",
      "A question too vague to attempt gets a clarifying question back instead of a confident "
      "answer."),

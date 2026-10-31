@@ -5,8 +5,8 @@ welcome, whether it is a bug, a rough edge, or an idea.
 
 ## Getting set up
 
-The full setup is in the README under "Run it locally (full rebuild)"; the README Quickstart is enough
-for app-only changes. In short:
+The [root contributor guide](../CONTRIBUTING.md) contains examples. The README quickstart covers
+app-only changes. In short:
 
 ```bash
 uv venv --python 3.12 && uv pip install -r requirements-dev.txt
@@ -31,8 +31,8 @@ If you touch the warehouse, rebuild and test it:
 cd warehouse && ../.venv/bin/dbt build --profiles-dir . && cd ..
 ```
 
-CI (`.github/workflows/ci.yml`) runs Synthea, then DuckDB, then `dbt build` with all data tests, then a
-catalog regenerate, then the guardrail eval, on every push. A green local run should mean a green CI.
+CI (`.github/workflows/ci.yml`) also generates Synthea data, rebuilds dbt models, and runs data tests.
+A green local unit run does not establish that the full CI workflow passed.
 
 ## A few conventions
 
@@ -40,7 +40,7 @@ catalog regenerate, then the guardrail eval, on every push. A green local run sh
   never invent or drop one. Changes that let the LLM fabricate numbers or skip a caveat will not be merged.
 - The SQL engine stays read-only. Do not loosen the hardening in `agent/warehouse.py` without a strong reason
   and tests.
-- Everything runs on synthetic data. Do not add real patient data, PHI, or secrets to the repo, the tests, or
+- The demo uses synthetic data; some examples use public datasets. Do not add patient data, PHI, or secrets to the repo, the tests, or
   the fixtures.
 - Match the surrounding style, and add or update tests for anything you change.
 

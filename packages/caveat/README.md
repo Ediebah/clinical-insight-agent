@@ -113,9 +113,10 @@ caveat.analyze(df, config=caveat.Config(
 ## Install
 
 ```bash
-pip install caveat
+python -m pip install ./packages/caveat
 ```
 
+Run from the repository root. The PyPI name and ownership have not been verified for this project.
 Requires numpy and pandas. **No scipy** — the normal CDF comes from `math.erf` and Wilson,
 Newcombe, Benjamini-Hochberg and the bootstraps are implemented in-package, so this stays
 installable inside someone else's agent without dragging in a research stack.

@@ -6,6 +6,8 @@ stating where the prior came from, and showing what a skeptic would conclude fro
 """
 from __future__ import annotations
 
+import math
+
 from .core import Prior, assurance, beta_posterior, decide, prior_panel, prob_exceeds
 
 
@@ -19,6 +21,24 @@ def build_prior(*, endpoint: str = "proportion", tv: float, lrv: float,
     default. Every branch records its provenance, because "where did this prior come from" is the
     first question anyone competent will ask.
     """
+    pairs = ((prior_a, prior_b), (prior_successes, prior_n), (prior_mu, prior_sd))
+    present = [i for i, pair in enumerate(pairs) if any(v is not None for v in pair)]
+    if endpoint not in ("proportion", "mean"):
+        raise ValueError("unsupported prior endpoint")
+    allowed = (0, 1) if endpoint == "proportion" else (2,)
+    if len(present) > 1 or (present and (present[0] not in allowed or None in pairs[present[0]])):
+        raise ValueError("supply one complete prior compatible with the endpoint")
+    if present:
+        first, second = (float(v) for v in pairs[present[0]])
+        if not math.isfinite(first) or not math.isfinite(second):
+            raise ValueError("prior parameters must be finite")
+        if present[0] == 0 and (first <= 0 or second <= 0):
+            raise ValueError("beta prior parameters must be positive")
+        if present[0] == 1 and (first < 0 or second <= 0 or first > second or
+                                not first.is_integer() or not second.is_integer()):
+            raise ValueError("prior study counts must be valid integers")
+        if present[0] == 2 and second <= 0:
+            raise ValueError("normal prior standard deviation must be positive")
     if endpoint == "mean":
         if prior_mu is None:
             return Prior("Vague", "normal", (float(lrv), 10.0 * (abs(tv - lrv) or 1.0)),

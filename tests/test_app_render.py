@@ -28,6 +28,7 @@ def test_render_model_selection_shows_the_leaderboard_without_crashing():
     out = app._render_model(modeling.compare_models(_hd(), "heart_disease", _PREDS).as_dict())
     assert "MODEL_SELECTION" in out and "Picked" in out
     assert "logistic regression" in out and "random forest" in out    # leaderboard rows render
+    assert "roc_auc" in out and "fold SD" in out
 
 
 def test_render_decision_curve_without_crashing():

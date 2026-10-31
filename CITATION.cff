@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use this research prototype, please cite the software and the specific version used."
+title: "Clinical Insight Agent"
+type: software
+authors:
+  - family-names: Ediebah
+    given-names: Divine
+repository-code: "https://github.com/Ediebah/clinical-insight-agent"
+license: MIT
+abstract: "Exploratory analytics, statistical guardrails, and Bayesian trial-design tools."

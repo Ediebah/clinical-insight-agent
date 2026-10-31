@@ -1371,7 +1371,7 @@ def _render_about() -> None:
     st.markdown(about.DATA_NOTE)
     st.markdown(f"**{about.BYOD_LABEL}.** {about.BYOD_NOTE}")
 
-    _sec("How a question becomes an answer", "One question runs the whole analysis; the UI shows every step.")
+    _sec("How a question becomes an answer", "Review the proposed inferential analysis before it runs.")
     st.markdown("<div class='cellgrid c6'>" + "".join(
         f"<div class='cell'><span class='n'>{e(n)}</span><h3>{e(title)}</h3><p class='d'>{e(desc)}</p></div>"
         for n, title, desc in about.PIPELINE) + "</div>", unsafe_allow_html=True)
@@ -1398,9 +1398,8 @@ st.markdown("""
   <div class="hero-eyebrow">Healthcare analytics · agentic AI</div>
   <h1 class="hero-title">Clinical Insight <span class="accent">Agent</span></h1>
   <p class="hero-sub">An AI agent that modernizes clinical data analysis. Ask in plain English — it
-  engineers the data (missingness, collinearity), fits the right model (survival, regression,
-  non-inferiority, causal, or ML), checks the assumptions (proportional hazards, separation, VIF), and
-  reports the result with the caveats a text-to-SQL bot skips.</p>
+  proposes an exploratory analysis, shows it for review, and reports results with statistical caveats.
+  Research only; not for clinical decisions or sensitive data.</p>
   <div class="meta">OpenAI <span class="dot">·</span> DuckDB (Synthea, synthetic)
     <span class="dot">·</span> read-only, row-capped</div>
 </div>
@@ -1530,6 +1529,7 @@ if _byod_mode:
             st.session_state.byod = {
                 "db_path": str(_dbp), "dir": str(_dbp.parent), "catalog": _cat, "table": _tbl,
                 "file_id": _fid, "rows": len(_clean), "ncols": len(_clean.columns), "cols": _cols,
+                "truncated": _orig_rows > len(_clean),
                 # flagged − dropped − masked: the columns the user was warned about and kept.
                 # Only these need scrubbing in query results; dropped ones are gone and masked
                 # ones already carry no identifiers.
@@ -1751,8 +1751,11 @@ def _render_model(m: dict) -> str:
                 cell = [f"`{row['model']}`{win}", f"{row['score']:.3f} ± {row.get('std', 0):.3f}"]
                 if has_comp:
                     comp = row.get("components") or {}
-                    cell.append(" · ".join(f"{k} {vv:.3f}" for k, vv in comp.items()) if comp else "—")
+                    stds = row.get("component_std") or {}
+                    cell.append(" · ".join(f"{k} {vv:.3f} ± {stds[k]:.3f}" if k in stds
+                                           else f"{k} {vv:.3f}" for k, vv in comp.items()) if comp else "—")
                 lines.append("| " + " | ".join(cell) + " |")
+            lines.append("\nUncertainty shown is fold SD, not a confidence interval.")
         if m.get("terms"):
             eff = v.get("effect", m.get("effect_label", "estimate"))
             lines += ["", f"**Winning model — {eff}:**", "", f"| term | {eff} |", "|---|---|"]
@@ -1767,7 +1770,7 @@ def _render_model(m: dict) -> str:
     if m.get("model_type") == "decision_curve":                      # net benefit across thresholds
         v = m.get("verdict", {})
         lines = [head, "", f"- **model**: `{v.get('model', '')}`",
-                 f"- **clinically useful across thresholds**: {v.get('useful_range', '—')} "
+                 f"- **estimated net benefit across thresholds**: {v.get('useful_range', '—')} "
                  f"(prevalence {v.get('prevalence', 0):.0%})", "",
                  "| threshold | net benefit (model) | treat-all | treat-none |", "|---|---|---|---|"]
         for s in m.get("series", []):
@@ -1838,14 +1841,39 @@ elif go and question:
     with st.spinner("Retrieving context → planning → writing SQL → executing → interpreting…"):
         st.session_state.result = run_analysis(
             question, catalog=(_b or {}).get("catalog"), db_path=(_b or {}).get("db_path"),
-            deid_columns=(_b or {}).get("deid_columns"))
+            deid_columns=(_b or {}).get("deid_columns"), input_truncated=(_b or {}).get("truncated", False))
         st.session_state.result_q = question
+        if st.session_state.result.analysis_spec:
+            st.session_state.analysis_spec_editor = json.dumps(st.session_state.result.analysis_spec, indent=2)
 
 result = st.session_state.get("result")
 result_q = st.session_state.get("result_q", "")
 
 if result is not None:
     _render_data_health(result.data_health)      # pre-flight gate/warning banner (no-op if healthy)
+    if result.analysis_spec and result.model is None and result.error is None:
+        from agent import research
+        eyebrow("Review the proposed analysis")
+        st.info("Review and edit the specification before running it. This is exploratory research only.")
+        st.caption("The SQL determines the cohort. Population and exclusion text is not applied automatically; "
+                   "make corresponding changes to the SQL before approval.")
+        edited = st.text_area("Analysis specification (JSON)", key="analysis_spec_editor", height=420)
+        if st.button("Approve specification and run", key="approve_analysis_spec", type="primary"):
+            try:
+                approved = json.loads(edited)
+                research.validate_spec(approved)
+                _b = st.session_state.byod
+                result = run_analysis(result_q, catalog=(_b or {}).get("catalog"),
+                                      db_path=(_b or {}).get("db_path"),
+                                      deid_columns=(_b or {}).get("deid_columns"), approved_spec=approved,
+                                      input_truncated=(_b or {}).get("truncated", False))
+                st.session_state.result = result
+            except (ValueError, TypeError) as exc:
+                st.error(f"Specification cannot be approved: {exc}")
+        if result.clarification:
+            st.warning(result.clarification)
+        if result.model is None and result.error is None:
+            st.stop()
     if result.clarification:
         eyebrow("Clarification needed")
         st.markdown(f"<div class='card' style='border-left:3px solid var(--accent-2)'>🤔 "
@@ -1935,6 +1963,15 @@ if result is not None:
         eyebrow("Interpretation & recommendation")
         st.markdown(result.interpretation)
         _report_button(result, "model")
+        if result.analysis_spec:
+            from agent import research
+            try:
+                bundle = research.make_bundle(result.analysis_spec, result.model, frame=result.dataframe,
+                                              interpretation=result.interpretation)
+                st.download_button("Download research bundle", json.dumps(bundle, indent=2),
+                                   file_name="research-bundle.json", mime="application/json")
+            except ValueError as exc:
+                st.warning(f"Research bundle unavailable: {exc}")
         if result.dataframe is not None:
             with st.expander(f"analytic data · {result.n_rows} rows"):
                 st.dataframe(result.dataframe, width="stretch")
