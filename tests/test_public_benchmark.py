@@ -12,11 +12,10 @@ def test_benchmark_records_expected_and_actual_results():
     assert not public_benchmark.has_unexpected_failures(results)
 
 
-def test_benchmark_reports_known_denominator_failure_and_refuses_missing_assumptions():
+def test_benchmark_flags_denominator_mismatch_and_refuses_missing_assumptions():
     results = {row["id"]: row for row in public_benchmark.run()}
-    assert results["inconsistent_rate_denominator"]["expected"] != results["inconsistent_rate_denominator"]["actual"]
-    assert not results["inconsistent_rate_denominator"]["passed"]
-    assert results["inconsistent_rate_denominator"]["status"] == "known_failure"
+    assert results["inconsistent_rate_denominator"]["actual"] == "flagged"
+    assert results["inconsistent_rate_denominator"]["passed"]
     assert results["missing_method_assumptions"]["passed"]
     assert results["consistent_rate_denominator"]["passed"]
 

@@ -116,6 +116,51 @@ def test_missing_denominator_fires_on_a_bare_rate():
     assert "missing_denominator" in kinds(analyze(df, "prevalence by group"))
 
 
+def test_inconsistent_rate_warns_and_withholds_count_contrasts():
+    df = pd.DataFrame({"g": ["a", "b"], "k": [10, 20], "n": [50, 50], "rate": [.1, .2]})
+    rep = analyze(df, "compare", group="g", numerator="k", denominator="n", rate="rate")
+    assert "rate_denominator_mismatch" in kinds(rep)
+    assert "contrasts" not in kinds(rep)
+    assert "contrasts" in skipped_checks(rep)
+    assert "adjusted" in rep.of_kind("rate_denominator_mismatch")[0].message
+
+
+@pytest.mark.parametrize("rates", [[.2, .4], [20.0, 40.0], [.201, .399], [20.1, 39.9]])
+def test_consistent_fraction_or_percent_rate_allows_contrasts(rates):
+    df = pd.DataFrame({"g": ["a", "b"], "k": [10, 20], "n": [50, 50], "rate": rates})
+    rep = analyze(df, "compare", group="g", numerator="k", denominator="n", rate="rate")
+    assert "rate_denominator_mismatch" not in kinds(rep)
+    assert "contrasts" in kinds(rep)
+
+
+def test_custom_contrast_check_cannot_bypass_rate_consistency():
+    df = pd.DataFrame({"g": ["a", "b"], "k": [10, 20], "n": [50, 50], "rate": [.1, .2]})
+    rep = analyze(df, "compare", group="g", numerator="k", denominator="n", rate="rate",
+                  checks=["contrasts"])
+    assert "rate_denominator_mismatch" in kinds(rep)
+    assert "contrasts" not in kinds(rep)
+    assert "contrasts" in skipped_checks(rep)
+
+
+@pytest.mark.parametrize("rates", [[20.0, 27.0], [120.0, 80.0]])
+def test_adjusted_or_other_units_are_not_declared_wrong(rates):
+    df = pd.DataFrame({"g": ["a", "b"], "k": [10, 20], "n": [50, 50], "rate": rates})
+    rep = analyze(df, "compare", group="g", numerator="k", denominator="n", rate="rate")
+    message = rep.of_kind("rate_denominator_mismatch")[0].message
+    assert "may be adjusted" in message and "cannot determine which value is correct" in message
+    assert {"contrasts", "boundary_rate", "winners_curse", "simpsons"} <= skipped_checks(rep)
+
+
+@pytest.mark.parametrize("k,n,rate", [(10, 0, .1), (60, 50, .1), (np.nan, 50, .1),
+                                      (10, 50, np.nan), (np.inf, 50, .1), (10.5, 50, .1)])
+def test_invalid_or_missing_rate_inputs_withhold_count_contrasts(k, n, rate):
+    df = pd.DataFrame({"g": ["a", "b"], "k": [10, k], "n": [50, n], "rate": [.2, rate]})
+    rep = analyze(df, "compare", group="g", numerator="k", denominator="n", rate="rate")
+    assert "rate_denominator_unverifiable" in kinds(rep)
+    assert "contrasts" not in kinds(rep)
+    assert "contrasts" in skipped_checks(rep)
+
+
 def test_multiple_comparisons_defers_to_contrasts_when_they_ran():
     df = pd.DataFrame({"g": [str(i) for i in range(12)], "k": [5] * 12, "n": [100] * 12})
     rep = analyze(df, "which group is highest?", numerator="k", denominator="n")

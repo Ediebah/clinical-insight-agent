@@ -23,3 +23,8 @@ After changing the candidate distribution name, the `clinical-insight-assurance`
 
 - `clinical_insight_assurance-0.2.0-py3-none-any.whl`: SHA-256 `e4d67b121621bfba44647cbc10bca790690c9e6c0578c486137ff5f4d20b4cca`
 - `clinical_insight_assurance-0.2.0.tar.gz`: SHA-256 `21701d35de44bd7ce7517d1392de7aca85e85f7fec1615f17e7fa3fcafac7733`
+
+The `caveat` 0.1.2 candidate wheel and source archive were separately installed in clean Python 3.12 environments on macOS. Each passed the 85 standalone tests, and imports resolved to the installed package. These are local candidate files, not published release artifacts:
+
+- `caveat-0.1.2-py3-none-any.whl`: SHA-256 `1b8772d3f8cc85e8f44c62eea0c6166f3a9b686ff77d37d30d588a19e8795a63`
+- `caveat-0.1.2.tar.gz`: SHA-256 `97b02a6ee9b1fe3b18dcefad1350acb78b4731c86ceff65e4f7242f4e548d0fc`

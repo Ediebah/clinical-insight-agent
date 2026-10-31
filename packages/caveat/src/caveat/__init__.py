@@ -30,7 +30,7 @@ from .checks import CHECKS, Config, Ctx
 from .findings import Finding, Report, Skip, render
 from .roles import Roles, UnknownColumn, infer_roles, resolve
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 __all__ = [
     "CHECK_ORDER",
@@ -50,6 +50,7 @@ __all__ = [
 # defers to `contrasts` when that ran and corrected the family properly.
 CHECK_ORDER = (
     "missing_data",
+    "rate_denominator_consistency",
     "small_sample",
     "contrasts",
     "boundary_rate",
@@ -99,8 +100,28 @@ def analyze(df: pd.DataFrame, question: str = "", *,
     if unknown:
         raise ValueError(f"unknown check(s): {unknown}. Available: {list(CHECK_ORDER)}")
 
+    count_checks = {"contrasts", "boundary_rate", "winners_curse", "simpsons"}
+    needs_rate_check = bool(count_checks.intersection(selected) or
+                            "rate_denominator_consistency" in selected)
+    if needs_rate_check:
+        try:
+            CHECKS["rate_denominator_consistency"](ctx)
+        except Exception as e:
+            if strict:
+                raise
+            ctx.rate_consistency_blocks_counts = True
+            ctx.add("rate_denominator_unverifiable", "caution",
+                    f"Rate consistency could not be checked ({type(e).__name__}); "
+                    "count-based inference is withheld.")
+
     did_contrasts = False
     for name in selected:
+        if name == "rate_denominator_consistency":
+            continue  # The preflight also applies when callers request a subset of checks.
+        if name in count_checks and ctx.rate_consistency_blocks_counts:
+            ctx.skip(name, "supplied rate and counts are inconsistent or cannot be checked",
+                     "clarify the rate and count relationship before count-based inference")
+            continue
         fn = CHECKS[name]
         try:
             if name == "multiple_comparisons":

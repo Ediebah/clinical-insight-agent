@@ -14,12 +14,12 @@ versions follow [SemVer](https://semver.org/).
   score separately and label training-set permutation importance as exploratory.
 - Add causal simulations, a capability map, privacy and provenance notes, contributor guidance,
   citation metadata, and package-distribution CI.
-- Reject analysis specifications with empty or blank assumptions; benchmark version 1.1 records
-  an unresolved failure to flag a rate that disagrees with its supplied numerator and denominator.
+- Reject analysis specifications with empty or blank assumptions. Flag rates inconsistent with
+  supplied counts and withhold count-based inference until the relationship is clarified.
 
 These changes have not yet been published as a release. The historical section below records
 the repository's earlier changelog claims; it has not been independently audited here.
-Candidate package versions are `clinical-insight-assurance` 0.2.0 (imported as `assurance`, with stricter validation) and `caveat` 0.1.1
+Candidate package versions are `clinical-insight-assurance` 0.2.0 (imported as `assurance`, with stricter validation) and `caveat` 0.1.2
 (documentation and packaging changes). Neither is asserted to be published.
 
 ## [1.0.0] — 2026-07-13

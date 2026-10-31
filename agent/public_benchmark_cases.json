@@ -1,5 +1,5 @@
 {
-  "version": "1.1",
+  "version": "1.2",
   "cases": [
     {"id": "logistic_supported", "category": "method", "method": "logistic", "expected": "supported"},
     {"id": "competing_risk_unsupported", "category": "unsupported", "method": "competing_risks", "expected": "unsupported"},
@@ -14,7 +14,7 @@
      "question": "Compare event rates", "data": {"group": ["A", "B"], "events": [10, 20],
      "denominator": [50, 50], "rate": [0.1, 0.2]},
      "roles": {"group": "group", "numerator": "events", "denominator": "denominator", "rate": "rate"},
-     "expected": "flagged", "known_actual": "not_flagged"},
+     "expected": "flagged"},
     {"id": "missing_method_assumptions", "category": "missing_assumptions",
      "specification": {"schema_version": "1.0", "question": "Estimate the association",
        "population": "all rows", "outcome": "outcome", "predictors": ["x"], "method": "ols",
