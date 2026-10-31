@@ -22,6 +22,12 @@ The tool reported 155 advisory entries across 11 installed distributions. Some e
 
 The other ten distributions remain findings in the audited **local environment**. Some may be transitive, development-only, or not present in a clean deployment. Before release, resolve a fresh environment from the intended artifacts, record exact transitive versions, rerun the advisory scan, review applicable execution paths and fixes, and retain the report. Do not infer that updating `pypdf` fixed those other findings. Do not publish private data or secrets in an audit report.
 
+An initial clean Python 3.12 runtime installation resolved 92 distributions. Its audit reported 51 advisory entries for Pillow 12.3.0 and pip 25.0.1; the local `caveat` and `clinical-insight-assurance` distributions were skipped because they were not found on PyPI. The original Streamlit 1.58.0 pin constrained Pillow to versions below 13. The candidate updates Streamlit to 1.66.1, pins Pillow 13.0.0, and uses pip 26.2.2 in the Docker build and documented setup. With those versions installed in the temporary environment, a follow-up audit reported no advisory entries for the distributions it could query; the two local libraries were still skipped. This is point-in-time evidence for that environment, not a security guarantee or an audit of the application source.
+
+A second clean environment installed the final pinned requirements from scratch and passed `pip check`. The [resolved inventory](runtime_environment_2026-10-31.json) records its 84 installed distributions and a SHA-256 of the requirements file. An advisory query returned no entries for the 82 distributions it could check; it skipped the two unpublished local libraries. The four documented key-free CLI and benchmark commands also completed with API-key environment variables removed. The inventory is not a lockfile, and the same requirements may resolve different transitive versions on another date or platform.
+
+The Dockerfile was also corrected to copy both local package directories before installing `requirements.txt`. Docker image execution has not been verified when a daemon is unavailable; run and audit the actual image before release.
+
 The check was performed without automatic dependency changes:
 
 ```bash

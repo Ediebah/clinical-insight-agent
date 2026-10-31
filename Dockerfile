@@ -11,9 +11,13 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# Install the lean runtime deps first (cached layer) — requirements.txt, NOT requirements-dev (no dbt).
+# Install the lean runtime deps first (cached layer). The requirements file installs both local
+# libraries, so their source directories must be present before pip resolves the requirements.
 COPY requirements.txt .
-RUN pip install -r requirements.txt
+COPY packages/caveat packages/caveat
+COPY packages/assurance packages/assurance
+RUN python -m pip install --upgrade pip==26.2.2 && \
+    python -m pip install -r requirements.txt
 
 # App code + the committed slim demo warehouse. The full 200MB DB is excluded via .dockerignore,
 # so warehouse._resolve_db_path() falls back to data/healthcare_demo.duckdb.

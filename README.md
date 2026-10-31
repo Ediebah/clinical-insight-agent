@@ -23,6 +23,7 @@ Python 3.12 is the tested application version. A checkout includes a synthetic d
 git clone https://github.com/Ediebah/clinical-insight-agent
 cd clinical-insight-agent
 python3.12 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip==26.2.2
 .venv/bin/python -m pip install -r requirements.txt
 cp agent/.env.example agent/.env  # add OPENAI_API_KEY if using hosted model
 .venv/bin/streamlit run app.py

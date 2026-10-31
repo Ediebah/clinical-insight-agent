@@ -9,7 +9,7 @@
 # Streamlit Cloud rebuild marker: on-device de-identification, 2026-08-11.
 ./packages/caveat
 ./packages/assurance
-streamlit==1.58.0
+streamlit==1.66.1
 openai==2.44.0
 python-dotenv==1.2.2
 pandas==3.0.3
@@ -24,6 +24,7 @@ scikit-survival==0.28.0
 plotly==6.8.0
 python-docx==1.2.0
 pypdf==6.21.4
+pillow==13.0.0
 vl-convert-python==1.9.0.post1
 openpyxl==3.1.5
 # On-device PII/PHI detection for uploaded data (agent/deid.py). Apache-2.0. The ONNX model

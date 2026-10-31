@@ -20,6 +20,8 @@ versions follow [SemVer](https://semver.org/).
   did not record a revision and are not evidence of de-identification.
 - Update the directly pinned PDF parser to 6.21.4 after a dependency-advisory review; other
   dependencies and deployment-specific security controls still require review.
+- Update Streamlit and Pillow to allow a patched Pillow release, and copy local libraries before
+  installing the runtime requirements in the Dockerfile.
 
 These changes have not yet been published as a release. The historical section below records
 the repository's earlier changelog claims; it has not been independently audited here.
