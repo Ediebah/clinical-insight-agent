@@ -11,6 +11,21 @@ from assurance.core import DecisionRule, Prior
 from assurance.core import assurance as assurance_fn
 
 
+def test_design_rejects_invalid_thresholds_and_wrong_prior_family():
+    with pytest.raises(ValueError, match="gate_tv"):
+        assurance.design(n=20, tv=.4, lrv=.3, gate_tv=1.5, prior_a=1, prior_b=1)
+    with pytest.raises(ValueError, match="prior"):
+        assurance.design(n=20, tv=.4, lrv=.3, prior_mu=0, prior_sd=1)
+    with pytest.raises(ValueError, match="prior"):
+        assurance.design(n=20, tv=.4, lrv=.3, prior_a=1, prior_b=1,
+                         prior_successes=3, prior_n=10)
+    with pytest.raises(ValueError, match="prior"):
+        assurance.design(n=20, tv=.4, lrv=.3, prior=Prior("x", "normal", (0, 1), ""))
+    with pytest.raises(ValueError, match="prior"):
+        assurance.design(n=20, tv=.4, lrv=.3, prior=Prior("x", "beta", (1, 1), ""),
+                         prior_a=2, prior_b=2)
+
+
 # ── single-arm design ──────────────────────────────────────────────────────────────────────────
 def test_design_matches_the_primitive_it_wraps():
     """The wrapper must not drift from the engine: same prior, same rule, same number."""

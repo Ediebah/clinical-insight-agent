@@ -30,7 +30,7 @@ from .checks import CHECKS, Config, Ctx
 from .findings import Finding, Report, Skip, render
 from .roles import Roles, UnknownColumn, infer_roles, resolve
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 __all__ = [
     "CHECK_ORDER",

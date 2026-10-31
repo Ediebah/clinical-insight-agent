@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0",
+  "question": "Are synthetic x and y associated?",
+  "population": "all rows",
+  "outcome": "y",
+  "predictors": ["x"],
+  "method": "association",
+  "assumptions": ["Observations are independent", "Exploratory analysis"],
+  "exclusions": [],
+  "data_source": "examples/synthetic_observations.csv",
+  "sql": "",
+  "parameters": {"var_a": "x", "var_b": "y"}
+}

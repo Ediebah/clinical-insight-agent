@@ -2,8 +2,8 @@
 
 Every model here is CONJUGATE, so every quantity is closed-form or deterministic numeric integration
 on a fixed grid. There is NO Monte Carlo in this module: no seed to manage, results are
-bit-reproducible across runs and platforms, and the tests assert exact values rather than tolerances.
-A tool whose only job is to support a decision must not return a different verdict on re-run.
+deterministic for fixed inputs and environment. Floating-point libraries and platforms can differ,
+so numerical reproducibility across environments must be checked with suitable tolerances.
 
 That property is the reason to prefer this over a simulation-based assurance calculation. When a
 programme decision turns on whether assurance is 0.78 or 0.82, a number that moves with the seed is

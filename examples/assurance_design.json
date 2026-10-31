@@ -1,0 +1,11 @@
+{
+  "n": 50,
+  "tv": 0.4,
+  "lrv": 0.3,
+  "prior_a": 1,
+  "prior_b": 1,
+  "gate_tv": 0.8,
+  "gate_lrv": 0.9,
+  "stop_lrv": 0.1,
+  "full": false
+}

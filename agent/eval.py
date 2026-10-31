@@ -55,6 +55,10 @@ def _run_with_backoff(question: str, tries: int = 5):
         if PACE_SECONDS:
             time.sleep(PACE_SECONDS)
         res = run_analysis(question)
+        if res.analysis_spec:
+            # The benchmark uses synthetic data and intentionally approves its generated specification
+            # to measure downstream behavior. This is not a human review or a validation of the spec.
+            res = run_analysis(question, approved_spec=res.analysis_spec)
         if not res.error or not TRANSIENT.search(res.error) or attempt == tries - 1:
             return res
         delay = backoff_sleep(res.error, delay)

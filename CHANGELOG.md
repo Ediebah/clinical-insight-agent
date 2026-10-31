@@ -3,6 +3,23 @@
 Notable changes to the Clinical Insight Agent. Format follows [Keep a Changelog](https://keepachangelog.com/);
 versions follow [SemVer](https://semver.org/).
 
+## Unreleased — research workflow changes
+
+- Require review of inferential analysis specifications; preserve the approved SQL and refuse
+  truncated cohorts, implicit causal subsampling, unsupported competing risks, and missing or invalid
+  Bayesian inputs.
+- Add key-free command-line entry points, a versioned synthetic benchmark, read-only adapters, and
+  research bundles that exclude source history by default.
+- Use nested evaluation for model selection and fold-local preprocessing. Report integrated Brier
+  score separately and label training-set permutation importance as exploratory.
+- Add causal simulations, a capability map, privacy and provenance notes, contributor guidance,
+  citation metadata, and package-distribution CI.
+
+These changes have not yet been published as a release. The historical section below records
+the repository's earlier changelog claims; it has not been independently audited here.
+Candidate package versions are `assurance` 0.2.0 (stricter validation) and `caveat` 0.1.1
+(documentation and packaging changes). Neither is asserted to be published.
+
 ## [1.0.0] — 2026-07-13
 
 First versioned release: the complete pipeline — synthetic data → dbt warehouse → semantic layer →

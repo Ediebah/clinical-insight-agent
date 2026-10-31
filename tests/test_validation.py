@@ -216,7 +216,7 @@ def test_survival_ml_random_forest_reaches_a_good_concordance_index():
     assert r.error is None
     rsf = next(row for row in r.leaderboard if row["model"] == "random survival forest")
     assert rsf["components"]["harrell_c"] >= 0.70        # the tuned forest reaches a strong C-index
-    assert {"td_auc", "brier_skill"} <= set(rsf["components"])   # composite includes time-AUC + Brier
+    assert {"td_auc", "integrated_brier_score"} <= set(rsf["components"])
     top3 = [t.name for t in r.terms[:3]]                 # the winner recovers the paper's predictors
     assert "serum_creatinine" in top3 and "ejection_fraction" in top3
 

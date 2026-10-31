@@ -15,7 +15,7 @@ succeeds?* It is usually the lower and more honest number.
     (0.2896, 'CONSIDER')
 
 Everything is conjugate and closed-form. **There is no Monte Carlo anywhere**: no seed to manage,
-identical digits on every machine and every re-run. When a programme decision turns on whether
+results are deterministic for fixed inputs and environment. When a programme decision turns on whether
 assurance is 0.78 or 0.82, a number that moves with the seed is not evidence.
 
 Decisions use the dual-criterion (Lalonde) rule: GO needs both P(effect > TV) above `gate_tv` and
@@ -48,7 +48,7 @@ from .core import (
 )
 from .priors import build_prior, sensitivity
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "DecisionRule",
@@ -169,6 +169,11 @@ def _rule(tv, lrv, gate_tv, gate_lrv, stop_lrv, higher_is_better) -> DecisionRul
     if tv is None or lrv is None:
         raise ValueError("a go/no-go needs a target value (tv) and a lower reference value (lrv)")
     tv, lrv = float(tv), float(lrv)
+    if not math.isfinite(tv) or not math.isfinite(lrv):
+        raise ValueError("target and reference must be finite")
+    for name, value in (("gate_tv", gate_tv), ("gate_lrv", gate_lrv), ("stop_lrv", stop_lrv)):
+        if not math.isfinite(float(value)) or not 0 <= float(value) <= 1:
+            raise ValueError(f"{name} must be a probability between 0 and 1")
     if higher_is_better and lrv > tv:
         raise ValueError("the LRV must not exceed the TV: the minimum worth pursuing cannot be "
                          "more ambitious than the value you hope for")
@@ -176,6 +181,19 @@ def _rule(tv, lrv, gate_tv, gate_lrv, stop_lrv, higher_is_better) -> DecisionRul
         raise ValueError("with a lower-is-better endpoint the TV must not exceed the LRV")
     return DecisionRule(tv=tv, lrv=lrv, gate_tv=float(gate_tv), gate_lrv=float(gate_lrv),
                         stop_lrv=float(stop_lrv), higher_is_better=bool(higher_is_better))
+
+
+def _validate_prior_object(prior, endpoint, supplied):
+    if prior is None:
+        return
+    if any(value is not None for value in supplied):
+        raise ValueError("do not combine a prior object with other prior parameters")
+    expected = "beta" if endpoint == "proportion" else "normal"
+    if prior.kind != expected or len(prior.params) != 2:
+        raise ValueError("prior family must match the endpoint")
+    first, second = map(float, prior.params)
+    if not math.isfinite(first) or not math.isfinite(second) or second <= 0 or (expected == "beta" and first <= 0):
+        raise ValueError("prior parameters must be finite and valid")
 
 
 def design(*, n: int, tv: float, lrv: float, endpoint: str = "proportion",
@@ -197,6 +215,7 @@ def design(*, n: int, tv: float, lrv: float, endpoint: str = "proportion",
 
     A device performance goal is the degenerate case tv == lrv: set both to the goal.
     """
+    _validate_prior_object(prior, endpoint, (prior_successes, prior_n, prior_a, prior_b, prior_mu, prior_sd))
     rule = _rule(tv, lrv, gate_tv, gate_lrv, stop_lrv, higher_is_better)
     n = int(n)
     if n <= 0:
@@ -251,6 +270,8 @@ def interim(*, successes: int, n: int, n_planned: int, tv: float, lrv: float,
     `control_successes` / `control_n` for a two-arm interim, in which case tv/lrv are again RISK
     DIFFERENCES.
     """
+    _validate_prior_object(prior, "proportion", (prior_successes, prior_n, prior_a, prior_b))
+    _validate_prior_object(control_prior, "proportion", ())
     rule = _rule(tv, lrv, gate_tv, gate_lrv, stop_lrv, higher_is_better)
     successes, n, n_planned = int(successes), int(n), int(n_planned)
     if n > n_planned:

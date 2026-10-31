@@ -286,18 +286,16 @@ def test_experiment_string_outcome_direction():
     assert any("cured" in i for i in r.issues)              # the coding is stated to the user
 
 
-def test_uplift_subsample_preserves_and_rechecks_arms(monkeypatch):
-    # the ≥20-per-arm gate used to run only BEFORE the tractability subsample: a rare treatment
-    # could pass the gate and then fit on a handful of treated rows. The subsample must be
-    # stratified by arm and the gate re-checked afterwards.
+def test_uplift_refuses_cohorts_above_the_limit(monkeypatch):
+    # Sampling requires a user-selected and documented strategy before fitting.
     monkeypatch.setattr(modeling, "_UPLIFT_MAX_ROWS", 200)
     rng = np.random.default_rng(23)
     n = 1000
     df = pd.DataFrame({"y": rng.integers(0, 2, n).astype(float),
                        "t": np.r_[np.ones(25), np.zeros(n - 25)].astype(int),
                        "x": rng.normal(0, 1, n)})
-    r = modeling.fit_uplift(df, "y", "t", ["x"])                 # 25 treated → ~5 after subsample
-    assert r.error is not None and "subsampl" in r.error.lower()
+    r = modeling.fit_uplift(df, "y", "t", ["x"])
+    assert r.error is not None and "sampling" in r.error.lower()
 
 
 def test_uplift_string_treatment_control_recognition():
@@ -739,8 +737,9 @@ def test_fit_rsf_and_compare_survival_models_recover_the_signal():
     assert c.error is None and c.model_type == "model_selection"
     assert {row["model"] for row in c.leaderboard} == {"Cox proportional hazards",
                                                        "random survival forest"}
-    assert all(row["metric"] == "composite" for row in c.leaderboard)    # C-index + td-AUC + Brier
-    assert all({"harrell_c", "td_auc", "brier_skill"} <= set(row["components"]) for row in c.leaderboard)
+    assert all(row["metric"] == "harrell_c" for row in c.leaderboard)
+    assert all({"harrell_c", "td_auc", "integrated_brier_score"} <= set(row["components"])
+               for row in c.leaderboard)
     assert c.leaderboard[0]["score"] >= 0.55            # the winner picks up the signal
 
 

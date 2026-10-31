@@ -1,0 +1,11 @@
+{
+  "version": "1.0",
+  "cases": [
+    {"id": "logistic_supported", "category": "method", "method": "logistic", "expected": "supported"},
+    {"id": "competing_risk_unsupported", "category": "unsupported", "method": "competing_risks", "expected": "unsupported"},
+    {"id": "rate_without_denominator", "category": "denominator", "question": "Compare the rates",
+     "data": {"group": ["A", "B"], "rate": [0.1, 0.2]}, "expected": "missing_denominator"},
+    {"id": "missing_bayes_rule", "category": "missing_input", "parameters": {"tv": 0.3, "lrv": 0.2},
+     "expected": "refused"}
+  ]
+}

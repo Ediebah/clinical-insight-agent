@@ -2,9 +2,8 @@
 
 Given a patient-level analytic DataFrame (one row per unit, outcome + covariates as columns), fit a
 model and return a structured result: effect estimates (odds/hazard ratios or coefficients) with
-95% CIs and p-values, n, and a fit statistic. Deterministic — the LLM chooses the model and builds
-the dataset, but the fitting and inference are done by statsmodels/scipy, so the numbers are
-trustworthy. This is the "fit a covariate-adjusted model" the guardrail keeps recommending.
+95% CIs and p-values, n, and a fit statistic. The calculations run in statistical libraries, but
+correctness and applicability still depend on the question, data, assumptions, and independent review.
 """
 from __future__ import annotations
 
@@ -382,6 +381,9 @@ def fit_logistic(df: pd.DataFrame, outcome: str, predictors: list[str]) -> Model
             return ModelResult("logistic", outcome, len(d), "odds ratio",
                                error="Outcome has no variation (all one class).")
         m = smf.logit(_formula(outcome, preds, d), data=d).fit(disp=0)
+        if not m.mle_retvals.get("converged", False):
+            issues.append("The logistic fit did not converge; estimates, confidence intervals and p-values "
+                          "may be unreliable. Do not interpret them without further review.")
         ci = m.conf_int()
         terms = [Term(name, float(np.exp(m.params[name])), float(np.exp(ci.loc[name, 0])),
                       float(np.exp(ci.loc[name, 1])), float(m.pvalues[name]))
@@ -615,21 +617,37 @@ def _binary_note(s: pd.Series, role: str = "Outcome") -> str | None:
             "effect direction flips: recode to 0/1 or rename the levels.")
 
 
+def _prediction_preprocessor(frame: pd.DataFrame):
+    """Build transformations whose fitted statistics are learned inside each training fold."""
+    from sklearn.compose import ColumnTransformer
+    from sklearn.impute import SimpleImputer
+    from sklearn.pipeline import Pipeline
+    from sklearn.preprocessing import OneHotEncoder
+
+    numeric = [c for c in frame if pd.api.types.is_numeric_dtype(frame[c])]
+    categorical = [c for c in frame if c not in numeric]
+    return ColumnTransformer([
+        ("numeric", SimpleImputer(strategy="median", keep_empty_features=True), numeric),
+        ("categorical", Pipeline([("impute", SimpleImputer(strategy="most_frequent", keep_empty_features=True)),
+                                  ("encode", OneHotEncoder(handle_unknown="ignore", sparse_output=False))]),
+         categorical),
+    ])
+
+
 def fit_forest(df: pd.DataFrame, outcome: str, predictors: list[str]) -> ModelResult:
     """Random forest → permutation feature importances: which factors most predict the outcome.
     Classifier for a binary outcome (scored by AUC), regressor for a continuous one (scored by R²)."""
     try:
         from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
-        from sklearn.impute import SimpleImputer
         from sklearn.inspection import permutation_importance
         from sklearn.model_selection import KFold, StratifiedKFold, cross_val_score, train_test_split
         from sklearn.pipeline import Pipeline
         preds0 = [p for p in predictors if p in df.columns and p != outcome]
-        d, preds, issues = _prepare(df, [outcome], preds0, impute=False)   # impute inside the CV pipeline
+        d, preds, issues = df.dropna(subset=[outcome]).copy(), preds0, []
         if len(d) < 40 or len(preds) < 2:
             return ModelResult("forest", outcome, len(d), "importance",
                                error="Need ≥40 rows and ≥2 non-collinear predictors for a random forest.")
-        X = pd.get_dummies(d[preds], drop_first=True)
+        X = d[preds].copy()
         is_class = _is_binary_outcome(d[outcome])
         common = dict(n_estimators=300, random_state=0, n_jobs=-1, min_samples_leaf=5)
         n_splits = 5
@@ -657,7 +675,7 @@ def fit_forest(df: pd.DataFrame, outcome: str, predictors: list[str]) -> ModelRe
             est = RandomForestRegressor(**common)
             scoring, metric = "r2", "R²"
             cv = KFold(5, shuffle=True, random_state=0)
-        pipe = Pipeline([("impute", SimpleImputer(strategy="median")), ("model", est)])
+        pipe = Pipeline([("preprocess", _prediction_preprocessor(X)), ("model", est)])
         cvs = cross_val_score(pipe, X, y, cv=cv, scoring=scoring)      # cross-validated skill
         fit_stat = f"{metric}={cvs.mean():.3f}±{cvs.std():.3f} ({n_splits}-fold CV)"
         # permutation importance on a held-out split — imputer fit on train only (no leakage)
@@ -668,43 +686,17 @@ def fit_forest(df: pd.DataFrame, outcome: str, predictors: list[str]) -> ModelRe
         means = pd.Series(imp.importances_mean, index=X.columns)
         terms = []                                  # roll one-hot columns back up to the source predictor
         for p in preds:
-            cols = [c for c in X.columns if c == p or c.startswith(f"{p}_")]
-            terms.append(Term(p, float(means[cols].sum()) if cols else 0.0,
+            terms.append(Term(p, float(means[p]),
                               float("nan"), float("nan"), float("nan")))
         terms.sort(key=lambda t: t.estimate, reverse=True)
         mr = ModelResult("forest", outcome, len(d), "importance", terms, fit_stat=fit_stat,
-                         note="5-fold cross-validated skill; permutation importance on a held-out split "
-                              "with imputation fit inside a scikit-learn pipeline (no leakage). Predictive, "
+                         note="Cross-validated skill; permutation importance on a held-out split "
+                              "with preprocessing fitted inside each training fold. Predictive, "
                               "not causal.")
         mr.issues = issues
         return mr
     except Exception as e:  # noqa: BLE001
         return ModelResult("forest", outcome, 0, "importance", error=str(e))
-
-
-def _gb_importance(outcome: str, preds: list[str], X, y, is_class: bool, scoring: str) -> list:
-    """Permutation-importance Terms for a HistGradientBoosting winner, mirroring fit_forest's importance
-    block (imputer fit on the train split only, importance measured on the held-out split — no leakage)."""
-    from sklearn.ensemble import HistGradientBoostingClassifier, HistGradientBoostingRegressor
-    from sklearn.impute import SimpleImputer
-    from sklearn.inspection import permutation_importance
-    from sklearn.model_selection import train_test_split
-    from sklearn.pipeline import Pipeline
-    est = HistGradientBoostingClassifier(random_state=0) if is_class else \
-        HistGradientBoostingRegressor(random_state=0)
-    Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.3, random_state=0,
-                                          stratify=y if is_class else None)
-    pipe = Pipeline([("impute", SimpleImputer(strategy="median")), ("model", est)])
-    pipe.fit(Xtr, ytr)
-    pi = permutation_importance(pipe, Xte, yte, n_repeats=12, random_state=0, scoring=scoring)
-    means = pd.Series(pi.importances_mean, index=X.columns)
-    terms = []
-    for p in preds:
-        cols = [c for c in X.columns if c == p or c.startswith(f"{p}_")]
-        terms.append(Term(p, float(means[cols].sum()) if cols else 0.0,
-                          float("nan"), float("nan"), float("nan")))
-    terms.sort(key=lambda t: t.estimate, reverse=True)
-    return terms
 
 
 def compare_models(df: pd.DataFrame, outcome: str, predictors: list[str],
@@ -721,145 +713,154 @@ def compare_models(df: pd.DataFrame, outcome: str, predictors: list[str],
 
     Deterministic: every split and estimator is seeded, so the leaderboard is reproducible run to run.
     """
+    return _compare_models_nested(df, outcome, predictors, task)
+
+
+def _compare_models_nested(df: pd.DataFrame, outcome: str, predictors: list[str],
+                           task: str | None = None) -> ModelResult:
+    """Select within each outer training fold; evaluate the selection on held-out folds."""
     try:
-        from sklearn.ensemble import (
-            HistGradientBoostingClassifier,
-            HistGradientBoostingRegressor,
-            RandomForestClassifier,
-            RandomForestRegressor,
+        from sklearn.ensemble import HistGradientBoostingRegressor, RandomForestRegressor
+        from sklearn.inspection import permutation_importance
+        from sklearn.linear_model import LinearRegression
+        from sklearn.metrics import (
+            average_precision_score,
+            balanced_accuracy_score,
+            explained_variance_score,
+            r2_score,
+            roc_auc_score,
         )
-        from sklearn.impute import SimpleImputer
-        from sklearn.linear_model import LinearRegression, LogisticRegression
         from sklearn.model_selection import KFold, StratifiedKFold, cross_validate
         from sklearn.pipeline import Pipeline
         from sklearn.preprocessing import StandardScaler
 
-        preds0 = [p for p in predictors if p in df.columns and p != outcome]
-        d, preds, issues = _prepare(df, [outcome], preds0, impute=False)   # impute inside each CV pipeline
+        preds = [p for p in predictors if p in df.columns and p != outcome]
+        d = df.dropna(subset=[outcome]).copy()
         if len(d) < 40 or len(preds) < 2:
-            return ModelResult("model_selection", outcome, len(d), "cross-validated skill",
+            return ModelResult("model_selection", outcome, len(d), "predictive performance",
                                error="Need ≥40 rows and ≥2 predictors to compare models.")
-
-        X = pd.get_dummies(d[preds], drop_first=True)
-        is_class = _is_binary_outcome(d[outcome]) if task is None else (task == "classification")
-        imp = ("impute", SimpleImputer(strategy="median"))
-
+        X = d[preds].copy()
+        is_class = _is_binary_outcome(d[outcome]) if task is None else task == "classification"
+        y = _to_binary(d[outcome]).to_numpy() if is_class else d[outcome].astype(float).to_numpy()
+        issues = []
         if is_class:
-            if (bn := _binary_note(d[outcome])):
-                issues.append(bn)
-            y = _to_binary(d[outcome])
-            if y.nunique() < 2:
-                return ModelResult("model_selection", outcome, len(d), "cross-validated AUC",
-                                   error="Outcome has no variation (all one class).")
-            minority = int(y.value_counts().min())
+            minority = int(np.bincount(y, minlength=2).min())
             if minority < 5:
-                return ModelResult("model_selection", outcome, len(d), "cross-validated AUC",
-                                   error=f"Outcome too rare to compare models — only {minority} in the "
-                                         "smaller class; need ≥5.")
-            n_splits = min(5, minority)
-            if minority < 20:
-                issues.append(f"Rare outcome ({minority} in the smaller class): scores use {n_splits} folds "
-                              "and are unstable — read the ranking with caution.")
-            # composite = mean of threshold-free discrimination (ROC-AUC), imbalance-aware precision-recall
-            # (PR-AUC), and balanced-accuracy threshold performance — one number that rewards a model on
-            # ranking AND calibrated classification, not AUC alone.
+                return ModelResult("model_selection", outcome, len(d), "predictive performance",
+                                   error="Need at least five observations in each outcome class.")
+            outer = StratifiedKFold(min(5, minority), shuffle=True, random_state=0)
+            names = ("logistic regression", "random forest", "gradient boosting")
             scorers = {"roc_auc": "roc_auc", "pr_auc": "average_precision", "bal_acc": "balanced_accuracy"}
-            metric = "composite"
-            cv = StratifiedKFold(n_splits, shuffle=True, random_state=0)
-            candidates = {
-                "logistic regression": Pipeline([imp, ("scale", StandardScaler()),
-                                                 ("m", LogisticRegression(max_iter=1000,
-                                                                          class_weight="balanced"))]),
-                "random forest": Pipeline([imp, ("m", RandomForestClassifier(
-                    n_estimators=300, random_state=0, n_jobs=-1, min_samples_leaf=5,
-                    class_weight="balanced"))]),
-                "gradient boosting": Pipeline([imp, ("m", HistGradientBoostingClassifier(random_state=0))]),
-            }
         else:
-            y = d[outcome].astype(float)
-            n_splits = 5
-            scorers = {"r2": "r2", "expl_var": "explained_variance"}   # composite = mean of both
-            metric = "composite"
-            cv = KFold(5, shuffle=True, random_state=0)
-            candidates = {
-                "linear regression": Pipeline([imp, ("scale", StandardScaler()),
-                                               ("m", LinearRegression())]),
-                "random forest": Pipeline([imp, ("m", RandomForestRegressor(
-                    n_estimators=300, random_state=0, n_jobs=-1, min_samples_leaf=5))]),
-                "gradient boosting": Pipeline([imp, ("m", HistGradientBoostingRegressor(random_state=0))]),
-            }
+            outer = KFold(5, shuffle=True, random_state=0)
+            names = ("linear regression", "random forest", "gradient boosting")
+            scorers = {"r2": "r2", "expl_var": "explained_variance"}
 
+        def make(name, train):
+            if is_class:
+                return _classification_estimator(name, train)
+            estimator = {"linear regression": LinearRegression(),
+                         "random forest": RandomForestRegressor(n_estimators=300, random_state=0,
+                                                                n_jobs=-1, min_samples_leaf=5),
+                         "gradient boosting": HistGradientBoostingRegressor(random_state=0)}[name]
+            steps = [("preprocess", _prediction_preprocessor(train))]
+            if name == "linear regression":
+                steps.append(("scale", StandardScaler()))
+            return Pipeline([*steps, ("m", estimator)])
+
+        def inner_scores(Xtr, ytr):
+            if is_class:
+                n_min = int(np.bincount(ytr, minlength=2).min())
+                inner = StratifiedKFold(min(3, n_min), shuffle=True, random_state=1)
+            else:
+                inner = KFold(3, shuffle=True, random_state=1)
+            scores = {}
+            for name in names:
+                cv = cross_validate(make(name, Xtr), Xtr, ytr, cv=inner, scoring=scorers)
+                scores[name] = float(np.mean([np.mean(cv["test_" + key]) for key in scorers]))
+            return scores
+
+        observed = {name: {key: [] for key in scorers} for name in names}
+        nested = []
+        for tr, te in outer.split(X, y):
+            Xtr, Xte, ytr, yte = X.iloc[tr], X.iloc[te], y[tr], y[te]
+            selected = max(inner_scores(Xtr, ytr).items(), key=lambda item: item[1])[0]
+            for name in names:
+                est = make(name, Xtr).fit(Xtr, ytr)
+                pred = est.predict(Xte)
+                if is_class:
+                    prob = est.predict_proba(Xte)[:, 1]
+                    metrics = {"roc_auc": roc_auc_score(yte, prob),
+                               "pr_auc": average_precision_score(yte, prob),
+                               "bal_acc": balanced_accuracy_score(yte, pred)}
+                else:
+                    metrics = {"r2": r2_score(yte, pred), "expl_var": explained_variance_score(yte, pred)}
+                for key, value in metrics.items():
+                    observed[name][key].append(float(value))
+                if name == selected:
+                    nested.append(float(np.mean(list(metrics.values()))))
+        final_winner = max(inner_scores(X, y).items(), key=lambda item: item[1])[0]
         board = []
-        for name, pipe in candidates.items():
-            cvr = cross_validate(pipe, X, y, cv=cv, scoring=scorers)
-            comps = {k: float(cvr["test_" + k].mean()) for k in scorers}   # each component's CV mean
-            score = float(np.mean(list(comps.values())))                    # the composite
-            std = float(np.mean([cvr["test_" + k].std() for k in scorers]))
-            board.append({"model": name, "metric": metric, "score": score, "std": std, "components": comps})
-        board.sort(key=lambda r: (r["score"], r["model"]), reverse=True)     # deterministic tie-break
-        for i, row in enumerate(board):
-            row["is_winner"] = (i == 0)
-        winner = board[0]["model"]
-
-        # the winner's own interpretable output (delegates to the existing single-model fitters)
-        if winner == "logistic regression":
-            det = fit_logistic(df, outcome, preds)
-            wterms, wissues, weffect = det.terms, det.issues, "odds ratio"
-        elif winner == "linear regression":
-            det = fit_ols(df, outcome, preds)
-            wterms, wissues, weffect = det.terms, det.issues, "coefficient"
-        elif winner == "random forest":
-            det = fit_forest(df, outcome, preds)
-            wterms, wissues, weffect = det.terms, det.issues, "importance"
-        else:
-            imp_scoring = "roc_auc" if is_class else "r2"       # a single scorer for permutation importance
-            wterms, wissues, weffect = _gb_importance(outcome, preds, X, y, is_class, imp_scoring), [], "importance"
-
-        mr = ModelResult("model_selection", outcome, len(d), weffect, terms=wterms,
-                         fit_stat=f"{winner} · {metric}={board[0]['score']:.3f}±{board[0]['std']:.3f} "
-                                  f"({n_splits}-fold CV)",
-                         note="Model selection: candidate models were cross-validated on this data and the "
-                              "best-scoring one chosen; its own output is shown. A marginally higher score "
-                              "does not always justify a less interpretable model — when scores are close, "
-                              "prefer the simpler one.")
-        mr.leaderboard = board
-        runner = board[1] if len(board) > 1 else None
-        mr.verdict = {"winner": winner, "metric": metric, "score": round(board[0]["score"], 4),
-                      "effect": weffect,
-                      "reason": (f"{winner} had the best {n_splits}-fold cross-validated {metric} "
-                                 f"({board[0]['score']:.3f})"
-                                 + (f", ahead of {runner['model']} ({runner['score']:.3f})." if runner else "."))}
-        mr.issues = issues + list(wissues)
-        mr.robustness = {"task": "classification" if is_class else "regression"}
+        for name in names:
+            comps = {k: float(np.mean(v)) for k, v in observed[name].items()}
+            stds = {k: float(np.std(v)) for k, v in observed[name].items()}
+            fold_composites = np.mean(np.asarray(list(observed[name].values())), axis=0)
+            board.append({"model": name, "metric": "composite", "score": float(np.mean(list(comps.values()))),
+                          "std": float(np.std(fold_composites)), "components": comps,
+                          "component_std": stds, "is_winner": name == final_winner})
+        board.sort(key=lambda row: (not row["is_winner"], -row["score"]))
+        # This is the same family and preprocessing as selection. Importance is apparent, not an
+        # independently evaluated effect: the full data was used to select and fit this model.
+        final_model = make(final_winner, X).fit(X, y)
+        importance = permutation_importance(final_model, X, y, n_repeats=5, random_state=0,
+                                           scoring="roc_auc" if is_class else "r2")
+        terms = [Term(name, float(value), float("nan"), float("nan"), float("nan"))
+                 for name, value in zip(preds, importance.importances_mean)]
+        terms.sort(key=lambda term: term.estimate, reverse=True)
+        effect = "training-set permutation importance"
+        issues.append("Fold standard deviations describe split variability, not confidence intervals. "
+                      "Model selection and coefficients are exploratory; external validation is needed.")
+        mr = ModelResult("model_selection", outcome, len(d), effect, terms=terms,
+                         fit_stat=f"nested CV composite={np.mean(nested):.3f}±{np.std(nested):.3f}",
+                         note="Model family selected inside each outer training fold; outer scores evaluate "
+                              "the selection process. Final family chosen using all development data; "
+                              "its training-set importance is exploratory and optimistically biased.")
+        mr.leaderboard, mr.issues = board, issues
+        mr.verdict = {"winner": final_winner, "metric": "nested composite", "score": float(np.mean(nested)),
+                      "effect": effect, "reason": "Selected using inner cross-validation on development data."}
+        mr.robustness = {"task": "classification" if is_class else "regression",
+                         "evaluation": "nested_cross_validation", "outer_score": float(np.mean(nested)),
+                         "outer_std": float(np.std(nested))}
         return mr
     except Exception as e:  # noqa: BLE001
-        return ModelResult("model_selection", outcome, 0, "cross-validated skill", error=str(e))
+        return ModelResult("model_selection", outcome, 0, "predictive performance", error=str(e))
 
 
 # ── model evaluation: decision curve analysis + failure analysis ────────────────────────────────────
-def _classification_estimator(family: str):
+def _classification_estimator(family: str, frame: pd.DataFrame | None = None):
     """The scikit-learn pipeline for a candidate family, matching the ones compare_models cross-validates."""
     from sklearn.ensemble import HistGradientBoostingClassifier, RandomForestClassifier
     from sklearn.impute import SimpleImputer
     from sklearn.linear_model import LogisticRegression
     from sklearn.pipeline import Pipeline
     from sklearn.preprocessing import StandardScaler
-    imp = ("impute", SimpleImputer(strategy="median"))
+    imp = ("preprocess", _prediction_preprocessor(frame)) if frame is not None else \
+        ("impute", SimpleImputer(strategy="median"))
     if family == "random forest":
         return Pipeline([imp, ("m", RandomForestClassifier(n_estimators=300, random_state=0, n_jobs=-1,
-                                                           min_samples_leaf=5, class_weight="balanced"))])
+                                                           min_samples_leaf=5))])
     if family == "gradient boosting":
         return Pipeline([imp, ("m", HistGradientBoostingClassifier(random_state=0))])
     return Pipeline([imp, ("scale", StandardScaler()),
-                     ("m", LogisticRegression(max_iter=1000, class_weight="balanced"))])
+                     ("m", LogisticRegression(max_iter=1000))])
 
 
 def _oof_risk(df: pd.DataFrame, outcome: str, predictors: list[str], model: str, kind: str):
     """Shared setup for the evaluation lenses: clean, pick the model (the compare_models winner when
     model='auto'), and return out-of-fold predicted risk. Returns (d, preds, y, p, family, issues, err)."""
-    from sklearn.model_selection import StratifiedKFold, cross_val_predict
+    from sklearn.model_selection import StratifiedKFold, cross_val_score
     preds0 = [p for p in predictors if p in df.columns and p != outcome]
-    d, preds, issues = _prepare(df, [outcome], preds0, impute=False)
+    d, preds, issues = df.dropna(subset=[outcome]).copy(), preds0, []
     if len(d) < 40 or len(preds) < 2:
         return None, None, None, None, None, issues, ModelResult(kind, outcome, len(d), "",
             error="Need ≥40 rows and ≥2 predictors.")
@@ -871,12 +872,28 @@ def _oof_risk(df: pd.DataFrame, outcome: str, predictors: list[str], model: str,
     if minority < 10:
         return None, None, None, None, None, issues, ModelResult(kind, outcome, len(d), "",
             error=f"Outcome too rare ({minority} in the smaller class) — need ≥10 to evaluate honestly.")
-    X = pd.get_dummies(d[preds], drop_first=True)
-    family = (compare_models(df, outcome, predictors).verdict.get("winner") or "logistic regression") \
-        if model == "auto" else model
-    est = _classification_estimator(family)
+    X = d[preds].copy()
     cv = StratifiedKFold(min(5, minority), shuffle=True, random_state=0)
-    p = cross_val_predict(est, X, y, cv=cv, method="predict_proba")[:, 1]   # out-of-fold, no leakage
+    p = np.zeros(len(y))
+    selected = []
+    for train, test in cv.split(X, y):
+        family = model
+        if model == "auto":
+            inner_minority = int(np.bincount(y[train]).min())
+            inner = StratifiedKFold(min(3, inner_minority), shuffle=True, random_state=1)
+            scores = {}
+            for candidate in ("logistic regression", "random forest", "gradient boosting"):
+                estimator = _classification_estimator(candidate, X.iloc[train])
+                scores[candidate] = cross_val_score(estimator, X.iloc[train], y[train],
+                                                    cv=inner, scoring="roc_auc").mean()
+            family = max(scores, key=scores.get)
+        est = _classification_estimator(family, X.iloc[train])
+        est.fit(X.iloc[train], y[train])
+        p[test] = est.predict_proba(X.iloc[test])[:, 1]
+        selected.append(family)
+    if model == "auto":
+        family = "nested selection (" + ", ".join(sorted(set(selected))) + ")"
+    issues.append("Predicted risks need calibration assessment and external validation before clinical use.")
     return d, preds, y, p, family, issues, None
 
 
@@ -903,11 +920,12 @@ def decision_curve(df: pd.DataFrame, outcome: str, predictors: list[str],
                 useful.append(float(pt))
         rng = f"{min(useful):.0%}–{max(useful):.0%}" if useful else "no threshold"
         mr = ModelResult("decision_curve", outcome, n, "net benefit",
-                         fit_stat=f"{family}: adds clinical net benefit over treat-all / treat-none across "
+                         fit_stat=f"{family}: estimated net benefit over treat-all / treat-none across "
                                   f"decision thresholds {rng}",
                          note="Decision curve analysis (Vickers & Elkin 2006): net benefit weighs true "
                               "positives against false positives at each threshold's odds. Out-of-fold "
-                              "predictions, so the utility is not optimistic.")
+                              "predictions provide internal evaluation only; calibration and clinical "
+                              "utility require further validation.")
         mr.series = series
         mr.verdict = {"model": family, "useful_range": rng, "prevalence": round(prev, 3)}
         mr.issues = issues
@@ -979,7 +997,7 @@ def failure_analysis(df: pd.DataFrame, outcome: str, predictors: list[str],
 
 
 # ── survival machine learning (random survival forest, optional scikit-survival dependency) ─────────
-_RSF_GRID = {"n_estimators": [300], "min_samples_leaf": [5, 10, 20], "max_features": ["sqrt", 0.5]}
+_RSF_GRID = {"n_estimators": [100], "min_samples_leaf": [5, 15], "max_features": ["sqrt", 0.5]}
 
 
 def _importance_terms(means: "pd.Series", preds: list[str]) -> list:
@@ -999,7 +1017,7 @@ def _survival_xy(df: pd.DataFrame, duration: str, event: str, predictors: list[s
     ModelResult when the data can't support a survival model, else None."""
     from sksurv.util import Surv
     preds0 = [p for p in predictors if p in df.columns and p not in (duration, event)]
-    d, preds, issues = _prepare(df, [duration, event], preds0, impute=True)
+    d, preds, issues = df.dropna(subset=[duration, event]).copy(), preds0, []
     if len(d) < 40 or len(preds) < 2:
         return d, preds, issues, None, None, ModelResult(kind, event, len(d), "concordance index",
             error="Need ≥40 rows and ≥2 predictors for a survival model.")
@@ -1010,16 +1028,13 @@ def _survival_xy(df: pd.DataFrame, duration: str, event: str, predictors: list[s
     if int(ev.sum()) < 10:
         return d, preds, issues, None, None, ModelResult(kind, event, len(d), "concordance index",
             error=f"Too few events ({int(ev.sum())}) to fit a survival model — need ≥10.")
-    X = pd.get_dummies(d[preds], drop_first=True).astype(float)
+    X = d[preds].copy()
     y = Surv.from_arrays(event=ev.values, time=t.values)
     return d, preds, issues, X, y, None
 
 
 def _survival_composite_cv(make, params: dict, X, y, cv):
-    """Cross-validated survival composite for a tuned estimator: the mean of Harrell's concordance,
-    time-dependent (cumulative/dynamic) AUC, and a Brier skill score (1 - integrated Brier score) —
-    combining ranking, time-varying discrimination, and calibration into one number (the survival analog
-    of the classification composite). Returns (component means dict, std of the per-fold composite)."""
+    """Cross-validated discrimination and integrated Brier score for a tuned estimator."""
     from sksurv.metrics import concordance_index_censored, cumulative_dynamic_auc, integrated_brier_score
     rows = []
     for tr, te in cv.split(X):
@@ -1035,14 +1050,14 @@ def _survival_composite_cv(make, params: dict, X, y, cv):
             times = np.linspace(lo, hi, 6)
             td_auc = cumulative_dynamic_auc(y[tr], y[te], risk, times)[1]
             surv = np.asarray([[fn(t) for t in times] for fn in est.predict_survival_function(X[te])])
-            brier_skill = 1.0 - integrated_brier_score(y[tr], y[te], surv, times)
+            integrated_brier = integrated_brier_score(y[tr], y[te], surv, times)
         except Exception:  # noqa: BLE001
-            td_auc, brier_skill = np.nan, np.nan
-        rows.append((harrell, td_auc, brier_skill))
+            td_auc, integrated_brier = np.nan, np.nan
+        rows.append((harrell, td_auc, integrated_brier))
     arr = np.asarray(rows, dtype=float)
     means = {"harrell_c": float(np.nanmean(arr[:, 0])), "td_auc": float(np.nanmean(arr[:, 1])),
-             "brier_skill": float(np.nanmean(arr[:, 2]))}
-    return means, float(np.nanstd(np.nanmean(arr, axis=1)))
+             "integrated_brier_score": float(np.nanmean(arr[:, 2]))}
+    return means, float(np.nanstd(arr[:, 0]))
 
 
 def fit_rsf(df: pd.DataFrame, duration: str, event: str, predictors: list[str]) -> ModelResult:
@@ -1053,34 +1068,102 @@ def fit_rsf(df: pd.DataFrame, duration: str, event: str, predictors: list[str]) 
     library defaults), so the reported skill is the tuned model's. Needs the optional scikit-survival
     package; returns a clear error if it is not installed.
     """
+    return _survival_nested(df, duration, event, predictors, forest_only=True)
+
+
+def _survival_nested(df: pd.DataFrame, duration: str, event: str, predictors: list[str],
+                     forest_only: bool = False) -> ModelResult:
+    """Fit transformations and tune each candidate inside the outer training folds."""
+    kind = "rsf" if forest_only else "model_selection"
     try:
         from sklearn.inspection import permutation_importance
         from sklearn.model_selection import GridSearchCV, KFold, train_test_split
+        from sklearn.pipeline import Pipeline
         from sksurv.ensemble import RandomSurvivalForest
-        d, preds, issues, X, y, err = _survival_xy(df, duration, event, predictors, "rsf")
+        from sksurv.linear_model import CoxPHSurvivalAnalysis
+        from sksurv.metrics import cumulative_dynamic_auc, integrated_brier_score
+
+        d, preds, issues, X, y, err = _survival_xy(df, duration, event, predictors, kind)
         if err is not None:
             return err
-        cv = KFold(5, shuffle=True, random_state=0)
-        search = GridSearchCV(RandomSurvivalForest(random_state=0, n_jobs=-1), _RSF_GRID, cv=cv).fit(X, y)
-        best, p = search.best_estimator_, search.best_params_
-        Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.3, random_state=0)   # held-out importance
-        best.fit(Xtr, ytr)
-        pi = permutation_importance(best, Xte, yte, n_repeats=10, random_state=0)
+        candidates = {"random survival forest": (RandomSurvivalForest(random_state=0, n_jobs=-1), _RSF_GRID)}
+        if not forest_only:
+            candidates["Cox proportional hazards"] = (CoxPHSurvivalAnalysis(), {"alpha": [0.01, 1.0, 10.0]})
+
+        def tune(name, train_x, train_y):
+            estimator, grid = candidates[name]
+            pipeline = Pipeline([("preprocess", _prediction_preprocessor(train_x)), ("model", estimator)])
+            search = GridSearchCV(pipeline, {"model__" + k: v for k, v in grid.items()},
+                                  cv=KFold(3, shuffle=True, random_state=1), error_score="raise")
+            return search.fit(train_x, train_y)
+
+        def metrics(est, train_y, test_x, test_y):
+            result = {"harrell_c": float(est.score(test_x, test_y)), "td_auc": np.nan,
+                      "integrated_brier_score": np.nan}
+            try:
+                event_times = test_y["time"][test_y["event"]]
+                lo, hi = np.percentile(event_times, [10, 90])
+                hi = min(float(hi), float(train_y["time"].max()) * .999)
+                if hi <= lo:
+                    return result
+                times = np.linspace(lo, hi, 6)
+                result["td_auc"] = float(cumulative_dynamic_auc(train_y, test_y, est.predict(test_x), times)[1])
+                transformed = est.named_steps["preprocess"].transform(test_x)
+                funcs = est.named_steps["model"].predict_survival_function(transformed)
+                survival = np.asarray([[fn(t) for t in times] for fn in funcs])
+                result["integrated_brier_score"] = float(integrated_brier_score(train_y, test_y, survival, times))
+            except (ValueError, IndexError):
+                pass
+            return result
+
+        results = {name: [] for name in candidates}
+        selected_scores = []
+        for tr, te in KFold(3, shuffle=True, random_state=0).split(X):
+            searches = {name: tune(name, X.iloc[tr], y[tr]) for name in candidates}
+            selected = max(searches, key=lambda name: searches[name].best_score_)
+            for name, search in searches.items():
+                measure = metrics(search.best_estimator_, y[tr], X.iloc[te], y[te])
+                results[name].append(measure)
+                if name == selected:
+                    selected_scores.append(measure["harrell_c"])
+
+        final_searches = {name: tune(name, X, y) for name in candidates}
+        winner = max(final_searches, key=lambda name: final_searches[name].best_score_)
+        board = []
+        for name, rows in results.items():
+            comps, stds = {}, {}
+            for key in ("harrell_c", "td_auc", "integrated_brier_score"):
+                values = np.asarray([row[key] for row in rows], dtype=float)
+                finite = values[np.isfinite(values)]
+                comps[key] = float(finite.mean()) if len(finite) else float("nan")
+                stds[key] = float(finite.std()) if len(finite) else float("nan")
+            board.append({"model": name, "metric": "harrell_c", "score": comps["harrell_c"],
+                          "std": stds["harrell_c"], "components": comps, "component_std": stds,
+                          "is_winner": name == winner})
+        board.sort(key=lambda row: (not row["is_winner"], -row["score"]))
+        Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=.3, random_state=0)
+        heldout = tune(winner, Xtr, ytr).best_estimator_
+        pi = permutation_importance(heldout, Xte, yte, n_repeats=10, random_state=0)
         terms = _importance_terms(pd.Series(pi.importances_mean, index=X.columns), preds)
-        mr = ModelResult("rsf", event, len(d), "importance", terms,
-                         fit_stat=f"C-index={search.best_score_:.3f} (5-fold CV) · tuned: "
-                                  f"leaf={p['min_samples_leaf']}, max_features={p['max_features']}",
-                         note="Random survival forest, hyperparameters grid-searched by cross-validated "
-                              "concordance index. Non-linear survival ML, no proportional-hazards assumption; "
-                              "permutation importance measured on a held-out split. Predictive, not causal.")
-        mr.issues = issues
+        mr = ModelResult(kind, event, len(d), "importance", terms,
+                         fit_stat=f"nested C-index={np.mean(selected_scores):.3f}±{np.std(selected_scores):.3f} "
+                                  f"(3 folds) · tuned: {winner}",
+                         note="Tuning and preprocessing occur inside training folds. C-index, time-dependent "
+                              "AUC and integrated Brier score are reported separately; external validation "
+                              "is needed. Permutation importance uses a held-out split, but family selection "
+                              "used all development data, so importance may be optimistic.")
+        mr.leaderboard = board
+        mr.verdict = {"winner": winner, "metric": "harrell_c", "score": float(np.mean(selected_scores)),
+                      "effect": "importance", "reason": "Chosen by training-fold C-index."}
+        mr.robustness = {"task": "survival", "evaluation": "nested_cross_validation",
+                         "outer_score": float(np.mean(selected_scores)), "outer_std": float(np.std(selected_scores))}
+        mr.issues = issues + ["Fold standard deviations are not confidence intervals. "
+                              "Some time-dependent metrics may be unavailable when follow-up ranges differ."]
         return mr
     except ImportError:
-        return ModelResult("rsf", event, 0, "importance",
-                           error="Random survival forest needs the optional 'scikit-survival' package "
-                                 "(pip install scikit-survival).")
+        return ModelResult(kind, event, 0, "concordance index", error="Requires scikit-survival.")
     except Exception as e:  # noqa: BLE001
-        return ModelResult("rsf", event, 0, "importance", error=str(e))
+        return ModelResult(kind, event, 0, "concordance index", error=str(e))
 
 
 def compare_survival_models(df: pd.DataFrame, duration: str, event: str,
@@ -1091,68 +1174,7 @@ def compare_survival_models(df: pd.DataFrame, duration: str, event: str,
     concordance index (the survival analog of compare_models). Cox's ridge penalty and the forest's tree
     settings are both searched, so the contest is fair rather than tuned-vs-default. Needs scikit-survival.
     """
-    try:
-        from sklearn.inspection import permutation_importance
-        from sklearn.model_selection import GridSearchCV, KFold, train_test_split
-        from sksurv.ensemble import RandomSurvivalForest
-        from sksurv.linear_model import CoxPHSurvivalAnalysis
-        d, preds, issues, X, y, err = _survival_xy(df, duration, event, predictors, "model_selection")
-        if err is not None:
-            return err
-        cv = KFold(5, shuffle=True, random_state=0)
-        Xv = X.values
-        makers = {
-            "Cox proportional hazards": (lambda **kw: CoxPHSurvivalAnalysis(**kw),
-                                         {"alpha": [1e-4, 1e-2, 1.0, 10.0]}),
-            "random survival forest": (lambda **kw: RandomSurvivalForest(random_state=0, n_jobs=-1, **kw),
-                                       _RSF_GRID),
-        }
-        board, tuned = [], {}
-        for name, (make, grid) in makers.items():
-            best_params = GridSearchCV(make(), grid, cv=cv).fit(Xv, y).best_params_   # tune by C-index
-            tuned[name] = (make, best_params)
-            comps, std = _survival_composite_cv(make, best_params, Xv, y, cv)          # rank by composite
-            board.append({"model": name, "metric": "composite", "score": float(np.mean(list(comps.values()))),
-                          "std": std, "components": comps})
-        board.sort(key=lambda r: (r["score"], r["model"]), reverse=True)
-        for i, row in enumerate(board):
-            row["is_winner"] = (i == 0)
-        winner = board[0]["model"]
-
-        if winner == "Cox proportional hazards":
-            wterms, weffect = fit_cox(df, duration, event, preds).terms, "hazard ratio"
-        else:                                              # reuse the tuned forest — no re-search
-            make, params = tuned["random survival forest"]
-            best = make(**params)
-            Xtr, Xte, ytr, yte = train_test_split(Xv, y, test_size=0.3, random_state=0)
-            best.fit(Xtr, ytr)
-            pi = permutation_importance(best, Xte, yte, n_repeats=10, random_state=0)
-            wterms = _importance_terms(pd.Series(pi.importances_mean, index=X.columns), preds)
-            weffect = "importance"
-
-        mr = ModelResult("model_selection", event, len(d), weffect, terms=wterms,
-                         fit_stat=f"{winner} · composite={board[0]['score']:.3f}±{board[0]['std']:.3f} "
-                                  f"(5-fold CV)",
-                         note="Survival model selection: Cox PH and a random survival forest, each "
-                              "hyperparameter-tuned by cross-validated concordance index, then ranked by a "
-                              "composite of Harrell's C-index, time-dependent AUC, and a Brier skill score "
-                              "(1 - integrated Brier). The winner's own output is shown.")
-        mr.leaderboard = board
-        runner = board[1] if len(board) > 1 else None
-        mr.verdict = {"winner": winner, "metric": "composite", "score": round(board[0]["score"], 4),
-                      "effect": weffect,
-                      "reason": f"{winner} had the best 5-fold cross-validated survival composite "
-                                f"({board[0]['score']:.3f})"
-                                + (f", ahead of {runner['model']} ({runner['score']:.3f})." if runner else ".")}
-        mr.issues = issues
-        mr.robustness = {"task": "survival"}
-        return mr
-    except ImportError:
-        return ModelResult("model_selection", event, 0, "concordance index",
-                           error="Survival model comparison needs the optional 'scikit-survival' package "
-                                 "(pip install scikit-survival).")
-    except Exception as e:  # noqa: BLE001
-        return ModelResult("model_selection", event, 0, "concordance index", error=str(e))
+    return _survival_nested(df, duration, event, predictors)
 
 
 def fit_timeseries(df: pd.DataFrame, time_col: str, value_col: str,
@@ -1200,16 +1222,16 @@ def fit_timeseries(df: pd.DataFrame, time_col: str, value_col: str,
         return ModelResult("timeseries", value_col, 0, "forecast", error=str(e))
 
 
-_UPLIFT_MAX_ROWS = 20000          # cross-fitting stays interactive below this; sampled stratified by arm
+_UPLIFT_MAX_ROWS = 20000          # cross-fitting stays interactive below this
 
 
 def fit_uplift(df: pd.DataFrame, outcome: str, treatment: str,
                predictors: list[str] | None = None) -> ModelResult:
-    """Causal T-learner: two random forests (treated vs control) estimate the average uplift (ATE) of a
-    binary treatment on the outcome, adjusting for covariates. Observational → illustrative, not RCT-grade."""
+    """Exploratory cross-fitted AIPW estimate of a binary treatment's average effect."""
     try:
         from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
         from sklearn.model_selection import StratifiedKFold
+        from sklearn.pipeline import Pipeline
         preds = [p for p in (predictors or []) if p in df.columns and p not in (outcome, treatment)]
         d = _clean(df, [outcome, treatment, *preds])
         t, t_note = _treatment_indicator(d[treatment])
@@ -1219,29 +1241,17 @@ def fit_uplift(df: pd.DataFrame, outcome: str, treatment: str,
         issues = []
         if t_note:
             issues.append(t_note)
-        if len(d) > _UPLIFT_MAX_ROWS:                    # keep cross-fitting interactive on large inputs
-            # Stratify by arm so a rare treatment keeps its share, then RE-CHECK the ≥20-per-arm gate:
-            # the pre-sample check alone let a 30-treated/100k cohort shrink to ~6 treated rows.
-            frac = _UPLIFT_MAX_ROWS / len(d)
-            d = d.groupby(d[treatment].astype(str), group_keys=False).sample(frac=frac, random_state=0)
-            t = _treatment_indicator(d[treatment])[0]
-            n1, n0 = int((t == 1).sum()), int((t == 0).sum())
-            if n1 < 20 or n0 < 20:
-                return ModelResult(
-                    "causal", outcome, len(d), "uplift",
-                    error=(f"After subsampling to ~{_UPLIFT_MAX_ROWS:,} rows the treatment arms are too "
-                           f"small to cross-fit (treated={n1}, control={n0}; each needs ≥20). Narrow the "
-                           "cohort in SQL so the full data fits, or use a more common treatment."))
-            issues.append(f"Estimated on a random {len(d):,}-row subsample (stratified by treatment arm) "
-                          "for tractability.")
+        if len(d) > _UPLIFT_MAX_ROWS:
+            return ModelResult("causal", outcome, len(d), "uplift",
+                error=f"Cohort exceeds {_UPLIFT_MAX_ROWS:,} rows; explicitly select and document a "
+                      "sampling method or narrow the cohort before analysis. No model was fit.")
         is_class = _is_binary_outcome(d[outcome])
         if is_class and (y_note := _binary_note(d[outcome])):
             issues.append(y_note)
         y = (_to_binary(d[outcome]) if is_class else d[outcome].astype(float)).to_numpy(dtype=float)
-        X = pd.get_dummies(d[preds], drop_first=True) if preds else pd.DataFrame(index=d.index)
+        X = d[preds].copy() if preds else pd.DataFrame(index=d.index)
         if X.empty:
             X = pd.DataFrame({"_const": np.ones(len(d))}, index=d.index)
-        X = X.to_numpy(dtype=float)
         if is_class and (len(np.unique(y[t == 1])) < 2 or len(np.unique(y[t == 0])) < 2):
             return ModelResult("causal", outcome, len(d), "uplift",
                                error="Outcome has no variation within a treatment arm.")
@@ -1251,8 +1261,6 @@ def fit_uplift(df: pd.DataFrame, outcome: str, treatment: str,
         # interval reflects model + sampling variability (the old fixed-vector bootstrap understated it ~3×).
         Out = RandomForestClassifier if is_class else RandomForestRegressor
         okw = dict(n_estimators=200, random_state=0, n_jobs=-1, min_samples_leaf=5)
-        if is_class:
-            okw["class_weight"] = "balanced"
 
         def _p1(m, xx):                                  # E[Y|X] robust to a single-class training fold
             if not is_class:
@@ -1265,12 +1273,18 @@ def fit_uplift(df: pd.DataFrame, outcome: str, treatment: str,
         mu1 = np.zeros(n); mu0 = np.zeros(n); ehat = np.zeros(n)
         for tr, te in StratifiedKFold(5, shuffle=True, random_state=0).split(X, t):
             ttr = t[tr]
-            mu1[te] = _p1(Out(**okw).fit(X[tr][ttr == 1], y[tr][ttr == 1]), X[te])
-            mu0[te] = _p1(Out(**okw).fit(X[tr][ttr == 0], y[tr][ttr == 0]), X[te])
-            ps = RandomForestClassifier(n_estimators=200, random_state=1, n_jobs=-1,
-                                        min_samples_leaf=5, class_weight="balanced").fit(X[tr], ttr)
-            ehat[te] = ps.predict_proba(X[te])[:, list(ps.classes_).index(1)]
-        ehat = np.clip(ehat, 0.025, 0.975)               # positivity/overlap trimming for a stable score
+            xtr, xte = X.iloc[tr], X.iloc[te]
+            def pipeline(estimator, training):
+                return Pipeline([("preprocess", _prediction_preprocessor(training)), ("model", estimator)])
+            treated_x, control_x = xtr.iloc[ttr == 1], xtr.iloc[ttr == 0]
+            mu1[te] = _p1(pipeline(Out(**okw), treated_x).fit(treated_x, y[tr][ttr == 1]), xte)
+            mu0[te] = _p1(pipeline(Out(**okw), control_x).fit(control_x, y[tr][ttr == 0]), xte)
+            ps = pipeline(RandomForestClassifier(n_estimators=200, random_state=1, n_jobs=-1,
+                                                 min_samples_leaf=5), xtr).fit(xtr, ttr)
+            ehat[te] = ps.predict_proba(xte)[:, list(ps.classes_).index(1)]
+        raw_ehat = ehat.copy()
+        clipped_fraction = float(np.mean((raw_ehat < 0.025) | (raw_ehat > 0.975)))
+        ehat = np.clip(ehat, 0.025, 0.975)               # clipping weights, not trimming participants
         # AIPW score per unit: (mu1-mu0) + T(Y-mu1)/e - (1-T)(Y-mu0)/(1-e); ATE = mean, SE from its spread
         psi = (mu1 - mu0) + t * (y - mu1) / ehat - (1 - t) * (y - mu0) / (1 - ehat)
         ate = float(np.mean(psi))
@@ -1278,7 +1292,7 @@ def fit_uplift(df: pd.DataFrame, outcome: str, treatment: str,
         lo, hi = ate - 1.96 * se, ate + 1.96 * se
         if float(ehat.min()) <= 0.03 or float(ehat.max()) >= 0.97:
             issues.append("Weak overlap: some patients have a propensity near 0 or 1, so the effect is "
-                          "extrapolated for them (propensity trimmed to [0.025, 0.975]).")
+                          "extrapolated for them (propensity clipped to [0.025, 0.975]; no rows removed).")
         label = "uplift (Δ risk)" if is_class else "uplift (Δ outcome)"
         mr = ModelResult("causal", outcome, n, label,
                          [Term(f"effect of {treatment}", ate, lo, hi, float("nan"))],
@@ -1287,6 +1301,9 @@ def fit_uplift(df: pd.DataFrame, outcome: str, treatment: str,
                               "propensity forest); 95% CI from the influence function. Observational — assumes "
                               "no unmeasured confounding and overlap; NOT a randomized causal effect. Synthetic data.")
         mr.issues = issues
+        mr.robustness = {"propensity": {"raw_min": float(raw_ehat.min()), "raw_max": float(raw_ehat.max()),
+                                        "clipped_fraction": clipped_fraction, "bounds": [0.025, 0.975]},
+                         "interpretation": "Exploratory; causal assumptions and interval coverage are not proven."}
         return mr
     except Exception as e:  # noqa: BLE001
         return ModelResult("causal", outcome, 0, "uplift", error=str(e))
@@ -1871,11 +1888,14 @@ def render(r: ModelResult) -> str:
         for row in r.leaderboard:
             tag = " ←" if row.get("is_winner") else ""
             comp = row.get("components") or {}
-            detail = ("  (" + " · ".join(f"{k} {v:.3f}" for k, v in comp.items()) + ")") if comp else ""
+            stds = row.get("component_std") or {}
+            detail = ("  (" + " · ".join(f"{k} {v:.3f}±{stds[k]:.3f}" if k in stds
+                                            else f"{k} {v:.3f}" for k, v in comp.items()) + ")") if comp else ""
             lines.append(f"    {row['model']:20} {row['metric']}={row['score']:.3f}±{row['std']:.3f}{tag}{detail}")
+        lines.append("  Uncertainty is fold SD, not a confidence interval.")
     if r.model_type == "decision_curve" and r.series:
         v = r.verdict
-        lines.append(f"  CLINICALLY USEFUL ACROSS THRESHOLDS: {v.get('useful_range')} "
+        lines.append(f"  ESTIMATED NET BENEFIT ACROSS THRESHOLDS: {v.get('useful_range')} "
                      f"(prevalence {v.get('prevalence', 0):.0%})")
         for s in r.series:
             if round(s["threshold"], 2) in (0.10, 0.20, 0.30, 0.50):
@@ -1964,6 +1984,12 @@ def calc_assurance(endpoint_type: str = "proportion", framing: str = "single_arm
     def _err(msg):
         return ModelResult("assurance", "go/no-go", 0, "probability of success", error=msg)
     try:
+        from .research_rules import require_bayesian_inputs
+        require_bayesian_inputs({"endpoint_type": endpoint_type, "n_planned": n_planned, "tv": tv, "lrv": lrv,
+                                 "control_rate": control_rate, "gate_tv": gate_tv, "gate_lrv": gate_lrv,
+                                 "stop_lrv": stop_lrv, "prior_a": prior_a, "prior_b": prior_b,
+                                 "prior_successes": prior_successes, "prior_n": prior_n,
+                                 "prior_mu": prior_mu, "prior_sd": prior_sd}, require_prior=False)
         if n_planned is None or tv is None or lrv is None:
             return _err("an assurance calculation needs a planned sample size, a target value (TV), "
                         "and a lower reference value (LRV).")
@@ -2211,6 +2237,13 @@ def fit_interim(df: pd.DataFrame, outcome: str, n_planned=None, tv=None, lrv=Non
         return ModelResult("interim", outcome or "go/no-go", 0, "posterior (95% credible interval)",
                            error=msg)
     try:
+        from .research_rules import require_bayesian_inputs
+        require_bayesian_inputs({"endpoint_type": endpoint_type, "n_planned": n_planned, "tv": tv, "lrv": lrv,
+                                 "gate_tv": gate_tv, "gate_lrv": gate_lrv,
+                                 "stop_lrv": stop_lrv, "prior_a": prior_a, "prior_b": prior_b,
+                                 "prior_successes": prior_successes, "prior_n": prior_n}, require_prior=False)
+        if framing == "two_arm" and (prior_successes is not None or prior_n is not None):
+            return _err("two-arm interim requires an explicit Beta prior; previous-study counts are unsupported")
         if n_planned is None or tv is None or lrv is None:
             return _err("an interim analysis needs the planned sample size, a target value (TV), and a "
                         "lower reference value (LRV).")
@@ -2310,6 +2343,8 @@ def _fit_interim_two_arm(df, outcome, group, control, n_planned, tv, lrv,
         if n_planned is None or tv is None or lrv is None:
             return _err("a two-arm interim needs the planned total enrolment, a TV, and an LRV.")
         n_planned, tv, lrv = int(n_planned), float(tv), float(lrv)
+        if n_planned % 2:
+            return _err("the 1:1 two-arm interim requires an even planned total; unequal allocation is unsupported.")
         if not (-1.0 <= tv <= 1.0 and -1.0 <= lrv <= 1.0):
             return _err("the two-arm TV and LRV are risk differences and must be between -1 and 1 "
                         "(express a 15-point benefit as 0.15).")
