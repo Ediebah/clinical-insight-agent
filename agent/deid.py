@@ -27,6 +27,8 @@ import pandas as pd
 log = logging.getLogger(__name__)
 
 MODEL_ID = "OpenMed/OpenMed-PII-SuperClinical-Small-44M-v1-onnx-android"
+# Immutable Hugging Face repository commit; update only with a documented evaluation.
+MODEL_REVISION = "82f57fcab68125b05f1aa9fdd41319732358311b"
 REDACTION = "[REDACTED]"
 
 # Bias toward RECALL. A false positive costs the user one unnecessary question about a column; a
@@ -108,7 +110,7 @@ def _looks_coded(values: list[str]) -> bool:
 def _load_model():
     """Load the ONNX model. Separate from _model() so tests can monkeypatch just the load."""
     import openmed
-    return openmed.OnnxModel.from_pretrained(MODEL_ID)
+    return openmed.OnnxModel.from_pretrained(MODEL_ID, revision=MODEL_REVISION)
 
 
 def _model():

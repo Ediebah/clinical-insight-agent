@@ -13,6 +13,10 @@ Status checked 2026-10-31. This is a technical inventory, not a legal opinion or
 
 The installed application environment's direct dependency metadata identifies `scikit-survival==0.28.0` as GPL-3.0-or-later. Its distribution implications require review for the actual product and artifacts. The two standalone projects do not directly depend on it. Some installed packages have no machine-readable license expression, or describe multiple bundled components, so metadata alone is not a complete license audit. Review transitive packages, binary notices, installation artifacts, data, and any deployed model weights. See [third-party notices](../THIRD_PARTY_NOTICES.md).
 
+A local dependency-advisory check found findings in 11 installed distributions, including the directly pinned PDF parser. The candidate runtime pin was updated; the remaining environment findings and release-specific audit are open. See [dependency advisory check](DEPENDENCY_AUDIT.md).
+
+The optional identifier model now requests immutable revision `82f57fcab68125b05f1aa9fdd41319732358311b`, which the upstream metadata identified as its main revision on 2026-10-31. New local evaluation records include that revision; historical records did not record one. The pin improves traceability, not evidence of de-identification or compliance. Verify the exact artifact and its terms for the distribution.
+
 The demo database checksum identifies the current file, but its exact Synthea version and generating inputs remain unresolved. CI separately generates data with Synthea 4.0.0; that does not prove the origin of the committed database. See [data provenance](DATA_PROVENANCE.md).
 
 ## Build evidence and outstanding checks

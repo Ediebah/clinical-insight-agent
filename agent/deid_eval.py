@@ -245,6 +245,7 @@ def run(limit: int = 200, db_path=DB_PATH) -> dict:
     return {
         "ts": _dt.datetime.now().replace(microsecond=0).isoformat(),
         "model": deid.MODEL_ID,
+        "model_revision": deid.MODEL_REVISION,
         "threshold": deid.SCORE_THRESHOLD,
         "n_patients": len(rows),
         "normalised": _score_variant(normalise(rows)),
@@ -253,7 +254,7 @@ def run(limit: int = 200, db_path=DB_PATH) -> dict:
 
 
 def _print(rec: dict) -> None:
-    print(f"\n  model={rec['model']}")
+    print(f"\n  model={rec['model']}  revision={rec['model_revision']}")
     print(f"  threshold={rec['threshold']}  n={rec['n_patients']}\n")
     for variant in ("normalised", "raw"):
         v = rec[variant]

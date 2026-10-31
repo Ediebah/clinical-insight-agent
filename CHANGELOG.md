@@ -16,6 +16,10 @@ versions follow [SemVer](https://semver.org/).
   citation metadata, and package-distribution CI.
 - Reject analysis specifications with empty or blank assumptions. Flag rates inconsistent with
   supplied counts and withhold count-based inference until the relationship is clarified.
+- Pin the optional identifier model to an immutable upstream revision; historical evaluations
+  did not record a revision and are not evidence of de-identification.
+- Update the directly pinned PDF parser to 6.21.4 after a dependency-advisory review; other
+  dependencies and deployment-specific security controls still require review.
 
 These changes have not yet been published as a release. The historical section below records
 the repository's earlier changelog claims; it has not been independently audited here.
