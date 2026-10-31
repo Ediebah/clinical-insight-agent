@@ -37,7 +37,7 @@ python -m pip install ./packages/caveat
 python -m pip install ./packages/assurance
 ```
 
-Package-index publication and name ownership have not been verified for these names. Do not use `pip install caveat` or `pip install assurance` as instructions for this repository until verified.
+Package-index publication and name ownership have not been verified for these names. PyPI's `assurance` currently identifies a different project; do not use `pip install assurance` for this library. A `caveat` JSON API 404 does not establish that the name is available. See [release status](docs/RELEASE_STATUS.md).
 
 ## Key-free examples
 
