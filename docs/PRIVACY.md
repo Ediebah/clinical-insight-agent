@@ -8,3 +8,4 @@ Only synthetic or otherwise non-sensitive information is supported. Do not uploa
 - Local JSONL logs can contain questions, generated SQL, and feedback. They have no authentication, tamper-evident storage, guaranteed retention, or tenant isolation.
 - Research bundles exclude source rows by default and reject some obvious credential patterns. User text, SQL, model summaries, and model-generated text can still contain sensitive values. Inspect every artifact before sharing. Hashes can identify known data and are not anonymization.
 - The read-only database controls reduce SQL filesystem access, but are not a security audit or a substitute for per-user access control, isolation, authorization, incident response, or vendor agreements.
+- The default container command retains Streamlit's CORS and XSRF protections. They do not provide authentication, tenant isolation, or authorization to handle sensitive data.

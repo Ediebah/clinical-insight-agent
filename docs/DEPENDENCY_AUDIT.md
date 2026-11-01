@@ -26,6 +26,8 @@ An initial clean Python 3.12 runtime installation resolved 92 distributions. Its
 
 A second clean environment installed the final pinned requirements from scratch and passed `pip check`. The [resolved inventory](runtime_environment_2026-10-31.json) records its 84 installed distributions and a SHA-256 of the requirements file. An advisory query returned no entries for the 82 distributions it could check; it skipped the two unpublished local libraries. The four documented key-free CLI and benchmark commands also completed with API-key environment variables removed. The inventory is not a lockfile, and the same requirements may resolve different transitive versions on another date or platform.
 
+The accompanying [license metadata snapshot](runtime_license_metadata_2026-10-31.json) records what those installed distributions declare. It was generated in that environment with `python scripts/collect_license_inventory.py --output license-metadata.json`. It is a starting point for checking actual license files and bundled components, not a legal review or proof of permission to distribute them.
+
 The Dockerfile was also corrected to copy both local package directories before installing `requirements.txt`. Docker image execution has not been verified when a daemon is unavailable; run and audit the actual image before release.
 
 The check was performed without automatic dependency changes:
