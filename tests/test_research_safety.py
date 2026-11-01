@@ -221,6 +221,10 @@ def test_ambiguous_or_conflicting_control_beta_is_not_automatically_reassigned()
         (base.replace("A treatment pilot had", "Do not assume the treatment pilot had"), route),
         (base.replace("patients;", "patients, but do not use those counts;"), route),
         (base + " Use Beta(2,2) as the treatment prior.", route),
+        (base + " Use Beta(-1,2) as the treatment prior.", route),
+        (base + " Use Beta(.4,2) as the treatment prior.", route),
+        (base + " Use Beta(a,b) as the treatment prior.", route),
+        (base + " The treatment prior has not been specified.", route),
         ("A treatment pilot had 8 responses in 24 patients. A treatment pilot had 7 responses in 20 patients; "
          "use Beta(3,4) as the control analysis prior.", route),
         (base, {**route, "control_prior_a": 4, "control_prior_b": 4}),
