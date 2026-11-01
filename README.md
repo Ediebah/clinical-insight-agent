@@ -31,14 +31,21 @@ cp agent/.env.example agent/.env  # add OPENAI_API_KEY if using hosted model
 
 The dashboard works without an API key. Natural-language analysis needs a configured model endpoint. A custom endpoint is not necessarily local; verify its host and data policy yourself. The first identifier scan may download a model.
 
-Install either library from this checkout without installing the app:
+Install either standalone library from PyPI without installing the app:
+
+```bash
+python -m pip install clinical-insight-caveat==0.1.2
+python -m pip install clinical-insight-assurance==0.3.0
+```
+
+Alternatively, install from this checkout:
 
 ```bash
 python -m pip install ./packages/caveat
 python -m pip install ./packages/assurance
 ```
 
-Neither library has been published by this project. The candidate distributions are `clinical-insight-caveat` and `clinical-insight-assurance`; their Python imports remain `caveat` and `assurance`. PyPI's `assurance` identifies a different project. Pending publishers and a JSON API 404 do not reserve a name or establish availability. See [release status](docs/RELEASE_STATUS.md).
+The Python imports remain `caveat` and `assurance`. PyPI's separate project named `assurance` is unrelated; do not install it expecting this library. Other distributions may expose the same import names, so use separate environments when there is a conflict. The package descriptions embedded in the initial PyPI releases still say publication was pending; that text was built before release and is outdated. See [release status](docs/RELEASE_STATUS.md).
 
 ## Key-free examples
 

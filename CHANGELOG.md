@@ -30,11 +30,11 @@ versions follow [SemVer](https://semver.org/).
 - Add research-use boundaries to both standalone package descriptions. Update the Bayesian
   extraction-evaluation examples to state their assumptions; earlier results are not comparable.
 
-These changes have not yet been published as a release. The historical section below records
-the repository's earlier changelog claims; it has not been independently audited here.
-Candidate package versions are `clinical-insight-assurance` 0.3.0 (imported as `assurance`, with
-breaking changes to required Bayesian inputs) and `clinical-insight-caveat` 0.1.2 (imported as
-`caveat`). Neither is asserted to be published.
+The full application changes above have not been published as a new application release. The
+historical section below records earlier changelog claims; it has not been independently audited here.
+Standalone versions `clinical-insight-assurance` 0.3.0 (imported as `assurance`, with breaking
+changes to required Bayesian inputs) and `clinical-insight-caveat` 0.1.2 (imported as `caveat`)
+were published to PyPI on 2026-10-31. The full application remains a research prototype.
 
 ## [1.0.0] — 2026-07-13
 

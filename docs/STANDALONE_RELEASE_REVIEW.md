@@ -1,8 +1,8 @@
 # Standalone package release review
 
-Status: **candidates for maintainer review, not published releases**. The project is an exploratory research prototype. It is not for patient care, clinical decisions, trial stopping, regulatory submissions, or confidential data. This document records evidence and open decisions; it is not legal advice, a clinical validation, or permission to publish.
+Status: **standalone releases published on 2026-10-31**. The project is an exploratory research prototype. It is not for patient care, clinical decisions, trial stopping, regulatory submissions, or confidential data. This document records evidence and open decisions; it is not legal advice or a clinical validation.
 
-## Proposed release notes
+## Release notes
 
 ### clinical-insight-caveat 0.1.2
 
@@ -42,6 +42,8 @@ These inventories describe one resolution, not a lockfile or an exhaustive audit
 
 ## Advisory check and remaining decisions
 
-`pip-audit` 2.10.1 queried the clean runtime environments on 2026-10-31. It returned no known advisory entries for the distributions it could query. It skipped the two unpublished project distributions, so it did not audit this project's code. Reports: [caveat](caveat_dependency_audit_2026-10-31.json) and [assurance](assurance_dependency_audit_2026-10-31.json). This is point-in-time evidence, not proof of security or a finding for other versions.
+`pip-audit` 2.10.1 queried the clean runtime environments on 2026-10-31, before publication. It returned no known advisory entries for the distributions it could query. It skipped the then-unpublished project distributions, so it did not audit this project's code. Reports: [caveat](caveat_dependency_audit_2026-10-31.json) and [assurance](assurance_dependency_audit_2026-10-31.json). This is point-in-time evidence, not proof of security or a finding for other versions.
 
-Before publication, the maintainer must review the actual artifact contents, applicable dependency notices, numerical limitations, versioned release notes, and final checksums. Separately, resolve Berkeley fixture provenance and rights for any distribution that includes it. The two PyPI publishers are pending. They do not reserve names, and first use creates the projects if accepted; another publisher can claim a name first. See [PyPI's documentation](https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/). Trusted Publishing has not been tested end to end, and publication requires a separate explicit decision.
+The maintainer authorized publication, and the two releases were uploaded through their protected trusted-publishing workflows. The public PyPI version endpoints returned hashes matching the reviewed files. Resolve Berkeley fixture provenance and rights for any distribution that includes it, and review dependency notices and numerical limitations for the actual use or distribution. Future releases require their own review and versioned artifacts.
+
+The package descriptions embedded in the initial PyPI artifacts were built before publication and contain outdated statements that the names were unconfirmed or unpublished. This repository's package READMEs are corrected; the initial released artifacts have not been replaced.

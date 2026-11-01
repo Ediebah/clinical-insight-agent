@@ -1,16 +1,16 @@
 # Release preparation status
 
-Status checked 2026-10-31. This is a technical inventory, not a legal opinion or a publication authorization. A public repository is available, but no release or package publication is asserted here.
+Status checked 2026-10-31. This is a technical inventory, not a legal opinion or clinical validation. The two standalone distributions are published on PyPI; the full application remains a research prototype.
 
-For proposed standalone release notes, artifact scope, clean runtime inventories, advisory checks, and the unresolved Berkeley fixture provenance, see [standalone package release review](STANDALONE_RELEASE_REVIEW.md).
+For standalone release notes, artifact scope, clean runtime inventories, advisory checks, and the unresolved Berkeley fixture provenance, see [standalone package release review](STANDALONE_RELEASE_REVIEW.md).
 
 ## Package names
 
 - The official [PyPI JSON API for `assurance`](https://pypi.org/pypi/assurance/json) returned an existing project, version 0.1.36, with a different description and publisher (I-Ops Operations Intelligence, LLC). Do not publish this library under that name without confirmed ownership and rights; `pip install assurance` presently refers to that separate project.
 - The [PyPI JSON endpoint for `caveat`](https://pypi.org/pypi/caveat/json) returned HTTP 404. This does not establish availability, reservation status, or ownership.
-- The [PyPI JSON endpoint for `clinical-insight-caveat`](https://pypi.org/pypi/clinical-insight-caveat/json) returned HTTP 404 on 2026-10-31. The distribution metadata now uses this name; its Python import remains `caveat`. The response does not reserve the name or establish availability.
-- The [PyPI JSON endpoint for `clinical-insight-assurance`](https://pypi.org/pypi/clinical-insight-assurance/json) returned HTTP 404. The standalone project's distribution metadata now uses this candidate name, but it is not reserved and may not be available when publishing. Its Python import remains `assurance`; other distributions may expose the same import, so avoid co-installing conflicting modules.
-- Confirm the maintainer's PyPI account, chosen names, namespace ownership, publishing permissions, and trusted-publishing configuration before uploading anything. HTTP results can change.
+- [clinical-insight-caveat 0.1.2](https://pypi.org/project/clinical-insight-caveat/0.1.2/) and [clinical-insight-assurance 0.3.0](https://pypi.org/project/clinical-insight-assurance/0.3.0/) were published on 2026-10-31. Their Python imports remain `caveat` and `assurance`; avoid co-installing conflicting modules.
+- The corresponding PyPI JSON version endpoints listed the four artifact hashes below after publication. Future releases require fresh ownership, permissions, terms, and checksum checks.
+- Each published package was installed from PyPI into a separate clean Python 3.12 environment, ran a synthetic example with LLM key and endpoint variables unset, and passed `pip check`.
 
 ## Dependency and data review
 
@@ -18,7 +18,7 @@ The installed application environment's direct dependency metadata identifies `s
 
 The [runtime license metadata inventory](runtime_license_metadata_2026-10-31.json) records declarations for the same 84-distribution clean environment as the dependency snapshot. Thirty-nine distributions did not provide a `License-Expression` field; some provide classifiers, short license text, or license files instead. Three lengthy license fields were omitted from the snapshot and need source review. Missing metadata does not mean a package has no license. These declarations are not a legal assessment, and the inventory includes the installed environment rather than a verified dependency graph or all bundled components.
 
-A local development-environment advisory check found findings in 11 installed distributions. A separately resolved runtime initially reported findings for Pillow and pip; the candidate updates the relevant pins and a follow-up query found no advisory entries among the distributions it could check. The two local unpublished libraries were skipped, the older development environment was not changed, and a release-specific image and dependency audit remain open. See [dependency advisory check](DEPENDENCY_AUDIT.md).
+A local development-environment advisory check found findings in 11 installed distributions. A separately resolved runtime initially reported findings for Pillow and pip; the candidate updates the relevant pins and a follow-up query found no advisory entries among the distributions it could check. The two then-unpublished libraries were skipped, the older development environment was not changed, and a release-specific image and dependency audit remain open. See [dependency advisory check](DEPENDENCY_AUDIT.md).
 
 The optional identifier model now requests immutable revision `82f57fcab68125b05f1aa9fdd41319732358311b`, which the upstream metadata identified as its main revision on 2026-10-31. New local evaluation records include that revision; historical records did not record one. The pin improves traceability, not evidence of de-identification or compliance. Verify the exact artifact and its terms for the distribution.
 
@@ -43,7 +43,7 @@ The earlier renamed `clinical-insight-caveat` 0.1.2 distributions were built twi
 - `clinical_insight_caveat-0.1.2-py3-none-any.whl`: SHA-256 `4ba7af255fd7800400057de2ef3ee466f6f7edf5aae075292a26f34a4dc060c6`
 - `clinical_insight_caveat-0.1.2.tar.gz`: SHA-256 `5eee7a4b653524e35c36ba5e18d55c7179a0e73a2934d57bd5e6b2364c4eb167`
 
-The revised caveat candidate was built from source commit `73c7876b24e4f853a1d5e90de3e24afc0669c096`, and assurance from `4e2ce9fb3694bdf83476924341337dc89b72f9f5`. Each wheel and source archive was installed in a separate clean Python 3.12 environment on macOS. The caveat wheel passed 85 repository tests; its source archive passed the 78 tests included in that archive, followed by `pip check` in both environments. The excluded seven tests use a Berkeley fixture whose repository-level provenance remains unresolved. Each assurance installation passed 81 tests and `pip check`. Assurance also passed 81 tests on Python 3.10 with NumPy 1.23.5 and SciPy 1.10.1, with four SciPy divide-by-zero warnings during two-arm calculations. These checks do not establish numerical accuracy in all cases, distribution rights, or clinical validation. The candidates are not published:
+The published caveat artifacts were built from source commit `73c7876b24e4f853a1d5e90de3e24afc0669c096`, and assurance from `4e2ce9fb3694bdf83476924341337dc89b72f9f5`. Each wheel and source archive was installed in a separate clean Python 3.12 environment on macOS. The caveat wheel passed 85 repository tests; its source archive passed the 78 tests included in that archive, followed by `pip check` in both environments. The excluded seven tests use a Berkeley fixture whose repository-level provenance remains unresolved. Each assurance installation passed 81 tests and `pip check`. Assurance also passed 81 tests on Python 3.10 with NumPy 1.23.5 and SciPy 1.10.1, with four SciPy divide-by-zero warnings during two-arm calculations. These checks do not establish numerical accuracy in all cases, distribution rights, or clinical validation. The PyPI version endpoints reported these hashes:
 
 - `clinical_insight_caveat-0.1.2-py3-none-any.whl`: SHA-256 `58ec40d509d1dab2d8d3610e5a3955ebbc44ce6f6c174c88a0666a5b69150a84`
 - `clinical_insight_caveat-0.1.2.tar.gz`: SHA-256 `a226b889052ee2ee1062b10522340a7c6d02bc7ab18ec3d33158fd95fd73aa08`
