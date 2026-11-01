@@ -14,7 +14,7 @@ import yaml
      "68ffbeddef8fc7d8fba4f3eb612959a849a92fe6"),
     ("publish-assurance.yml", "clinical-insight-assurance",
      "clinical_insight_assurance-0.3.0-py3-none-any.whl", "clinical_insight_assurance-0.3.0.tar.gz",
-     "68ffbeddef8fc7d8fba4f3eb612959a849a92fe6"),
+     "b9c163b12d0cb5571edcffb736550b50fcdcacd2"),
 ])
 def release(request):
     filename, package, wheel, source, commit = request.param
