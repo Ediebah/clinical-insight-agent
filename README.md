@@ -23,6 +23,7 @@ Python 3.12 is the tested application version. A checkout includes a synthetic d
 git clone https://github.com/Ediebah/clinical-insight-agent
 cd clinical-insight-agent
 python3.12 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip==26.2.2
 .venv/bin/python -m pip install -r requirements.txt
 cp agent/.env.example agent/.env  # add OPENAI_API_KEY if using hosted model
 .venv/bin/streamlit run app.py
@@ -37,7 +38,7 @@ python -m pip install ./packages/caveat
 python -m pip install ./packages/assurance
 ```
 
-Package-index publication and name ownership have not been verified for these names. Do not use `pip install caveat` or `pip install assurance` as instructions for this repository until verified.
+Neither library has been published by this project. The candidate distribution name for the `assurance` library is `clinical-insight-assurance`; its Python import remains `assurance`. PyPI's `assurance` identifies a different project. The candidate name is not reserved, and a `caveat` JSON API 404 does not establish availability. See [release status](docs/RELEASE_STATUS.md).
 
 ## Key-free examples
 

@@ -111,8 +111,11 @@ compose them themselves.
 python -m pip install ./packages/assurance
 ```
 
-Run from the repository root. Requires numpy and scipy. The PyPI name and ownership have not been
-verified for this project; do not use the unqualified package-index command yet.
+Run from the repository root. Requires numpy and scipy. The candidate distribution is named
+`clinical-insight-assurance`, while the Python import remains `assurance`. It has not been published,
+and its name is not confirmed or reserved. PyPI's `assurance` is an unrelated project; do not install
+that project expecting this library. Python distributions can expose the same import name, so avoid
+installing another package that provides `assurance` in the same environment.
 
 ## License
 

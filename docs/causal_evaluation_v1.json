@@ -1,0 +1,6135 @@
+{
+  "protocol": "causal_evaluation_protocol_v1",
+  "started_utc": "2026-10-31T21:39:17.106444+00:00",
+  "finished_utc": "2026-10-31T21:41:05.117229+00:00",
+  "n": 500,
+  "replicates_per_scenario": 100,
+  "seed_start": 320000,
+  "workers": 4,
+  "python": "3.12.13",
+  "versions": {
+    "numpy": "2.5.0",
+    "scipy": "1.18.0",
+    "pandas": "3.0.3",
+    "scikit-learn": "1.9.0",
+    "statsmodels": "0.14.6"
+  },
+  "fingerprints_sha256": {
+    "docs/causal_evaluation_protocol_v1.md": "95754d472991dd3c79243f7fa5cdd54b1a919ebd40c62f7b0a622447c1d7c806",
+    "scripts/run_causal_evaluation.py": "439060b556aecf88ea62a4377f3439bc4488c92a1d03a5f3ef31e6dc2fe7a1e2",
+    "agent/causal_simulation.py": "3c1de5287e4c1c87c788c063e9d2888573e1f8266bf6258f33b5d1d4f1359ca1",
+    "agent/modeling.py": "618818fd9f240cff80a53314acfba556f4f74b5bc71179aec5295a5d5b437c5f"
+  },
+  "scenarios": [
+    {
+      "scenario": "unequal",
+      "estimator": {
+        "successful": 100,
+        "bias": -0.03625740565194824,
+        "bias_mcse": 0.018565380677134584,
+        "coverage": 0.98,
+        "coverage_count": 98,
+        "coverage_wilson_95": [
+          0.9299882092714561,
+          0.9944980324498377
+        ],
+        "mean_clipped_fraction": 0.018200000000000004
+      },
+      "oracle": {
+        "successful": 100,
+        "bias": 0.016840083487879465,
+        "bias_mcse": 0.010545432242643931,
+        "coverage": 0.96,
+        "coverage_count": 96,
+        "coverage_wilson_95": [
+          0.9016292856411208,
+          0.9843366960084523
+        ]
+      },
+      "failures": []
+    },
+    {
+      "scenario": "weak_overlap",
+      "estimator": {
+        "successful": 100,
+        "bias": 0.14328951275662538,
+        "bias_mcse": 0.023502980318243338,
+        "coverage": 0.88,
+        "coverage_count": 88,
+        "coverage_wilson_95": [
+          0.8018790057328857,
+          0.9300059356298052
+        ],
+        "mean_clipped_fraction": 0.13886000000000004
+      },
+      "oracle": {
+        "successful": 100,
+        "bias": 0.012345280214785426,
+        "bias_mcse": 0.030329829155272457,
+        "coverage": 0.97,
+        "coverage_count": 97,
+        "coverage_wilson_95": [
+          0.9154806357094724,
+          0.9897454759759611
+        ]
+      },
+      "failures": []
+    },
+    {
+      "scenario": "nonlinear",
+      "estimator": {
+        "successful": 100,
+        "bias": -0.012068487946055972,
+        "bias_mcse": 0.021678533517612442,
+        "coverage": 0.99,
+        "coverage_count": 99,
+        "coverage_wilson_95": [
+          0.9455138038212946,
+          0.9982325679358593
+        ],
+        "mean_clipped_fraction": 0.018200000000000004
+      },
+      "oracle": {
+        "successful": 100,
+        "bias": 0.016840083487879465,
+        "bias_mcse": 0.010545432242643931,
+        "coverage": 0.96,
+        "coverage_count": 96,
+        "coverage_wilson_95": [
+          0.9016292856411208,
+          0.9843366960084523
+        ]
+      },
+      "failures": []
+    },
+    {
+      "scenario": "misspecified",
+      "estimator": {
+        "successful": 100,
+        "bias": 0.9468432693505275,
+        "bias_mcse": 0.021465160239579013,
+        "coverage": 0.04,
+        "coverage_count": 4,
+        "coverage_wilson_95": [
+          0.01566330399154762,
+          0.0983707143588792
+        ],
+        "mean_clipped_fraction": 0.00788
+      },
+      "oracle": {
+        "successful": 100,
+        "bias": 0.010051284073246514,
+        "bias_mcse": 0.014715110558329827,
+        "coverage": 0.96,
+        "coverage_count": 96,
+        "coverage_wilson_95": [
+          0.9016292856411208,
+          0.9843366960084523
+        ]
+      },
+      "failures": []
+    }
+  ],
+  "replicates": [
+    {
+      "scenario": "unequal",
+      "seed": 320000,
+      "oracle": {
+        "estimate": 2.060643635791008,
+        "low": 1.8385080727560001,
+        "high": 2.282779198826016
+      },
+      "estimate": {
+        "estimate": 2.1082779965633067,
+        "low": 1.735551014086244,
+        "high": 2.4810049790403697,
+        "clipped_fraction": 0.016
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320001,
+      "oracle": {
+        "estimate": 2.124607234888894,
+        "low": 1.9077936708266092,
+        "high": 2.3414207989511784
+      },
+      "estimate": {
+        "estimate": 2.144146049207763,
+        "low": 1.8950770074631405,
+        "high": 2.3932150909523853,
+        "clipped_fraction": 0.002
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320002,
+      "oracle": {
+        "estimate": 2.1104759020391435,
+        "low": 1.8974896362755247,
+        "high": 2.3234621678027625
+      },
+      "estimate": {
+        "estimate": 1.9654551392054982,
+        "low": 1.5018155633664643,
+        "high": 2.429094715044532,
+        "clipped_fraction": 0.012
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320003,
+      "oracle": {
+        "estimate": 1.8767648331940272,
+        "low": 1.6657839278956614,
+        "high": 2.087745738492393
+      },
+      "estimate": {
+        "estimate": 1.8951003456434983,
+        "low": 1.5355269396794196,
+        "high": 2.254673751607577,
+        "clipped_fraction": 0.002
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320004,
+      "oracle": {
+        "estimate": 2.068678892887772,
+        "low": 1.8638156068663458,
+        "high": 2.273542178909198
+      },
+      "estimate": {
+        "estimate": 1.8919867895161295,
+        "low": 1.4876568225774263,
+        "high": 2.2963167564548326,
+        "clipped_fraction": 0.006
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320005,
+      "oracle": {
+        "estimate": 2.1328387218817313,
+        "low": 1.909477069504976,
+        "high": 2.3562003742584863
+      },
+      "estimate": {
+        "estimate": 2.1644807679157347,
+        "low": 1.8111561612299307,
+        "high": 2.5178053746015387,
+        "clipped_fraction": 0.02
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320006,
+      "oracle": {
+        "estimate": 1.9719517525838264,
+        "low": 1.748761578610627,
+        "high": 2.195141926557026
+      },
+      "estimate": {
+        "estimate": 2.167188229054773,
+        "low": 1.3852722110814288,
+        "high": 2.949104247028117,
+        "clipped_fraction": 0.016
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320007,
+      "oracle": {
+        "estimate": 1.901267312985722,
+        "low": 1.6872475430596452,
+        "high": 2.1152870829117987
+      },
+      "estimate": {
+        "estimate": 1.5241409215321278,
+        "low": 0.9676624591037937,
+        "high": 2.080619383960462,
+        "clipped_fraction": 0.014
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320008,
+      "oracle": {
+        "estimate": 1.9650573209441369,
+        "low": 1.7601464812573422,
+        "high": 2.1699681606309316
+      },
+      "estimate": {
+        "estimate": 2.057027260032387,
+        "low": 1.7503517119622973,
+        "high": 2.3637028081024765,
+        "clipped_fraction": 0.068
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320009,
+      "oracle": {
+        "estimate": 1.922490181013142,
+        "low": 1.6955720476962095,
+        "high": 2.1494083143300746
+      },
+      "estimate": {
+        "estimate": 1.6287786725163402,
+        "low": 1.0637007956768167,
+        "high": 2.1938565493558637,
+        "clipped_fraction": 0.014
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320010,
+      "oracle": {
+        "estimate": 2.0174489505741935,
+        "low": 1.7922603445723402,
+        "high": 2.242637556576047
+      },
+      "estimate": {
+        "estimate": 2.131705671628829,
+        "low": 1.7789298361222443,
+        "high": 2.4844815071354143,
+        "clipped_fraction": 0.014
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320011,
+      "oracle": {
+        "estimate": 2.035492610605775,
+        "low": 1.837574662045187,
+        "high": 2.233410559166363
+      },
+      "estimate": {
+        "estimate": 2.105204507010934,
+        "low": 1.8152382420218323,
+        "high": 2.395170772000036,
+        "clipped_fraction": 0.008
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320012,
+      "oracle": {
+        "estimate": 2.053449879222506,
+        "low": 1.7968742640134603,
+        "high": 2.3100254944315517
+      },
+      "estimate": {
+        "estimate": 1.8886282018353806,
+        "low": 1.4948168906900197,
+        "high": 2.2824395129807415,
+        "clipped_fraction": 0.014
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320013,
+      "oracle": {
+        "estimate": 2.009714570818464,
+        "low": 1.8025121385710239,
+        "high": 2.2169170030659036
+      },
+      "estimate": {
+        "estimate": 1.9985799984810841,
+        "low": 1.6441133155738414,
+        "high": 2.353046681388327,
+        "clipped_fraction": 0.004
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320014,
+      "oracle": {
+        "estimate": 2.090988359159408,
+        "low": 1.9141508190617098,
+        "high": 2.267825899257106
+      },
+      "estimate": {
+        "estimate": 2.0278388800394596,
+        "low": 1.7217627120340295,
+        "high": 2.3339150480448896,
+        "clipped_fraction": 0.014
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320015,
+      "oracle": {
+        "estimate": 1.9987754024718916,
+        "low": 1.8188337523099298,
+        "high": 2.1787170526338535
+      },
+      "estimate": {
+        "estimate": 1.9111381883934466,
+        "low": 1.5183927593097688,
+        "high": 2.3038836174771244,
+        "clipped_fraction": 0.034
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320016,
+      "oracle": {
+        "estimate": 2.128451804815993,
+        "low": 1.9217347675554548,
+        "high": 2.3351688420765315
+      },
+      "estimate": {
+        "estimate": 2.060631368496381,
+        "low": 1.6291818880413471,
+        "high": 2.4920808489514146,
+        "clipped_fraction": 0.012
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320017,
+      "oracle": {
+        "estimate": 2.078086260757956,
+        "low": 1.9044436430447371,
+        "high": 2.251728878471175
+      },
+      "estimate": {
+        "estimate": 2.012234517297853,
+        "low": 1.7119291202119262,
+        "high": 2.3125399143837795,
+        "clipped_fraction": 0.058
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320018,
+      "oracle": {
+        "estimate": 1.8800915539045937,
+        "low": 1.6545816148686525,
+        "high": 2.1056014929405347
+      },
+      "estimate": {
+        "estimate": 1.838446903008895,
+        "low": 1.3020866078093323,
+        "high": 2.3748071982084578,
+        "clipped_fraction": 0.036
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320019,
+      "oracle": {
+        "estimate": 2.0618830369459302,
+        "low": 1.8373774140171448,
+        "high": 2.2863886598747154
+      },
+      "estimate": {
+        "estimate": 1.9983527246248733,
+        "low": 1.6350885936550683,
+        "high": 2.3616168555946784,
+        "clipped_fraction": 0.016
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320020,
+      "oracle": {
+        "estimate": 2.184769031430722,
+        "low": 1.9536613145117805,
+        "high": 2.415876748349664
+      },
+      "estimate": {
+        "estimate": 2.259252695031522,
+        "low": 1.957640563556542,
+        "high": 2.5608648265065024,
+        "clipped_fraction": 0.002
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320021,
+      "oracle": {
+        "estimate": 1.9833624623199253,
+        "low": 1.7872266512399282,
+        "high": 2.1794982733999224
+      },
+      "estimate": {
+        "estimate": 2.0475411606048994,
+        "low": 1.6701472280272516,
+        "high": 2.424935093182547,
+        "clipped_fraction": 0.02
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320022,
+      "oracle": {
+        "estimate": 2.1166181433863986,
+        "low": 1.8700428641225704,
+        "high": 2.363193422650227
+      },
+      "estimate": {
+        "estimate": 2.0629703104863566,
+        "low": 1.6858979904683793,
+        "high": 2.440042630504334,
+        "clipped_fraction": 0.014
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320023,
+      "oracle": {
+        "estimate": 1.9797852909421423,
+        "low": 1.7542383553355956,
+        "high": 2.205332226548689
+      },
+      "estimate": {
+        "estimate": 1.7472656750990783,
+        "low": 1.20362470083652,
+        "high": 2.2909066493616366,
+        "clipped_fraction": 0.008
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320024,
+      "oracle": {
+        "estimate": 2.093201228436672,
+        "low": 1.814434082241752,
+        "high": 2.371968374631592
+      },
+      "estimate": {
+        "estimate": 2.091354250321824,
+        "low": 1.6090818510312446,
+        "high": 2.573626649612404,
+        "clipped_fraction": 0.018
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320025,
+      "oracle": {
+        "estimate": 2.087654785501615,
+        "low": 1.87610087025638,
+        "high": 2.29920870074685
+      },
+      "estimate": {
+        "estimate": 1.9057407339190986,
+        "low": 1.5612112296957543,
+        "high": 2.250270238142443,
+        "clipped_fraction": 0.018
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320026,
+      "oracle": {
+        "estimate": 1.964572596265651,
+        "low": 1.7587839717871405,
+        "high": 2.170361220744162
+      },
+      "estimate": {
+        "estimate": 1.9855089260693923,
+        "low": 1.6848828861967113,
+        "high": 2.286134965942073,
+        "clipped_fraction": 0.034
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320027,
+      "oracle": {
+        "estimate": 2.0525769507814644,
+        "low": 1.8520698034064917,
+        "high": 2.253084098156437
+      },
+      "estimate": {
+        "estimate": 2.1070894889079446,
+        "low": 1.7887814139374263,
+        "high": 2.425397563878463,
+        "clipped_fraction": 0.012
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320028,
+      "oracle": {
+        "estimate": 2.175911261574127,
+        "low": 1.938277236013592,
+        "high": 2.413545287134662
+      },
+      "estimate": {
+        "estimate": 2.2846353955233654,
+        "low": 1.8315819741015897,
+        "high": 2.737688816945141,
+        "clipped_fraction": 0.0
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320029,
+      "oracle": {
+        "estimate": 2.0251536560605916,
+        "low": 1.8048687781996609,
+        "high": 2.245438533921522
+      },
+      "estimate": {
+        "estimate": 1.8418899467422214,
+        "low": 1.245291436607086,
+        "high": 2.438488456877357,
+        "clipped_fraction": 0.02
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320030,
+      "oracle": {
+        "estimate": 1.744060350160134,
+        "low": 1.5070157271426723,
+        "high": 1.9811049731775956
+      },
+      "estimate": {
+        "estimate": 1.4803103575871228,
+        "low": 0.8368714668062175,
+        "high": 2.123749248368028,
+        "clipped_fraction": 0.016
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320031,
+      "oracle": {
+        "estimate": 1.9590127288915786,
+        "low": 1.7374080176967226,
+        "high": 2.1806174400864347
+      },
+      "estimate": {
+        "estimate": 1.6302296859221024,
+        "low": 1.1385004505237353,
+        "high": 2.1219589213204695,
+        "clipped_fraction": 0.02
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320032,
+      "oracle": {
+        "estimate": 2.056550578124626,
+        "low": 1.8307248341330276,
+        "high": 2.2823763221162245
+      },
+      "estimate": {
+        "estimate": 2.0895524092280775,
+        "low": 1.7443357886011268,
+        "high": 2.4347690298550284,
+        "clipped_fraction": 0.016
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320033,
+      "oracle": {
+        "estimate": 2.10872650340579,
+        "low": 1.9088921286198663,
+        "high": 2.308560878191713
+      },
+      "estimate": {
+        "estimate": 2.000613766247113,
+        "low": 1.3741617609052414,
+        "high": 2.6270657715889842,
+        "clipped_fraction": 0.036
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320034,
+      "oracle": {
+        "estimate": 2.0339040675191593,
+        "low": 1.824701888782928,
+        "high": 2.2431062462553903
+      },
+      "estimate": {
+        "estimate": 1.6583504553477155,
+        "low": 1.1516689302585892,
+        "high": 2.165031980436842,
+        "clipped_fraction": 0.02
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320035,
+      "oracle": {
+        "estimate": 1.994788747905091,
+        "low": 1.801359691831388,
+        "high": 2.1882178039787936
+      },
+      "estimate": {
+        "estimate": 1.7824137539708813,
+        "low": 1.423864901796566,
+        "high": 2.1409626061451963,
+        "clipped_fraction": 0.018
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320036,
+      "oracle": {
+        "estimate": 1.751514124530482,
+        "low": 1.5516488830156763,
+        "high": 1.9513793660452876
+      },
+      "estimate": {
+        "estimate": 1.7637585714956847,
+        "low": 1.4099808925184998,
+        "high": 2.11753625047287,
+        "clipped_fraction": 0.042
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320037,
+      "oracle": {
+        "estimate": 2.039037093594069,
+        "low": 1.8540104597884235,
+        "high": 2.2240637273997144
+      },
+      "estimate": {
+        "estimate": 2.0764873088163207,
+        "low": 1.7891498115759963,
+        "high": 2.363824806056645,
+        "clipped_fraction": 0.006
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320038,
+      "oracle": {
+        "estimate": 2.1527322811081255,
+        "low": 1.9655537261344609,
+        "high": 2.33991083608179
+      },
+      "estimate": {
+        "estimate": 2.34897221257275,
+        "low": 2.1088415836151966,
+        "high": 2.5891028415303032,
+        "clipped_fraction": 0.03
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320039,
+      "oracle": {
+        "estimate": 2.0324507930477598,
+        "low": 1.8243051566334252,
+        "high": 2.2405964294620944
+      },
+      "estimate": {
+        "estimate": 2.233022916963704,
+        "low": 1.928329637636148,
+        "high": 2.53771619629126,
+        "clipped_fraction": 0.008
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320040,
+      "oracle": {
+        "estimate": 2.020232228588366,
+        "low": 1.8204830272616468,
+        "high": 2.2199814299150855
+      },
+      "estimate": {
+        "estimate": 2.15251987306537,
+        "low": 1.6918698621906139,
+        "high": 2.6131698839401265,
+        "clipped_fraction": 0.018
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320041,
+      "oracle": {
+        "estimate": 1.9478738161519773,
+        "low": 1.7358683660412986,
+        "high": 2.159879266262656
+      },
+      "estimate": {
+        "estimate": 2.1161740551426544,
+        "low": 1.8317611403734366,
+        "high": 2.4005869699118723,
+        "clipped_fraction": 0.014
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320042,
+      "oracle": {
+        "estimate": 1.7739183874182645,
+        "low": 1.581238034958358,
+        "high": 1.966598739878171
+      },
+      "estimate": {
+        "estimate": 1.3494090193799084,
+        "low": 0.8177090257086732,
+        "high": 1.8811090130511436,
+        "clipped_fraction": 0.03
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320043,
+      "oracle": {
+        "estimate": 2.1018567196885654,
+        "low": 1.8515894655594387,
+        "high": 2.352123973817692
+      },
+      "estimate": {
+        "estimate": 2.106386753773526,
+        "low": 1.7603885557347898,
+        "high": 2.4523849518122622,
+        "clipped_fraction": 0.006
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320044,
+      "oracle": {
+        "estimate": 2.130918893929688,
+        "low": 1.915861510341645,
+        "high": 2.345976277517731
+      },
+      "estimate": {
+        "estimate": 2.209981647868236,
+        "low": 1.8627218340283231,
+        "high": 2.5572414617081485,
+        "clipped_fraction": 0.018
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320045,
+      "oracle": {
+        "estimate": 1.99016828546281,
+        "low": 1.7203711953835867,
+        "high": 2.2599653755420333
+      },
+      "estimate": {
+        "estimate": 1.954752200187641,
+        "low": 1.5923759964545359,
+        "high": 2.317128403920746,
+        "clipped_fraction": 0.008
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320046,
+      "oracle": {
+        "estimate": 2.1019065184565435,
+        "low": 1.8738495253705014,
+        "high": 2.3299635115425854
+      },
+      "estimate": {
+        "estimate": 2.0351660309630977,
+        "low": 1.6201646661289963,
+        "high": 2.450167395797199,
+        "clipped_fraction": 0.002
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320047,
+      "oracle": {
+        "estimate": 2.0217708850854703,
+        "low": 1.808120815684675,
+        "high": 2.2354209544862655
+      },
+      "estimate": {
+        "estimate": 1.9794721619121975,
+        "low": 1.3574802757770041,
+        "high": 2.601464048047391,
+        "clipped_fraction": 0.012
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320048,
+      "oracle": {
+        "estimate": 2.016628470897499,
+        "low": 1.831253364197545,
+        "high": 2.202003577597453
+      },
+      "estimate": {
+        "estimate": 2.0271692938294423,
+        "low": 1.7207024376249467,
+        "high": 2.333636150033938,
+        "clipped_fraction": 0.016
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320049,
+      "oracle": {
+        "estimate": 1.930020911195463,
+        "low": 1.722344611006875,
+        "high": 2.137697211384051
+      },
+      "estimate": {
+        "estimate": 1.9948554075581444,
+        "low": 1.6093468413712286,
+        "high": 2.38036397374506,
+        "clipped_fraction": 0.004
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320050,
+      "oracle": {
+        "estimate": 1.9609454017301282,
+        "low": 1.71885184821997,
+        "high": 2.2030389552402867
+      },
+      "estimate": {
+        "estimate": 1.8332380328391964,
+        "low": 1.4092906881657659,
+        "high": 2.257185377512627,
+        "clipped_fraction": 0.016
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320051,
+      "oracle": {
+        "estimate": 1.831527136621423,
+        "low": 1.6105920263549214,
+        "high": 2.0524622468879246
+      },
+      "estimate": {
+        "estimate": 1.7464227983342175,
+        "low": 1.3331710599143722,
+        "high": 2.159674536754063,
+        "clipped_fraction": 0.008
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320052,
+      "oracle": {
+        "estimate": 1.920227654442756,
+        "low": 1.685758388699942,
+        "high": 2.1546969201855695
+      },
+      "estimate": {
+        "estimate": 1.90551427710179,
+        "low": 1.5083171453152948,
+        "high": 2.3027114088882854,
+        "clipped_fraction": 0.02
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320053,
+      "oracle": {
+        "estimate": 1.9437790515949422,
+        "low": 1.7361182922952334,
+        "high": 2.151439810894651
+      },
+      "estimate": {
+        "estimate": 1.930696361612876,
+        "low": 1.5984075052342306,
+        "high": 2.2629852179915217,
+        "clipped_fraction": 0.004
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320054,
+      "oracle": {
+        "estimate": 1.9502106504956116,
+        "low": 1.74278006480414,
+        "high": 2.157641236187083
+      },
+      "estimate": {
+        "estimate": 1.7048171473748057,
+        "low": 1.3479129226600144,
+        "high": 2.0617213720895973,
+        "clipped_fraction": 0.006
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320055,
+      "oracle": {
+        "estimate": 2.083452359129093,
+        "low": 1.8992470726679969,
+        "high": 2.267657645590189
+      },
+      "estimate": {
+        "estimate": 1.9912698478779323,
+        "low": 1.6484625475704928,
+        "high": 2.3340771481853717,
+        "clipped_fraction": 0.048
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320056,
+      "oracle": {
+        "estimate": 1.8823327357433717,
+        "low": 1.66810942380641,
+        "high": 2.096556047680333
+      },
+      "estimate": {
+        "estimate": 1.788674346696003,
+        "low": 1.2273656889817999,
+        "high": 2.349983004410206,
+        "clipped_fraction": 0.018
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320057,
+      "oracle": {
+        "estimate": 1.963682582032874,
+        "low": 1.7520052143740061,
+        "high": 2.175359949691742
+      },
+      "estimate": {
+        "estimate": 1.7440743809617505,
+        "low": 1.1766974786633129,
+        "high": 2.311451283260188,
+        "clipped_fraction": 0.048
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320058,
+      "oracle": {
+        "estimate": 2.0294699177127185,
+        "low": 1.7941515656074412,
+        "high": 2.2647882698179957
+      },
+      "estimate": {
+        "estimate": 1.8680976994725536,
+        "low": 1.341029142796947,
+        "high": 2.39516625614816,
+        "clipped_fraction": 0.014
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320059,
+      "oracle": {
+        "estimate": 1.9483560988176134,
+        "low": 1.7362910700922205,
+        "high": 2.1604211275430063
+      },
+      "estimate": {
+        "estimate": 1.7727595002195657,
+        "low": 1.466292489697352,
+        "high": 2.0792265107417793,
+        "clipped_fraction": 0.014
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320060,
+      "oracle": {
+        "estimate": 2.0749808765474276,
+        "low": 1.8348592529197087,
+        "high": 2.3151025001751466
+      },
+      "estimate": {
+        "estimate": 1.8313825372377088,
+        "low": 1.3784885440383519,
+        "high": 2.2842765304370656,
+        "clipped_fraction": 0.006
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320061,
+      "oracle": {
+        "estimate": 2.1606392652613593,
+        "low": 1.9760944124212394,
+        "high": 2.3451841181014794
+      },
+      "estimate": {
+        "estimate": 2.1315185846659643,
+        "low": 1.8037767565820189,
+        "high": 2.45926041274991,
+        "clipped_fraction": 0.006
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320062,
+      "oracle": {
+        "estimate": 2.156987470230701,
+        "low": 1.9463547048755334,
+        "high": 2.3676202355858686
+      },
+      "estimate": {
+        "estimate": 2.3495534759618875,
+        "low": 1.9337635827295334,
+        "high": 2.7653433691942415,
+        "clipped_fraction": 0.016
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320063,
+      "oracle": {
+        "estimate": 1.954781086782761,
+        "low": 1.7300762755606538,
+        "high": 2.1794858980048684
+      },
+      "estimate": {
+        "estimate": 1.8867911748015758,
+        "low": 1.5186600931523526,
+        "high": 2.254922256450799,
+        "clipped_fraction": 0.032
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320064,
+      "oracle": {
+        "estimate": 2.155142923334034,
+        "low": 1.9635067864736446,
+        "high": 2.346779060194423
+      },
+      "estimate": {
+        "estimate": 2.244664055525756,
+        "low": 1.9358803570737564,
+        "high": 2.553447753977756,
+        "clipped_fraction": 0.044
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320065,
+      "oracle": {
+        "estimate": 2.0508196062706667,
+        "low": 1.834694826759776,
+        "high": 2.2669443857815574
+      },
+      "estimate": {
+        "estimate": 2.0674744277943917,
+        "low": 1.6913002931767833,
+        "high": 2.443648562412,
+        "clipped_fraction": 0.03
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320066,
+      "oracle": {
+        "estimate": 2.0677155518055352,
+        "low": 1.8636890201026028,
+        "high": 2.271742083508468
+      },
+      "estimate": {
+        "estimate": 2.0671763045333664,
+        "low": 1.714084616662665,
+        "high": 2.4202679924040678,
+        "clipped_fraction": 0.006
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320067,
+      "oracle": {
+        "estimate": 2.0189865620453924,
+        "low": 1.8079576248061073,
+        "high": 2.2300154992846775
+      },
+      "estimate": {
+        "estimate": 2.0427695276771307,
+        "low": 1.7122446397741542,
+        "high": 2.3732944155801072,
+        "clipped_fraction": 0.024
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320068,
+      "oracle": {
+        "estimate": 2.0311967445712744,
+        "low": 1.8180808919089326,
+        "high": 2.244312597233616
+      },
+      "estimate": {
+        "estimate": 2.079608936478267,
+        "low": 1.7919216251081087,
+        "high": 2.367296247848425,
+        "clipped_fraction": 0.008
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320069,
+      "oracle": {
+        "estimate": 1.8407135755268373,
+        "low": 1.6303145862939896,
+        "high": 2.051112564759685
+      },
+      "estimate": {
+        "estimate": 1.7991093623728982,
+        "low": 1.3986391006005574,
+        "high": 2.199579624145239,
+        "clipped_fraction": 0.018
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320070,
+      "oracle": {
+        "estimate": 2.054590222408263,
+        "low": 1.8233096271736806,
+        "high": 2.2858708176428455
+      },
+      "estimate": {
+        "estimate": 2.1618762225571415,
+        "low": 1.7067075377014247,
+        "high": 2.6170449074128586,
+        "clipped_fraction": 0.012
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320071,
+      "oracle": {
+        "estimate": 1.7345465282581618,
+        "low": 1.5166009617338636,
+        "high": 1.95249209478246
+      },
+      "estimate": {
+        "estimate": 1.8989892239479857,
+        "low": 1.5146618026970766,
+        "high": 2.283316645198895,
+        "clipped_fraction": 0.014
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320072,
+      "oracle": {
+        "estimate": 1.917094006852022,
+        "low": 1.7047817840823891,
+        "high": 2.129406229621655
+      },
+      "estimate": {
+        "estimate": 1.9959583485188501,
+        "low": 1.648471698594283,
+        "high": 2.343444998443417,
+        "clipped_fraction": 0.004
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320073,
+      "oracle": {
+        "estimate": 2.0077315563800497,
+        "low": 1.8276893297822148,
+        "high": 2.1877737829778847
+      },
+      "estimate": {
+        "estimate": 2.199617854301526,
+        "low": 1.8402683815944822,
+        "high": 2.5589673270085695,
+        "clipped_fraction": 0.062
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320074,
+      "oracle": {
+        "estimate": 2.119114607349352,
+        "low": 1.9191175771265152,
+        "high": 2.3191116375721883
+      },
+      "estimate": {
+        "estimate": 1.8886299975760987,
+        "low": 1.2784600195558915,
+        "high": 2.498799975596306,
+        "clipped_fraction": 0.026
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320075,
+      "oracle": {
+        "estimate": 2.205811432857086,
+        "low": 1.9689943241284875,
+        "high": 2.4426285415856843
+      },
+      "estimate": {
+        "estimate": 2.1126907269329323,
+        "low": 1.7175218691988534,
+        "high": 2.507859584667011,
+        "clipped_fraction": 0.028
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320076,
+      "oracle": {
+        "estimate": 1.9249397697228328,
+        "low": 1.6848249843473135,
+        "high": 2.1650545550983518
+      },
+      "estimate": {
+        "estimate": 1.78765499603476,
+        "low": 1.251732249369319,
+        "high": 2.323577742700201,
+        "clipped_fraction": 0.012
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320077,
+      "oracle": {
+        "estimate": 1.939698368025961,
+        "low": 1.7570342453773045,
+        "high": 2.1223624906746177
+      },
+      "estimate": {
+        "estimate": 1.937992566941959,
+        "low": 1.5669001361870263,
+        "high": 2.3090849976968917,
+        "clipped_fraction": 0.01
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320078,
+      "oracle": {
+        "estimate": 1.8631875676019622,
+        "low": 1.6605548398112993,
+        "high": 2.0658202953926255
+      },
+      "estimate": {
+        "estimate": 1.700641188198547,
+        "low": 1.2390857491007585,
+        "high": 2.1621966272963355,
+        "clipped_fraction": 0.024
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320079,
+      "oracle": {
+        "estimate": 2.1087311473370547,
+        "low": 1.901630132432091,
+        "high": 2.3158321622420184
+      },
+      "estimate": {
+        "estimate": 1.9555962328909389,
+        "low": 1.5230443395308704,
+        "high": 2.3881481262510076,
+        "clipped_fraction": 0.046
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320080,
+      "oracle": {
+        "estimate": 2.1835749623733527,
+        "low": 1.9452202693591205,
+        "high": 2.4219296553875846
+      },
+      "estimate": {
+        "estimate": 2.0904579724737014,
+        "low": 1.7812751692523585,
+        "high": 2.3996407756950444,
+        "clipped_fraction": 0.002
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320081,
+      "oracle": {
+        "estimate": 2.046911554799701,
+        "low": 1.8224417886350113,
+        "high": 2.2713813209643905
+      },
+      "estimate": {
+        "estimate": 1.9770341904383228,
+        "low": 1.6097243743531409,
+        "high": 2.344344006523505,
+        "clipped_fraction": 0.004
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320082,
+      "oracle": {
+        "estimate": 1.8839976982058206,
+        "low": 1.6858009530229914,
+        "high": 2.08219444338865
+      },
+      "estimate": {
+        "estimate": 1.9482795938864852,
+        "low": 1.601287795801242,
+        "high": 2.2952713919717285,
+        "clipped_fraction": 0.06
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320083,
+      "oracle": {
+        "estimate": 2.3291273599772504,
+        "low": 1.985334327389383,
+        "high": 2.6729203925651177
+      },
+      "estimate": {
+        "estimate": 2.2247492851279835,
+        "low": 1.889918691387215,
+        "high": 2.5595798788687523,
+        "clipped_fraction": 0.006
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320084,
+      "oracle": {
+        "estimate": 1.9392331880051819,
+        "low": 1.724611750690347,
+        "high": 2.153854625320017
+      },
+      "estimate": {
+        "estimate": 1.8751784495559114,
+        "low": 1.5320470467916025,
+        "high": 2.2183098523202203,
+        "clipped_fraction": 0.042
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320085,
+      "oracle": {
+        "estimate": 2.0910335230768693,
+        "low": 1.8791899130602003,
+        "high": 2.3028771330935385
+      },
+      "estimate": {
+        "estimate": 2.2100433747766433,
+        "low": 1.8246211511690893,
+        "high": 2.595465598384197,
+        "clipped_fraction": 0.026
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320086,
+      "oracle": {
+        "estimate": 1.9798988383054865,
+        "low": 1.7513897360880517,
+        "high": 2.208407940522921
+      },
+      "estimate": {
+        "estimate": 2.1723769651226785,
+        "low": 1.7110004259421787,
+        "high": 2.6337535043031783,
+        "clipped_fraction": 0.006
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320087,
+      "oracle": {
+        "estimate": 1.9118787567600466,
+        "low": 1.6946455281381536,
+        "high": 2.1291119853819396
+      },
+      "estimate": {
+        "estimate": 1.9449139729756586,
+        "low": 1.6754022286978327,
+        "high": 2.2144257172534845,
+        "clipped_fraction": 0.01
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320088,
+      "oracle": {
+        "estimate": 2.100200615094117,
+        "low": 1.8647208680275278,
+        "high": 2.3356803621607063
+      },
+      "estimate": {
+        "estimate": 2.0140307964018755,
+        "low": 1.6914468861210425,
+        "high": 2.3366147066827083,
+        "clipped_fraction": 0.006
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320089,
+      "oracle": {
+        "estimate": 2.0911133811826783,
+        "low": 1.8883755790624552,
+        "high": 2.2938511833029014
+      },
+      "estimate": {
+        "estimate": 1.9069412132475663,
+        "low": 1.5366464040135657,
+        "high": 2.277236022481567,
+        "clipped_fraction": 0.036
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320090,
+      "oracle": {
+        "estimate": 2.221677381810582,
+        "low": 1.992961998432929,
+        "high": 2.450392765188235
+      },
+      "estimate": {
+        "estimate": 1.8134741393119043,
+        "low": 1.389044104813238,
+        "high": 2.2379041738105707,
+        "clipped_fraction": 0.002
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320091,
+      "oracle": {
+        "estimate": 1.9964434366440382,
+        "low": 1.7833826427489157,
+        "high": 2.2095042305391606
+      },
+      "estimate": {
+        "estimate": 1.8494349930652825,
+        "low": 1.4639039971639052,
+        "high": 2.2349659889666595,
+        "clipped_fraction": 0.008
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320092,
+      "oracle": {
+        "estimate": 1.9384561764887718,
+        "low": 1.7457054835888328,
+        "high": 2.131206869388711
+      },
+      "estimate": {
+        "estimate": 1.7887924575106777,
+        "low": 1.4211876526869975,
+        "high": 2.156397262334358,
+        "clipped_fraction": 0.03
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320093,
+      "oracle": {
+        "estimate": 2.066025679799159,
+        "low": 1.8144586193213896,
+        "high": 2.317592740276928
+      },
+      "estimate": {
+        "estimate": 2.042798141360228,
+        "low": 1.6601625776745723,
+        "high": 2.4254337050458834,
+        "clipped_fraction": 0.002
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320094,
+      "oracle": {
+        "estimate": 1.9830167550171687,
+        "low": 1.766852964590073,
+        "high": 2.1991805454442646
+      },
+      "estimate": {
+        "estimate": 1.9062623717761307,
+        "low": 1.5417202812896122,
+        "high": 2.270804462262649,
+        "clipped_fraction": 0.012
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320095,
+      "oracle": {
+        "estimate": 1.9751659849553853,
+        "low": 1.7859269666357402,
+        "high": 2.1644050032750304
+      },
+      "estimate": {
+        "estimate": 1.988712168715872,
+        "low": 1.655350863455609,
+        "high": 2.3220734739761353,
+        "clipped_fraction": 0.028
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320096,
+      "oracle": {
+        "estimate": 2.0045040980377062,
+        "low": 1.805420436898561,
+        "high": 2.2035877591768513
+      },
+      "estimate": {
+        "estimate": 1.7636960624046611,
+        "low": 1.2672954704014174,
+        "high": 2.2600966544079046,
+        "clipped_fraction": 0.002
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320097,
+      "oracle": {
+        "estimate": 2.044600920746165,
+        "low": 1.8214501086996013,
+        "high": 2.267751732792729
+      },
+      "estimate": {
+        "estimate": 1.921861073963474,
+        "low": 1.5950797819295481,
+        "high": 2.2486423659973998,
+        "clipped_fraction": 0.0
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320098,
+      "oracle": {
+        "estimate": 1.9475484579179259,
+        "low": 1.7555930003586884,
+        "high": 2.1395039154771633
+      },
+      "estimate": {
+        "estimate": 1.6452311733103773,
+        "low": 1.0210598404242157,
+        "high": 2.269402506196539,
+        "clipped_fraction": 0.024
+      }
+    },
+    {
+      "scenario": "unequal",
+      "seed": 320099,
+      "oracle": {
+        "estimate": 1.9873711127544011,
+        "low": 1.76858295557256,
+        "high": 2.2061592699362422
+      },
+      "estimate": {
+        "estimate": 2.02254130539729,
+        "low": 1.705249512577007,
+        "high": 2.339833098217573,
+        "clipped_fraction": 0.024
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320000,
+      "oracle": {
+        "estimate": 2.006748436821041,
+        "low": 1.6302040921606153,
+        "high": 2.383292781481467
+      },
+      "estimate": {
+        "estimate": 2.0792458644385503,
+        "low": 1.4695679543547677,
+        "high": 2.688923774522333,
+        "clipped_fraction": 0.108
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320001,
+      "oracle": {
+        "estimate": 1.8266406133425284,
+        "low": 1.577453599453088,
+        "high": 2.075827627231969
+      },
+      "estimate": {
+        "estimate": 2.1513412779172087,
+        "low": 1.8137062058230082,
+        "high": 2.4889763500114093,
+        "clipped_fraction": 0.182
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320002,
+      "oracle": {
+        "estimate": 2.069527802991282,
+        "low": 1.797786141737881,
+        "high": 2.3412694642446823
+      },
+      "estimate": {
+        "estimate": 2.2190463574405053,
+        "low": 1.8013931070909526,
+        "high": 2.636699607790058,
+        "clipped_fraction": 0.116
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320003,
+      "oracle": {
+        "estimate": 1.914962075540211,
+        "low": 1.2143588096651556,
+        "high": 2.6155653414152664
+      },
+      "estimate": {
+        "estimate": 2.239171322640257,
+        "low": 1.51497720347778,
+        "high": 2.963365441802734,
+        "clipped_fraction": 0.154
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320004,
+      "oracle": {
+        "estimate": 2.0859500037506185,
+        "low": 1.8413138858621518,
+        "high": 2.330586121639085
+      },
+      "estimate": {
+        "estimate": 2.212441590973621,
+        "low": 1.7933587403478273,
+        "high": 2.6315244415994146,
+        "clipped_fraction": 0.124
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320005,
+      "oracle": {
+        "estimate": 2.1202874258255897,
+        "low": 1.8999184293418887,
+        "high": 2.3406564223092907
+      },
+      "estimate": {
+        "estimate": 2.2164932474893386,
+        "low": 1.6203810415883806,
+        "high": 2.8126054533902964,
+        "clipped_fraction": 0.192
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320006,
+      "oracle": {
+        "estimate": 2.1595441462142855,
+        "low": 1.8791118216860268,
+        "high": 2.439976470742544
+      },
+      "estimate": {
+        "estimate": 2.457536486120738,
+        "low": 1.9105831929190833,
+        "high": 3.004489779322393,
+        "clipped_fraction": 0.138
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320007,
+      "oracle": {
+        "estimate": 1.738315299591696,
+        "low": 1.3044532367625508,
+        "high": 2.1721773624208414
+      },
+      "estimate": {
+        "estimate": 1.9805869413256068,
+        "low": 1.4183195259441068,
+        "high": 2.5428543567071067,
+        "clipped_fraction": 0.102
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320008,
+      "oracle": {
+        "estimate": 1.815197684618433,
+        "low": 1.5332643531646784,
+        "high": 2.0971310160721877
+      },
+      "estimate": {
+        "estimate": 2.1276667872988866,
+        "low": 1.6930141941852106,
+        "high": 2.562319380412563,
+        "clipped_fraction": 0.168
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320009,
+      "oracle": {
+        "estimate": 1.9506765449953931,
+        "low": 1.7052523398159969,
+        "high": 2.1961007501747893
+      },
+      "estimate": {
+        "estimate": 2.0867283417909483,
+        "low": 1.8395529483243498,
+        "high": 2.333903735257547,
+        "clipped_fraction": 0.078
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320010,
+      "oracle": {
+        "estimate": 2.6133557845800355,
+        "low": 1.3058397067284377,
+        "high": 3.920871862431633
+      },
+      "estimate": {
+        "estimate": 2.3108990963070353,
+        "low": 1.910142061359419,
+        "high": 2.711656131254651,
+        "clipped_fraction": 0.198
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320011,
+      "oracle": {
+        "estimate": 2.6815795557857838,
+        "low": 1.993083679997988,
+        "high": 3.3700754315735795
+      },
+      "estimate": {
+        "estimate": 2.390718643289499,
+        "low": 2.060534590228904,
+        "high": 2.720902696350094,
+        "clipped_fraction": 0.12
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320012,
+      "oracle": {
+        "estimate": 1.9730131341329415,
+        "low": 1.7636175844667366,
+        "high": 2.1824086837991463
+      },
+      "estimate": {
+        "estimate": 2.008731494635641,
+        "low": 1.587126239040968,
+        "high": 2.430336750230314,
+        "clipped_fraction": 0.124
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320013,
+      "oracle": {
+        "estimate": 1.991461106046661,
+        "low": 1.7629433968845798,
+        "high": 2.219978815208742
+      },
+      "estimate": {
+        "estimate": 1.9222111326577123,
+        "low": 1.4918816113037403,
+        "high": 2.352540654011684,
+        "clipped_fraction": 0.152
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320014,
+      "oracle": {
+        "estimate": 1.9764615981553428,
+        "low": 1.7542113780592579,
+        "high": 2.198711818251428
+      },
+      "estimate": {
+        "estimate": 2.3430003839167903,
+        "low": 1.9425676313245686,
+        "high": 2.743433136509012,
+        "clipped_fraction": 0.132
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320015,
+      "oracle": {
+        "estimate": 2.056557160655583,
+        "low": 1.8285026521065482,
+        "high": 2.2846116692046174
+      },
+      "estimate": {
+        "estimate": 2.3695584427651584,
+        "low": 1.9344683884249034,
+        "high": 2.804648497105413,
+        "clipped_fraction": 0.232
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320016,
+      "oracle": {
+        "estimate": 1.862474661387252,
+        "low": 1.622093107140091,
+        "high": 2.102856215634413
+      },
+      "estimate": {
+        "estimate": 2.013609792454625,
+        "low": 1.6333916776645963,
+        "high": 2.3938279072446536,
+        "clipped_fraction": 0.158
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320017,
+      "oracle": {
+        "estimate": 2.031203272926396,
+        "low": 1.856025437645619,
+        "high": 2.206381108207173
+      },
+      "estimate": {
+        "estimate": 2.270498441145747,
+        "low": 1.8902675549087347,
+        "high": 2.6507293273827592,
+        "clipped_fraction": 0.178
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320018,
+      "oracle": {
+        "estimate": 2.0468079194499826,
+        "low": 1.7195027798598785,
+        "high": 2.374113059040087
+      },
+      "estimate": {
+        "estimate": 1.9271224225287649,
+        "low": 1.3267560898571704,
+        "high": 2.527488755200359,
+        "clipped_fraction": 0.126
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320019,
+      "oracle": {
+        "estimate": 1.854662882070805,
+        "low": 1.4770388691218548,
+        "high": 2.2322868950197554
+      },
+      "estimate": {
+        "estimate": 2.3068597935331008,
+        "low": 1.8573230372403182,
+        "high": 2.756396549825883,
+        "clipped_fraction": 0.234
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320020,
+      "oracle": {
+        "estimate": 1.8541695671526963,
+        "low": 1.4443523247604546,
+        "high": 2.263986809544938
+      },
+      "estimate": {
+        "estimate": 2.0838488928809134,
+        "low": 1.5384682909800707,
+        "high": 2.629229494781756,
+        "clipped_fraction": 0.082
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320021,
+      "oracle": {
+        "estimate": 2.029534242300093,
+        "low": 1.826624167916874,
+        "high": 2.2324443166833117
+      },
+      "estimate": {
+        "estimate": 2.321819464786751,
+        "low": 2.0721757176962305,
+        "high": 2.5714632118772713,
+        "clipped_fraction": 0.212
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320022,
+      "oracle": {
+        "estimate": 2.199940866747681,
+        "low": 1.945618754132302,
+        "high": 2.45426297936306
+      },
+      "estimate": {
+        "estimate": 2.298497384948603,
+        "low": 1.8690527782411852,
+        "high": 2.727941991656021,
+        "clipped_fraction": 0.106
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320023,
+      "oracle": {
+        "estimate": 1.9594690914146393,
+        "low": 1.5205432246291988,
+        "high": 2.39839495820008
+      },
+      "estimate": {
+        "estimate": 1.9348093233679087,
+        "low": 1.5388783012871372,
+        "high": 2.33074034544868,
+        "clipped_fraction": 0.042
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320024,
+      "oracle": {
+        "estimate": 1.9392618262424681,
+        "low": 1.723336961505847,
+        "high": 2.155186690979089
+      },
+      "estimate": {
+        "estimate": 1.7452600710122084,
+        "low": 1.0709195638567401,
+        "high": 2.4196005781676764,
+        "clipped_fraction": 0.16
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320025,
+      "oracle": {
+        "estimate": 2.110842409920456,
+        "low": 1.8120717104328121,
+        "high": 2.4096131094081
+      },
+      "estimate": {
+        "estimate": 2.3390836040796765,
+        "low": 2.051923642293236,
+        "high": 2.626243565866117,
+        "clipped_fraction": 0.138
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320026,
+      "oracle": {
+        "estimate": 1.8723019641413303,
+        "low": 1.5836981159873689,
+        "high": 2.160905812295292
+      },
+      "estimate": {
+        "estimate": 2.102162380744877,
+        "low": 1.6477661136353023,
+        "high": 2.5565586478544513,
+        "clipped_fraction": 0.15
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320027,
+      "oracle": {
+        "estimate": 2.2361442619799026,
+        "low": 1.9565227822479039,
+        "high": 2.5157657417119013
+      },
+      "estimate": {
+        "estimate": 2.2508521941041804,
+        "low": 1.8654727722382123,
+        "high": 2.6362316159701487,
+        "clipped_fraction": 0.186
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320028,
+      "oracle": {
+        "estimate": 2.3708836299600033,
+        "low": 2.0307772710769436,
+        "high": 2.710989988843063
+      },
+      "estimate": {
+        "estimate": 2.4710890293839083,
+        "low": 2.157917174042864,
+        "high": 2.7842608847249526,
+        "clipped_fraction": 0.16
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320029,
+      "oracle": {
+        "estimate": 2.0637043658106595,
+        "low": 1.758720696518735,
+        "high": 2.368688035102584
+      },
+      "estimate": {
+        "estimate": 2.3197764513157098,
+        "low": 1.9459439834517505,
+        "high": 2.693608919179669,
+        "clipped_fraction": 0.242
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320030,
+      "oracle": {
+        "estimate": 1.4640806219966402,
+        "low": 1.0986951180745002,
+        "high": 1.8294661259187803
+      },
+      "estimate": {
+        "estimate": 1.271423557509632,
+        "low": 0.5590879025941372,
+        "high": 1.9837592124251269,
+        "clipped_fraction": 0.172
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320031,
+      "oracle": {
+        "estimate": 1.7476315277961476,
+        "low": 1.3091853692106699,
+        "high": 2.1860776863816254
+      },
+      "estimate": {
+        "estimate": 1.97587286863019,
+        "low": 1.4513604721441764,
+        "high": 2.5003852651162037,
+        "clipped_fraction": 0.104
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320032,
+      "oracle": {
+        "estimate": 1.5780455521283576,
+        "low": 0.0757667187781883,
+        "high": 3.080324385478527
+      },
+      "estimate": {
+        "estimate": 2.3046477571312853,
+        "low": 1.810970100535233,
+        "high": 2.798325413727338,
+        "clipped_fraction": 0.092
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320033,
+      "oracle": {
+        "estimate": 1.887306239878537,
+        "low": 1.5694706929664453,
+        "high": 2.205141786790629
+      },
+      "estimate": {
+        "estimate": 1.8650568420119717,
+        "low": 1.0620745698661733,
+        "high": 2.66803911415777,
+        "clipped_fraction": 0.156
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320034,
+      "oracle": {
+        "estimate": 2.0107406327055015,
+        "low": 1.825652539980264,
+        "high": 2.1958287254307387
+      },
+      "estimate": {
+        "estimate": 2.3263758118370887,
+        "low": 1.9404709104681594,
+        "high": 2.712280713206018,
+        "clipped_fraction": 0.134
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320035,
+      "oracle": {
+        "estimate": 1.4842225660632233,
+        "low": 0.9637560016380939,
+        "high": 2.0046891304883525
+      },
+      "estimate": {
+        "estimate": 1.7482856986807618,
+        "low": 1.10581579859331,
+        "high": 2.3907555987682136,
+        "clipped_fraction": 0.168
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320036,
+      "oracle": {
+        "estimate": 1.3239265642547544,
+        "low": 0.14817057649364007,
+        "high": 2.4996825520158685
+      },
+      "estimate": {
+        "estimate": 2.185585016709333,
+        "low": 1.7893030836165378,
+        "high": 2.5818669498021287,
+        "clipped_fraction": 0.14
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320037,
+      "oracle": {
+        "estimate": 1.7803219259400884,
+        "low": 1.4576180946538226,
+        "high": 2.103025757226354
+      },
+      "estimate": {
+        "estimate": 2.0590287089101205,
+        "low": 1.5875287312389317,
+        "high": 2.5305286865813095,
+        "clipped_fraction": 0.16
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320038,
+      "oracle": {
+        "estimate": 1.845286282280445,
+        "low": 1.6632024422830982,
+        "high": 2.027370122277792
+      },
+      "estimate": {
+        "estimate": 1.915346617668533,
+        "low": 1.4084213521083,
+        "high": 2.422271883228766,
+        "clipped_fraction": 0.16
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320039,
+      "oracle": {
+        "estimate": 2.0717218267883437,
+        "low": 1.8546502660727273,
+        "high": 2.28879338750396
+      },
+      "estimate": {
+        "estimate": 2.3614036767071847,
+        "low": 1.8994647429588563,
+        "high": 2.823342610455513,
+        "clipped_fraction": 0.132
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320040,
+      "oracle": {
+        "estimate": 2.0992649939045727,
+        "low": 1.792429947148408,
+        "high": 2.4061000406607373
+      },
+      "estimate": {
+        "estimate": 2.2794398233380653,
+        "low": 1.6656833930585786,
+        "high": 2.893196253617552,
+        "clipped_fraction": 0.096
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320041,
+      "oracle": {
+        "estimate": 1.764089508600433,
+        "low": 1.0835255361494869,
+        "high": 2.444653481051379
+      },
+      "estimate": {
+        "estimate": 1.6293651946624237,
+        "low": 1.003619618683938,
+        "high": 2.2551107706409095,
+        "clipped_fraction": 0.032
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320042,
+      "oracle": {
+        "estimate": 1.6639806936899448,
+        "low": 1.2661588082867616,
+        "high": 2.0618025790931283
+      },
+      "estimate": {
+        "estimate": 1.620275442372857,
+        "low": 0.8751694233733938,
+        "high": 2.36538146137232,
+        "clipped_fraction": 0.204
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320043,
+      "oracle": {
+        "estimate": 1.969526741489698,
+        "low": 1.678767393345938,
+        "high": 2.2602860896334582
+      },
+      "estimate": {
+        "estimate": 1.9445924299637518,
+        "low": 1.2878202320168977,
+        "high": 2.601364627910606,
+        "clipped_fraction": 0.136
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320044,
+      "oracle": {
+        "estimate": 2.2307967212725752,
+        "low": 1.9467735460556947,
+        "high": 2.5148198964894557
+      },
+      "estimate": {
+        "estimate": 2.402834622144174,
+        "low": 1.947247250565189,
+        "high": 2.8584219937231587,
+        "clipped_fraction": 0.116
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320045,
+      "oracle": {
+        "estimate": 2.3121268132217456,
+        "low": 2.0203526415518924,
+        "high": 2.603900984891599
+      },
+      "estimate": {
+        "estimate": 2.3282012495135795,
+        "low": 1.9388796337725784,
+        "high": 2.7175228652545806,
+        "clipped_fraction": 0.13
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320046,
+      "oracle": {
+        "estimate": 2.1425396815069124,
+        "low": 1.614275986969878,
+        "high": 2.670803376043947
+      },
+      "estimate": {
+        "estimate": 1.9099160697126683,
+        "low": 1.4579038185382527,
+        "high": 2.361928320887084,
+        "clipped_fraction": 0.094
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320047,
+      "oracle": {
+        "estimate": 1.9122130309807266,
+        "low": 1.6805653727650238,
+        "high": 2.1438606891964294
+      },
+      "estimate": {
+        "estimate": 2.109400576588879,
+        "low": 1.7027956553297092,
+        "high": 2.5160054978480484,
+        "clipped_fraction": 0.114
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320048,
+      "oracle": {
+        "estimate": 1.9603668345040983,
+        "low": 1.6635292720200954,
+        "high": 2.2572043969881013
+      },
+      "estimate": {
+        "estimate": 2.1843586672180377,
+        "low": 1.836874197420326,
+        "high": 2.5318431370157493,
+        "clipped_fraction": 0.158
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320049,
+      "oracle": {
+        "estimate": 1.9644981074518348,
+        "low": 1.7259830952575448,
+        "high": 2.203013119646125
+      },
+      "estimate": {
+        "estimate": 2.1257845787568166,
+        "low": 1.5878489181422542,
+        "high": 2.6637202393713793,
+        "clipped_fraction": 0.126
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320050,
+      "oracle": {
+        "estimate": 2.401184807495998,
+        "low": 1.3521685420784553,
+        "high": 3.4502010729135404
+      },
+      "estimate": {
+        "estimate": 2.202933778577594,
+        "low": 1.8801550539364775,
+        "high": 2.5257125032187107,
+        "clipped_fraction": 0.108
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320051,
+      "oracle": {
+        "estimate": 1.8390112884214265,
+        "low": 1.4175958172651453,
+        "high": 2.2604267595777077
+      },
+      "estimate": {
+        "estimate": 1.8966619108141567,
+        "low": 1.3556108190963236,
+        "high": 2.4377130025319897,
+        "clipped_fraction": 0.09
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320052,
+      "oracle": {
+        "estimate": 1.9092973339968422,
+        "low": 1.599337870687821,
+        "high": 2.2192567973058632
+      },
+      "estimate": {
+        "estimate": 2.216329068762804,
+        "low": 1.6593991570111832,
+        "high": 2.7732589805144245,
+        "clipped_fraction": 0.12
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320053,
+      "oracle": {
+        "estimate": 2.0128093942999046,
+        "low": 1.7842573260334238,
+        "high": 2.2413614625663856
+      },
+      "estimate": {
+        "estimate": 1.996983814359313,
+        "low": 1.5295076921647595,
+        "high": 2.4644599365538666,
+        "clipped_fraction": 0.086
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320054,
+      "oracle": {
+        "estimate": 1.8059623740850075,
+        "low": 1.5717855201191144,
+        "high": 2.0401392280509003
+      },
+      "estimate": {
+        "estimate": 1.8817588779195635,
+        "low": 1.3473598171119392,
+        "high": 2.4161579387271876,
+        "clipped_fraction": 0.088
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320055,
+      "oracle": {
+        "estimate": 1.975849652207809,
+        "low": 1.7324676904568295,
+        "high": 2.219231613958789
+      },
+      "estimate": {
+        "estimate": 2.4874106635249675,
+        "low": 2.210099981170399,
+        "high": 2.764721345879536,
+        "clipped_fraction": 0.168
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320056,
+      "oracle": {
+        "estimate": 1.8164427768972429,
+        "low": 1.1889124652658993,
+        "high": 2.4439730885285864
+      },
+      "estimate": {
+        "estimate": 2.3112813997102353,
+        "low": 1.75096944772902,
+        "high": 2.8715933516914505,
+        "clipped_fraction": 0.128
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320057,
+      "oracle": {
+        "estimate": 2.126235086359032,
+        "low": 1.6011968090778421,
+        "high": 2.6512733636402217
+      },
+      "estimate": {
+        "estimate": 2.364140194613513,
+        "low": 1.91349789487729,
+        "high": 2.8147824943497364,
+        "clipped_fraction": 0.14
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320058,
+      "oracle": {
+        "estimate": 2.2057315998983342,
+        "low": 1.7903116721184635,
+        "high": 2.621151527678205
+      },
+      "estimate": {
+        "estimate": 2.178063412577847,
+        "low": 1.6953905308291044,
+        "high": 2.6607362943265893,
+        "clipped_fraction": 0.102
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320059,
+      "oracle": {
+        "estimate": 2.12038371747706,
+        "low": 1.7414481277253062,
+        "high": 2.4993193072288133
+      },
+      "estimate": {
+        "estimate": 1.9440216273900264,
+        "low": 1.4604390597407502,
+        "high": 2.4276041950393026,
+        "clipped_fraction": 0.076
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320060,
+      "oracle": {
+        "estimate": 1.8295404193492055,
+        "low": 1.1699062611327087,
+        "high": 2.489174577565702
+      },
+      "estimate": {
+        "estimate": 1.9579673208324673,
+        "low": 1.4402892203461057,
+        "high": 2.475645421318829,
+        "clipped_fraction": 0.102
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320061,
+      "oracle": {
+        "estimate": 1.9025225195705961,
+        "low": 1.5917364108826828,
+        "high": 2.2133086282585097
+      },
+      "estimate": {
+        "estimate": 2.2800820783958033,
+        "low": 1.7849276856680925,
+        "high": 2.775236471123514,
+        "clipped_fraction": 0.18
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320062,
+      "oracle": {
+        "estimate": 3.313270052282925,
+        "low": 1.019519274974856,
+        "high": 5.607020829590994
+      },
+      "estimate": {
+        "estimate": 2.3236653372735425,
+        "low": 1.8980196465544519,
+        "high": 2.749311027992633,
+        "clipped_fraction": 0.08
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320063,
+      "oracle": {
+        "estimate": 3.227269094951357,
+        "low": 1.5871626050539136,
+        "high": 4.8673755848488005
+      },
+      "estimate": {
+        "estimate": 2.3224897476155335,
+        "low": 1.8803485791407155,
+        "high": 2.7646309160903515,
+        "clipped_fraction": 0.128
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320064,
+      "oracle": {
+        "estimate": 2.088164470861413,
+        "low": 1.745539774229502,
+        "high": 2.4307891674933235
+      },
+      "estimate": {
+        "estimate": 1.9801329316359209,
+        "low": 1.5593481707227141,
+        "high": 2.4009176925491276,
+        "clipped_fraction": 0.08
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320065,
+      "oracle": {
+        "estimate": 1.9848680496275675,
+        "low": 1.5877961083629035,
+        "high": 2.3819399908922314
+      },
+      "estimate": {
+        "estimate": 2.0010398421048468,
+        "low": 1.5999092152329195,
+        "high": 2.4021704689767738,
+        "clipped_fraction": 0.092
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320066,
+      "oracle": {
+        "estimate": 2.0221205606813784,
+        "low": 1.8426457890870636,
+        "high": 2.201595332275693
+      },
+      "estimate": {
+        "estimate": 2.1692501334956034,
+        "low": 1.67081236000329,
+        "high": 2.6676879069879167,
+        "clipped_fraction": 0.21
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320067,
+      "oracle": {
+        "estimate": 2.139775926964521,
+        "low": 1.8885937292534796,
+        "high": 2.3909581246755622
+      },
+      "estimate": {
+        "estimate": 2.4357530906488027,
+        "low": 2.1709455968743203,
+        "high": 2.700560584423285,
+        "clipped_fraction": 0.126
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320068,
+      "oracle": {
+        "estimate": 2.0247802246803714,
+        "low": 1.7284785148481199,
+        "high": 2.3210819345126232
+      },
+      "estimate": {
+        "estimate": 2.1577262344374044,
+        "low": 1.4714064988780526,
+        "high": 2.844045969996756,
+        "clipped_fraction": 0.134
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320069,
+      "oracle": {
+        "estimate": 1.9536675399483705,
+        "low": 1.7638194277559032,
+        "high": 2.1435156521408376
+      },
+      "estimate": {
+        "estimate": 2.1721491127470847,
+        "low": 1.7880210452231105,
+        "high": 2.556277180271059,
+        "clipped_fraction": 0.188
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320070,
+      "oracle": {
+        "estimate": 2.0805038579960984,
+        "low": 1.8731060535907802,
+        "high": 2.2879016624014166
+      },
+      "estimate": {
+        "estimate": 2.2555796717763585,
+        "low": 1.8100325481812822,
+        "high": 2.701126795371435,
+        "clipped_fraction": 0.176
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320071,
+      "oracle": {
+        "estimate": 0.7237720992705147,
+        "low": -1.2608228287309475,
+        "high": 2.7083670272719766
+      },
+      "estimate": {
+        "estimate": 1.8631518471010144,
+        "low": 1.4153751653008078,
+        "high": 2.310928528901221,
+        "clipped_fraction": 0.126
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320072,
+      "oracle": {
+        "estimate": 1.6545823790984355,
+        "low": 1.3080752450647077,
+        "high": 2.0010895131321633
+      },
+      "estimate": {
+        "estimate": 1.9600841170709487,
+        "low": 1.672006822851925,
+        "high": 2.2481614112899724,
+        "clipped_fraction": 0.128
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320073,
+      "oracle": {
+        "estimate": 2.033025932850528,
+        "low": 1.809851969681142,
+        "high": 2.2561998960199134
+      },
+      "estimate": {
+        "estimate": 2.3654740885497594,
+        "low": 2.049544910712564,
+        "high": 2.6814032663869547,
+        "clipped_fraction": 0.282
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320074,
+      "oracle": {
+        "estimate": 2.314269313297008,
+        "low": 1.9551779014421653,
+        "high": 2.6733607251518503
+      },
+      "estimate": {
+        "estimate": 2.6029544370316042,
+        "low": 2.2370483245972337,
+        "high": 2.9688605494659748,
+        "clipped_fraction": 0.14
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320075,
+      "oracle": {
+        "estimate": 2.3552638357873885,
+        "low": 1.9586830990178692,
+        "high": 2.751844572556908
+      },
+      "estimate": {
+        "estimate": 2.8958809039069973,
+        "low": 2.410276537161579,
+        "high": 3.3814852706524157,
+        "clipped_fraction": 0.208
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320076,
+      "oracle": {
+        "estimate": 1.8783441821021318,
+        "low": 1.6174859302538513,
+        "high": 2.1392024339504125
+      },
+      "estimate": {
+        "estimate": 1.7320606197194515,
+        "low": 1.1044770736003477,
+        "high": 2.359644165838555,
+        "clipped_fraction": 0.116
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320077,
+      "oracle": {
+        "estimate": 2.06392026005869,
+        "low": 1.8053211677842629,
+        "high": 2.322519352333117
+      },
+      "estimate": {
+        "estimate": 2.250659843428536,
+        "low": 1.7107506572030395,
+        "high": 2.7905690296540326,
+        "clipped_fraction": 0.188
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320078,
+      "oracle": {
+        "estimate": 1.883109913626491,
+        "low": 1.602684989366581,
+        "high": 2.163534837886401
+      },
+      "estimate": {
+        "estimate": 2.1377252351949783,
+        "low": 1.6898410124367627,
+        "high": 2.585609457953194,
+        "clipped_fraction": 0.204
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320079,
+      "oracle": {
+        "estimate": 2.0260243718147795,
+        "low": 1.7919399690671203,
+        "high": 2.260108774562439
+      },
+      "estimate": {
+        "estimate": 2.3959706369981917,
+        "low": 2.105525450346526,
+        "high": 2.6864158236498574,
+        "clipped_fraction": 0.274
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320080,
+      "oracle": {
+        "estimate": 2.0368710848252745,
+        "low": 1.7328289796793859,
+        "high": 2.340913189971163
+      },
+      "estimate": {
+        "estimate": 2.1291587563794976,
+        "low": 1.6787883953996052,
+        "high": 2.57952911735939,
+        "clipped_fraction": 0.094
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320081,
+      "oracle": {
+        "estimate": 1.9513416671813562,
+        "low": 1.4362502343898316,
+        "high": 2.466433099972881
+      },
+      "estimate": {
+        "estimate": 2.080086747732707,
+        "low": 1.4615919535859088,
+        "high": 2.698581541879505,
+        "clipped_fraction": 0.108
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320082,
+      "oracle": {
+        "estimate": 1.9741142633446114,
+        "low": 1.629709144801802,
+        "high": 2.318519381887421
+      },
+      "estimate": {
+        "estimate": 2.2150092939255326,
+        "low": 1.6555903835578798,
+        "high": 2.7744282042931854,
+        "clipped_fraction": 0.184
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320083,
+      "oracle": {
+        "estimate": 2.1793855954200336,
+        "low": 1.7082187167408054,
+        "high": 2.650552474099262
+      },
+      "estimate": {
+        "estimate": 1.9617669790336434,
+        "low": 1.4918690554264318,
+        "high": 2.431664902640855,
+        "clipped_fraction": 0.066
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320084,
+      "oracle": {
+        "estimate": 1.9895278533125391,
+        "low": 1.7726415865033334,
+        "high": 2.206414120121745
+      },
+      "estimate": {
+        "estimate": 1.9784878068765446,
+        "low": 1.3799818733322253,
+        "high": 2.576993740420864,
+        "clipped_fraction": 0.122
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320085,
+      "oracle": {
+        "estimate": 2.3827235453580196,
+        "low": 1.751779613025684,
+        "high": 3.013667477690355
+      },
+      "estimate": {
+        "estimate": 2.38639350637328,
+        "low": 2.0621733320404414,
+        "high": 2.710613680706119,
+        "clipped_fraction": 0.088
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320086,
+      "oracle": {
+        "estimate": 2.035617387526089,
+        "low": 1.8100342416167177,
+        "high": 2.26120053343546
+      },
+      "estimate": {
+        "estimate": 2.519596374841528,
+        "low": 1.8906761730184218,
+        "high": 3.148516576664634,
+        "clipped_fraction": 0.146
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320087,
+      "oracle": {
+        "estimate": 2.246548505934809,
+        "low": 1.8141965687460384,
+        "high": 2.6789004431235792
+      },
+      "estimate": {
+        "estimate": 2.2077333731622453,
+        "low": 1.7284174339147573,
+        "high": 2.687049312409733,
+        "clipped_fraction": 0.1
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320088,
+      "oracle": {
+        "estimate": 1.9448183921356763,
+        "low": 0.8588143878362997,
+        "high": 3.030822396435053
+      },
+      "estimate": {
+        "estimate": 1.9074458223260762,
+        "low": 1.2451088620286828,
+        "high": 2.5697827826234696,
+        "clipped_fraction": 0.142
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320089,
+      "oracle": {
+        "estimate": 2.084704188896467,
+        "low": 1.8241620526489588,
+        "high": 2.345246325143975
+      },
+      "estimate": {
+        "estimate": 2.0984955619259953,
+        "low": 1.7442353548486196,
+        "high": 2.452755769003371,
+        "clipped_fraction": 0.132
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320090,
+      "oracle": {
+        "estimate": 2.0583356234503256,
+        "low": 1.7571657268891985,
+        "high": 2.3595055200114525
+      },
+      "estimate": {
+        "estimate": 2.090506144639077,
+        "low": 1.7135157888962547,
+        "high": 2.4674965003818996,
+        "clipped_fraction": 0.108
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320091,
+      "oracle": {
+        "estimate": 2.0482837935468527,
+        "low": 1.7685154427330536,
+        "high": 2.328052144360652
+      },
+      "estimate": {
+        "estimate": 2.19055256084226,
+        "low": 1.8621186074380212,
+        "high": 2.518986514246499,
+        "clipped_fraction": 0.138
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320092,
+      "oracle": {
+        "estimate": 2.0056453670518426,
+        "low": 1.828502348833268,
+        "high": 2.1827883852704173
+      },
+      "estimate": {
+        "estimate": 2.2770177288693563,
+        "low": 1.8580019340351597,
+        "high": 2.696033523703553,
+        "clipped_fraction": 0.11
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320093,
+      "oracle": {
+        "estimate": 2.0513503669572066,
+        "low": 1.434363439057311,
+        "high": 2.6683372948571025
+      },
+      "estimate": {
+        "estimate": 2.3697380537126547,
+        "low": 1.969986601065417,
+        "high": 2.7694895063598923,
+        "clipped_fraction": 0.132
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320094,
+      "oracle": {
+        "estimate": 1.8608973564921472,
+        "low": 1.5126942322739851,
+        "high": 2.209100480710309
+      },
+      "estimate": {
+        "estimate": 1.8281175519466764,
+        "low": 1.0891808422033882,
+        "high": 2.5670542616899645,
+        "clipped_fraction": 0.126
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320095,
+      "oracle": {
+        "estimate": 1.8331233037122412,
+        "low": 1.560226350281462,
+        "high": 2.1060202571430207
+      },
+      "estimate": {
+        "estimate": 1.7828221646579576,
+        "low": 1.2441221679386336,
+        "high": 2.3215221613772816,
+        "clipped_fraction": 0.116
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320096,
+      "oracle": {
+        "estimate": 1.895363193315311,
+        "low": 1.6346374894812514,
+        "high": 2.156088897149371
+      },
+      "estimate": {
+        "estimate": 1.985933454409916,
+        "low": 1.4200012787690608,
+        "high": 2.5518656300507714,
+        "clipped_fraction": 0.116
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320097,
+      "oracle": {
+        "estimate": 2.164809692818257,
+        "low": 1.8830692096583397,
+        "high": 2.446550175978174
+      },
+      "estimate": {
+        "estimate": 2.1262779664123244,
+        "low": 1.7196121439673182,
+        "high": 2.5329437888573305,
+        "clipped_fraction": 0.176
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320098,
+      "oracle": {
+        "estimate": 2.1947954750617775,
+        "low": 1.858413378357009,
+        "high": 2.531177571766546
+      },
+      "estimate": {
+        "estimate": 2.3603745493371258,
+        "low": 1.9986978986925255,
+        "high": 2.7220511999817263,
+        "clipped_fraction": 0.124
+      }
+    },
+    {
+      "scenario": "weak_overlap",
+      "seed": 320099,
+      "oracle": {
+        "estimate": 1.9602021281728814,
+        "low": 1.654289985900568,
+        "high": 2.2661142704451946
+      },
+      "estimate": {
+        "estimate": 2.046193032681469,
+        "low": 1.5369470814075674,
+        "high": 2.55543898395537,
+        "clipped_fraction": 0.172
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320000,
+      "oracle": {
+        "estimate": 2.060643635791008,
+        "low": 1.8385080727560001,
+        "high": 2.282779198826016
+      },
+      "estimate": {
+        "estimate": 2.1668256713706424,
+        "low": 1.5902438420224003,
+        "high": 2.7434075007188845,
+        "clipped_fraction": 0.016
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320001,
+      "oracle": {
+        "estimate": 2.124607234888894,
+        "low": 1.9077936708266092,
+        "high": 2.3414207989511784
+      },
+      "estimate": {
+        "estimate": 1.9453051749666974,
+        "low": 1.6722471122916427,
+        "high": 2.218363237641752,
+        "clipped_fraction": 0.002
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320002,
+      "oracle": {
+        "estimate": 2.1104759020391435,
+        "low": 1.8974896362755247,
+        "high": 2.3234621678027625
+      },
+      "estimate": {
+        "estimate": 1.9233283989797623,
+        "low": 1.5618347423128738,
+        "high": 2.284822055646651,
+        "clipped_fraction": 0.012
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320003,
+      "oracle": {
+        "estimate": 1.8767648331940272,
+        "low": 1.6657839278956614,
+        "high": 2.087745738492393
+      },
+      "estimate": {
+        "estimate": 1.9112318866057099,
+        "low": 1.6107038685500612,
+        "high": 2.2117599046613585,
+        "clipped_fraction": 0.002
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320004,
+      "oracle": {
+        "estimate": 2.068678892887772,
+        "low": 1.8638156068663458,
+        "high": 2.273542178909198
+      },
+      "estimate": {
+        "estimate": 2.2266399296990347,
+        "low": 1.8658867210307224,
+        "high": 2.587393138367347,
+        "clipped_fraction": 0.006
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320005,
+      "oracle": {
+        "estimate": 2.1328387218817313,
+        "low": 1.909477069504976,
+        "high": 2.3562003742584863
+      },
+      "estimate": {
+        "estimate": 1.8488548203131052,
+        "low": 1.4508801660045825,
+        "high": 2.246829474621628,
+        "clipped_fraction": 0.02
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320006,
+      "oracle": {
+        "estimate": 1.9719517525838264,
+        "low": 1.748761578610627,
+        "high": 2.195141926557026
+      },
+      "estimate": {
+        "estimate": 2.7813632644691273,
+        "low": 1.2019520241446797,
+        "high": 4.360774504793575,
+        "clipped_fraction": 0.016
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320007,
+      "oracle": {
+        "estimate": 1.9012673129857218,
+        "low": 1.687247543059645,
+        "high": 2.1152870829117987
+      },
+      "estimate": {
+        "estimate": 1.5699521208407048,
+        "low": 1.0060989418643622,
+        "high": 2.1338052998170474,
+        "clipped_fraction": 0.014
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320008,
+      "oracle": {
+        "estimate": 1.9650573209441369,
+        "low": 1.7601464812573422,
+        "high": 2.1699681606309316
+      },
+      "estimate": {
+        "estimate": 1.7297284859201876,
+        "low": 1.4111707137692011,
+        "high": 2.048286258071174,
+        "clipped_fraction": 0.068
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320009,
+      "oracle": {
+        "estimate": 1.922490181013142,
+        "low": 1.6955720476962095,
+        "high": 2.1494083143300746
+      },
+      "estimate": {
+        "estimate": 1.6252193003337903,
+        "low": 1.2216576035710156,
+        "high": 2.0287809970965647,
+        "clipped_fraction": 0.014
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320010,
+      "oracle": {
+        "estimate": 2.017448950574194,
+        "low": 1.7922603445723406,
+        "high": 2.2426375565760472
+      },
+      "estimate": {
+        "estimate": 1.8382860888798809,
+        "low": 1.357278408824093,
+        "high": 2.319293768935669,
+        "clipped_fraction": 0.014
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320011,
+      "oracle": {
+        "estimate": 2.035492610605775,
+        "low": 1.837574662045187,
+        "high": 2.233410559166363
+      },
+      "estimate": {
+        "estimate": 2.069946279658312,
+        "low": 1.7118855306685101,
+        "high": 2.4280070286481137,
+        "clipped_fraction": 0.008
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320012,
+      "oracle": {
+        "estimate": 2.0534498792225064,
+        "low": 1.7968742640134607,
+        "high": 2.310025494431552
+      },
+      "estimate": {
+        "estimate": 2.056121961645964,
+        "low": 1.6378532692672039,
+        "high": 2.474390654024724,
+        "clipped_fraction": 0.014
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320013,
+      "oracle": {
+        "estimate": 2.009714570818464,
+        "low": 1.8025121385710239,
+        "high": 2.2169170030659036
+      },
+      "estimate": {
+        "estimate": 2.153847012599903,
+        "low": 1.7607729718223772,
+        "high": 2.546921053377429,
+        "clipped_fraction": 0.004
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320014,
+      "oracle": {
+        "estimate": 2.0909883591594083,
+        "low": 1.9141508190617103,
+        "high": 2.2678258992571063
+      },
+      "estimate": {
+        "estimate": 2.1785718066520827,
+        "low": 1.8237024935253898,
+        "high": 2.5334411197787756,
+        "clipped_fraction": 0.014
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320015,
+      "oracle": {
+        "estimate": 1.9987754024718916,
+        "low": 1.8188337523099298,
+        "high": 2.1787170526338535
+      },
+      "estimate": {
+        "estimate": 1.8313023999042284,
+        "low": 1.3582532680805326,
+        "high": 2.3043515317279244,
+        "clipped_fraction": 0.034
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320016,
+      "oracle": {
+        "estimate": 2.128451804815993,
+        "low": 1.9217347675554548,
+        "high": 2.3351688420765315
+      },
+      "estimate": {
+        "estimate": 2.2406210154905404,
+        "low": 1.8390142766403517,
+        "high": 2.642227754340729,
+        "clipped_fraction": 0.012
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320017,
+      "oracle": {
+        "estimate": 2.0780862607579556,
+        "low": 1.9044436430447367,
+        "high": 2.2517288784711744
+      },
+      "estimate": {
+        "estimate": 2.0148369377833943,
+        "low": 1.6776731894707173,
+        "high": 2.3520006860960714,
+        "clipped_fraction": 0.058
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320018,
+      "oracle": {
+        "estimate": 1.8800915539045937,
+        "low": 1.6545816148686525,
+        "high": 2.1056014929405347
+      },
+      "estimate": {
+        "estimate": 1.9561221660164583,
+        "low": 1.3003863627238297,
+        "high": 2.611857969309087,
+        "clipped_fraction": 0.036
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320019,
+      "oracle": {
+        "estimate": 2.0618830369459302,
+        "low": 1.8373774140171448,
+        "high": 2.2863886598747154
+      },
+      "estimate": {
+        "estimate": 1.966547657299297,
+        "low": 1.593032771532404,
+        "high": 2.34006254306619,
+        "clipped_fraction": 0.016
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320020,
+      "oracle": {
+        "estimate": 2.1847690314307227,
+        "low": 1.953661314511781,
+        "high": 2.4158767483496644
+      },
+      "estimate": {
+        "estimate": 2.185343511047208,
+        "low": 1.8550872929302078,
+        "high": 2.5155997291642085,
+        "clipped_fraction": 0.002
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320021,
+      "oracle": {
+        "estimate": 1.9833624623199253,
+        "low": 1.7872266512399282,
+        "high": 2.1794982733999224
+      },
+      "estimate": {
+        "estimate": 2.146189919009864,
+        "low": 1.662036905333478,
+        "high": 2.6303429326862497,
+        "clipped_fraction": 0.02
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320022,
+      "oracle": {
+        "estimate": 2.1166181433863986,
+        "low": 1.8700428641225701,
+        "high": 2.363193422650227
+      },
+      "estimate": {
+        "estimate": 2.177103919409632,
+        "low": 1.8016696561426948,
+        "high": 2.5525381826765696,
+        "clipped_fraction": 0.014
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320023,
+      "oracle": {
+        "estimate": 1.9797852909421423,
+        "low": 1.7542383553355956,
+        "high": 2.205332226548689
+      },
+      "estimate": {
+        "estimate": 1.6624776940972583,
+        "low": 1.2055590502067834,
+        "high": 2.119396337987733,
+        "clipped_fraction": 0.008
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320024,
+      "oracle": {
+        "estimate": 2.093201228436672,
+        "low": 1.814434082241752,
+        "high": 2.371968374631592
+      },
+      "estimate": {
+        "estimate": 1.9238196074845682,
+        "low": 1.3894401923809294,
+        "high": 2.458199022588207,
+        "clipped_fraction": 0.018
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320025,
+      "oracle": {
+        "estimate": 2.087654785501615,
+        "low": 1.87610087025638,
+        "high": 2.29920870074685
+      },
+      "estimate": {
+        "estimate": 1.8156461001695243,
+        "low": 1.3203964344636518,
+        "high": 2.310895765875397,
+        "clipped_fraction": 0.018
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320026,
+      "oracle": {
+        "estimate": 1.964572596265651,
+        "low": 1.7587839717871405,
+        "high": 2.170361220744162
+      },
+      "estimate": {
+        "estimate": 1.864076687799875,
+        "low": 1.4834048002416833,
+        "high": 2.2447485753580665,
+        "clipped_fraction": 0.034
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320027,
+      "oracle": {
+        "estimate": 2.0525769507814644,
+        "low": 1.8520698034064917,
+        "high": 2.253084098156437
+      },
+      "estimate": {
+        "estimate": 2.233877017513761,
+        "low": 1.6532253720213987,
+        "high": 2.814528663006124,
+        "clipped_fraction": 0.012
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320028,
+      "oracle": {
+        "estimate": 2.175911261574127,
+        "low": 1.938277236013592,
+        "high": 2.413545287134662
+      },
+      "estimate": {
+        "estimate": 2.0530415718759936,
+        "low": 1.6497696162797415,
+        "high": 2.4563135274722456,
+        "clipped_fraction": 0.0
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320029,
+      "oracle": {
+        "estimate": 2.0251536560605916,
+        "low": 1.8048687781996609,
+        "high": 2.245438533921522
+      },
+      "estimate": {
+        "estimate": 1.9505469656899568,
+        "low": 1.47318711501808,
+        "high": 2.427906816361834,
+        "clipped_fraction": 0.02
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320030,
+      "oracle": {
+        "estimate": 1.7440603501601342,
+        "low": 1.5070157271426723,
+        "high": 1.981104973177596
+      },
+      "estimate": {
+        "estimate": 1.5296940043670784,
+        "low": 0.9800541291143098,
+        "high": 2.079333879619847,
+        "clipped_fraction": 0.016
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320031,
+      "oracle": {
+        "estimate": 1.9590127288915786,
+        "low": 1.7374080176967228,
+        "high": 2.1806174400864347
+      },
+      "estimate": {
+        "estimate": 1.7360562984757717,
+        "low": 1.3752459419468717,
+        "high": 2.0968666550046717,
+        "clipped_fraction": 0.02
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320032,
+      "oracle": {
+        "estimate": 2.056550578124626,
+        "low": 1.8307248341330276,
+        "high": 2.2823763221162245
+      },
+      "estimate": {
+        "estimate": 2.1511131460958257,
+        "low": 1.7785497100931011,
+        "high": 2.5236765820985503,
+        "clipped_fraction": 0.016
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320033,
+      "oracle": {
+        "estimate": 2.10872650340579,
+        "low": 1.9088921286198663,
+        "high": 2.308560878191713
+      },
+      "estimate": {
+        "estimate": 2.399155052295485,
+        "low": 1.956360967772268,
+        "high": 2.841949136818702,
+        "clipped_fraction": 0.036
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320034,
+      "oracle": {
+        "estimate": 2.033904067519159,
+        "low": 1.8247018887829276,
+        "high": 2.24310624625539
+      },
+      "estimate": {
+        "estimate": 1.7445231174335722,
+        "low": 1.2222093040499868,
+        "high": 2.2668369308171576,
+        "clipped_fraction": 0.02
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320035,
+      "oracle": {
+        "estimate": 1.994788747905091,
+        "low": 1.801359691831388,
+        "high": 2.1882178039787936
+      },
+      "estimate": {
+        "estimate": 1.8174851513895434,
+        "low": 1.2948362872015484,
+        "high": 2.3401340155775383,
+        "clipped_fraction": 0.018
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320036,
+      "oracle": {
+        "estimate": 1.751514124530482,
+        "low": 1.5516488830156763,
+        "high": 1.9513793660452876
+      },
+      "estimate": {
+        "estimate": 1.7601965421708787,
+        "low": 1.4005943114223314,
+        "high": 2.119798772919426,
+        "clipped_fraction": 0.042
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320037,
+      "oracle": {
+        "estimate": 2.039037093594069,
+        "low": 1.8540104597884235,
+        "high": 2.2240637273997144
+      },
+      "estimate": {
+        "estimate": 2.03267616483757,
+        "low": 1.6641523279672266,
+        "high": 2.401200001707914,
+        "clipped_fraction": 0.006
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320038,
+      "oracle": {
+        "estimate": 2.152732281108126,
+        "low": 1.9655537261344613,
+        "high": 2.3399108360817906
+      },
+      "estimate": {
+        "estimate": 2.2209090975826475,
+        "low": 1.7774545389905658,
+        "high": 2.664363656174729,
+        "clipped_fraction": 0.03
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320039,
+      "oracle": {
+        "estimate": 2.0324507930477598,
+        "low": 1.8243051566334252,
+        "high": 2.2405964294620944
+      },
+      "estimate": {
+        "estimate": 2.220199599547106,
+        "low": 1.7977374317350945,
+        "high": 2.642661767359118,
+        "clipped_fraction": 0.008
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320040,
+      "oracle": {
+        "estimate": 2.020232228588366,
+        "low": 1.8204830272616468,
+        "high": 2.2199814299150855
+      },
+      "estimate": {
+        "estimate": 1.9783735251946113,
+        "low": 1.5275854818882488,
+        "high": 2.429161568500974,
+        "clipped_fraction": 0.018
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320041,
+      "oracle": {
+        "estimate": 1.9478738161519773,
+        "low": 1.7358683660412986,
+        "high": 2.159879266262656
+      },
+      "estimate": {
+        "estimate": 1.9553240836413974,
+        "low": 1.6418977622187476,
+        "high": 2.268750405064047,
+        "clipped_fraction": 0.014
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320042,
+      "oracle": {
+        "estimate": 1.7739183874182645,
+        "low": 1.581238034958358,
+        "high": 1.966598739878171
+      },
+      "estimate": {
+        "estimate": 1.468963058890311,
+        "low": 0.9588840498542627,
+        "high": 1.9790420679263594,
+        "clipped_fraction": 0.03
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320043,
+      "oracle": {
+        "estimate": 2.1018567196885654,
+        "low": 1.8515894655594387,
+        "high": 2.352123973817692
+      },
+      "estimate": {
+        "estimate": 1.9914951864340518,
+        "low": 1.57443026727007,
+        "high": 2.4085601055980335,
+        "clipped_fraction": 0.006
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320044,
+      "oracle": {
+        "estimate": 2.130918893929688,
+        "low": 1.915861510341645,
+        "high": 2.345976277517731
+      },
+      "estimate": {
+        "estimate": 2.046976966387746,
+        "low": 1.670813211735535,
+        "high": 2.4231407210399576,
+        "clipped_fraction": 0.018
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320045,
+      "oracle": {
+        "estimate": 1.9901682854628102,
+        "low": 1.720371195383587,
+        "high": 2.2599653755420333
+      },
+      "estimate": {
+        "estimate": 1.994543785775073,
+        "low": 1.639298246271744,
+        "high": 2.349789325278402,
+        "clipped_fraction": 0.008
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320046,
+      "oracle": {
+        "estimate": 2.1019065184565435,
+        "low": 1.8738495253705014,
+        "high": 2.3299635115425854
+      },
+      "estimate": {
+        "estimate": 2.114793047546205,
+        "low": 1.7208004248839726,
+        "high": 2.5087856702084372,
+        "clipped_fraction": 0.002
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320047,
+      "oracle": {
+        "estimate": 2.0217708850854703,
+        "low": 1.808120815684675,
+        "high": 2.2354209544862655
+      },
+      "estimate": {
+        "estimate": 2.013903940106108,
+        "low": 1.5742548828912781,
+        "high": 2.453552997320938,
+        "clipped_fraction": 0.012
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320048,
+      "oracle": {
+        "estimate": 2.016628470897499,
+        "low": 1.831253364197545,
+        "high": 2.202003577597453
+      },
+      "estimate": {
+        "estimate": 2.346036043783773,
+        "low": 1.6456702545052426,
+        "high": 3.046401833062303,
+        "clipped_fraction": 0.016
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320049,
+      "oracle": {
+        "estimate": 1.9300209111954627,
+        "low": 1.7223446110068745,
+        "high": 2.137697211384051
+      },
+      "estimate": {
+        "estimate": 2.1035109964813423,
+        "low": 1.6557695628461588,
+        "high": 2.551252430116526,
+        "clipped_fraction": 0.004
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320050,
+      "oracle": {
+        "estimate": 1.9609454017301282,
+        "low": 1.71885184821997,
+        "high": 2.2030389552402867
+      },
+      "estimate": {
+        "estimate": 2.0233614475360935,
+        "low": 1.677759526834853,
+        "high": 2.368963368237334,
+        "clipped_fraction": 0.016
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320051,
+      "oracle": {
+        "estimate": 1.8315271366214227,
+        "low": 1.6105920263549212,
+        "high": 2.0524622468879246
+      },
+      "estimate": {
+        "estimate": 1.7663346541695044,
+        "low": 1.3822271423428507,
+        "high": 2.150442165996158,
+        "clipped_fraction": 0.008
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320052,
+      "oracle": {
+        "estimate": 1.920227654442756,
+        "low": 1.685758388699942,
+        "high": 2.1546969201855695
+      },
+      "estimate": {
+        "estimate": 2.2598594190891617,
+        "low": 1.8133363816903574,
+        "high": 2.706382456487966,
+        "clipped_fraction": 0.02
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320053,
+      "oracle": {
+        "estimate": 1.9437790515949422,
+        "low": 1.7361182922952334,
+        "high": 2.151439810894651
+      },
+      "estimate": {
+        "estimate": 1.7659582259374504,
+        "low": 1.3977368743825491,
+        "high": 2.1341795774923518,
+        "clipped_fraction": 0.004
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320054,
+      "oracle": {
+        "estimate": 1.9502106504956116,
+        "low": 1.74278006480414,
+        "high": 2.157641236187083
+      },
+      "estimate": {
+        "estimate": 1.9950132402613916,
+        "low": 1.5004560239575488,
+        "high": 2.4895704565652346,
+        "clipped_fraction": 0.006
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320055,
+      "oracle": {
+        "estimate": 2.0834523591290925,
+        "low": 1.8992470726679964,
+        "high": 2.2676576455901887
+      },
+      "estimate": {
+        "estimate": 2.004340477790972,
+        "low": 1.4491752987110784,
+        "high": 2.559505656870866,
+        "clipped_fraction": 0.048
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320056,
+      "oracle": {
+        "estimate": 1.882332735743372,
+        "low": 1.6681094238064103,
+        "high": 2.0965560476803335
+      },
+      "estimate": {
+        "estimate": 1.7701269973858973,
+        "low": 1.116430523323052,
+        "high": 2.4238234714487428,
+        "clipped_fraction": 0.018
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320057,
+      "oracle": {
+        "estimate": 1.963682582032874,
+        "low": 1.7520052143740061,
+        "high": 2.175359949691742
+      },
+      "estimate": {
+        "estimate": 1.7901074121200886,
+        "low": 1.454046230099977,
+        "high": 2.1261685941402004,
+        "clipped_fraction": 0.048
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320058,
+      "oracle": {
+        "estimate": 2.0294699177127185,
+        "low": 1.794151565607441,
+        "high": 2.2647882698179957
+      },
+      "estimate": {
+        "estimate": 1.9268286414790363,
+        "low": 1.426362363175165,
+        "high": 2.4272949197829075,
+        "clipped_fraction": 0.014
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320059,
+      "oracle": {
+        "estimate": 1.9483560988176134,
+        "low": 1.7362910700922205,
+        "high": 2.1604211275430063
+      },
+      "estimate": {
+        "estimate": 1.8485762176397875,
+        "low": 1.516787594329735,
+        "high": 2.18036484094984,
+        "clipped_fraction": 0.014
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320060,
+      "oracle": {
+        "estimate": 2.0749808765474276,
+        "low": 1.8348592529197087,
+        "high": 2.3151025001751466
+      },
+      "estimate": {
+        "estimate": 1.9605308937483013,
+        "low": 1.4243549755546963,
+        "high": 2.4967068119419062,
+        "clipped_fraction": 0.006
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320061,
+      "oracle": {
+        "estimate": 2.1606392652613593,
+        "low": 1.9760944124212394,
+        "high": 2.3451841181014794
+      },
+      "estimate": {
+        "estimate": 2.224358157247105,
+        "low": 1.7874085838217564,
+        "high": 2.661307730672454,
+        "clipped_fraction": 0.006
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320062,
+      "oracle": {
+        "estimate": 2.1569874702307015,
+        "low": 1.9463547048755339,
+        "high": 2.367620235585869
+      },
+      "estimate": {
+        "estimate": 2.3039107001083727,
+        "low": 1.862944083237346,
+        "high": 2.7448773169793994,
+        "clipped_fraction": 0.016
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320063,
+      "oracle": {
+        "estimate": 1.954781086782761,
+        "low": 1.7300762755606538,
+        "high": 2.1794858980048684
+      },
+      "estimate": {
+        "estimate": 1.894342902975804,
+        "low": 1.475554124641108,
+        "high": 2.3131316813105003,
+        "clipped_fraction": 0.032
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320064,
+      "oracle": {
+        "estimate": 2.155142923334034,
+        "low": 1.9635067864736446,
+        "high": 2.346779060194423
+      },
+      "estimate": {
+        "estimate": 2.2178162700629502,
+        "low": 1.830049087297322,
+        "high": 2.6055834528285784,
+        "clipped_fraction": 0.044
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320065,
+      "oracle": {
+        "estimate": 2.0508196062706667,
+        "low": 1.834694826759776,
+        "high": 2.2669443857815574
+      },
+      "estimate": {
+        "estimate": 1.8967010477592374,
+        "low": 1.4960696359684498,
+        "high": 2.297332459550025,
+        "clipped_fraction": 0.03
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320066,
+      "oracle": {
+        "estimate": 2.0677155518055352,
+        "low": 1.8636890201026028,
+        "high": 2.271742083508468
+      },
+      "estimate": {
+        "estimate": 2.156955265149716,
+        "low": 1.7546163822018574,
+        "high": 2.559294148097574,
+        "clipped_fraction": 0.006
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320067,
+      "oracle": {
+        "estimate": 2.0189865620453924,
+        "low": 1.8079576248061073,
+        "high": 2.2300154992846775
+      },
+      "estimate": {
+        "estimate": 2.3744655303015105,
+        "low": 1.7691995756667542,
+        "high": 2.979731484936267,
+        "clipped_fraction": 0.024
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320068,
+      "oracle": {
+        "estimate": 2.0311967445712744,
+        "low": 1.8180808919089326,
+        "high": 2.244312597233616
+      },
+      "estimate": {
+        "estimate": 1.941382726794988,
+        "low": 1.6087493045833212,
+        "high": 2.2740161490066546,
+        "clipped_fraction": 0.008
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320069,
+      "oracle": {
+        "estimate": 1.8407135755268373,
+        "low": 1.6303145862939896,
+        "high": 2.051112564759685
+      },
+      "estimate": {
+        "estimate": 1.701369349063016,
+        "low": 1.2513564087831621,
+        "high": 2.15138228934287,
+        "clipped_fraction": 0.018
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320070,
+      "oracle": {
+        "estimate": 2.054590222408263,
+        "low": 1.8233096271736806,
+        "high": 2.2858708176428455
+      },
+      "estimate": {
+        "estimate": 2.0686652609987837,
+        "low": 1.565892651843376,
+        "high": 2.5714378701541913,
+        "clipped_fraction": 0.012
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320071,
+      "oracle": {
+        "estimate": 1.7345465282581618,
+        "low": 1.5166009617338636,
+        "high": 1.95249209478246
+      },
+      "estimate": {
+        "estimate": 1.8338909905532745,
+        "low": 1.4468751240291067,
+        "high": 2.220906857077442,
+        "clipped_fraction": 0.014
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320072,
+      "oracle": {
+        "estimate": 1.917094006852022,
+        "low": 1.7047817840823891,
+        "high": 2.129406229621655
+      },
+      "estimate": {
+        "estimate": 1.7667419727482387,
+        "low": 1.334601119811972,
+        "high": 2.1988828256845054,
+        "clipped_fraction": 0.004
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320073,
+      "oracle": {
+        "estimate": 2.00773155638005,
+        "low": 1.8276893297822152,
+        "high": 2.187773782977885
+      },
+      "estimate": {
+        "estimate": 1.9206210159148656,
+        "low": 1.5242271463761656,
+        "high": 2.3170148854535655,
+        "clipped_fraction": 0.062
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320074,
+      "oracle": {
+        "estimate": 2.119114607349352,
+        "low": 1.9191175771265152,
+        "high": 2.3191116375721883
+      },
+      "estimate": {
+        "estimate": 2.0138779054779534,
+        "low": 1.5839386559641668,
+        "high": 2.44381715499174,
+        "clipped_fraction": 0.026
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320075,
+      "oracle": {
+        "estimate": 2.205811432857086,
+        "low": 1.9689943241284875,
+        "high": 2.4426285415856843
+      },
+      "estimate": {
+        "estimate": 2.0684427697022554,
+        "low": 1.5746922257138292,
+        "high": 2.5621933136906816,
+        "clipped_fraction": 0.028
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320076,
+      "oracle": {
+        "estimate": 1.9249397697228328,
+        "low": 1.6848249843473135,
+        "high": 2.1650545550983518
+      },
+      "estimate": {
+        "estimate": 1.6777778812743138,
+        "low": 1.1764569236770515,
+        "high": 2.1790988388715764,
+        "clipped_fraction": 0.012
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320077,
+      "oracle": {
+        "estimate": 1.939698368025961,
+        "low": 1.7570342453773045,
+        "high": 2.1223624906746177
+      },
+      "estimate": {
+        "estimate": 1.7927796029519387,
+        "low": 1.4014330613626615,
+        "high": 2.184126144541216,
+        "clipped_fraction": 0.01
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320078,
+      "oracle": {
+        "estimate": 1.8631875676019622,
+        "low": 1.6605548398112993,
+        "high": 2.0658202953926255
+      },
+      "estimate": {
+        "estimate": 1.5430319637608796,
+        "low": 1.02779170062975,
+        "high": 2.0582722268920093,
+        "clipped_fraction": 0.024
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320079,
+      "oracle": {
+        "estimate": 2.1087311473370547,
+        "low": 1.901630132432091,
+        "high": 2.3158321622420184
+      },
+      "estimate": {
+        "estimate": 2.050698423133146,
+        "low": 1.6560443509916865,
+        "high": 2.4453524952746055,
+        "clipped_fraction": 0.046
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320080,
+      "oracle": {
+        "estimate": 2.1835749623733527,
+        "low": 1.9452202693591205,
+        "high": 2.4219296553875846
+      },
+      "estimate": {
+        "estimate": 2.0818488396732038,
+        "low": 1.6672128843958542,
+        "high": 2.496484794950553,
+        "clipped_fraction": 0.002
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320081,
+      "oracle": {
+        "estimate": 2.0469115547997005,
+        "low": 1.8224417886350108,
+        "high": 2.27138132096439
+      },
+      "estimate": {
+        "estimate": 1.9958920093602746,
+        "low": 1.6138605440803562,
+        "high": 2.377923474640193,
+        "clipped_fraction": 0.004
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320082,
+      "oracle": {
+        "estimate": 1.8839976982058206,
+        "low": 1.6858009530229914,
+        "high": 2.08219444338865
+      },
+      "estimate": {
+        "estimate": 1.8112485241786513,
+        "low": 1.4586745261531162,
+        "high": 2.1638225222041862,
+        "clipped_fraction": 0.06
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320083,
+      "oracle": {
+        "estimate": 2.3291273599772504,
+        "low": 1.985334327389383,
+        "high": 2.6729203925651177
+      },
+      "estimate": {
+        "estimate": 2.259596013074285,
+        "low": 1.8560079888067087,
+        "high": 2.6631840373418614,
+        "clipped_fraction": 0.006
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320084,
+      "oracle": {
+        "estimate": 1.9392331880051819,
+        "low": 1.724611750690347,
+        "high": 2.153854625320017
+      },
+      "estimate": {
+        "estimate": 1.6522510575466514,
+        "low": 1.2954004993414414,
+        "high": 2.0091016157518613,
+        "clipped_fraction": 0.042
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320085,
+      "oracle": {
+        "estimate": 2.0910335230768693,
+        "low": 1.8791899130602003,
+        "high": 2.3028771330935385
+      },
+      "estimate": {
+        "estimate": 1.9815093804080712,
+        "low": 1.5722559274692178,
+        "high": 2.390762833346925,
+        "clipped_fraction": 0.026
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320086,
+      "oracle": {
+        "estimate": 1.9798988383054865,
+        "low": 1.7513897360880517,
+        "high": 2.208407940522921
+      },
+      "estimate": {
+        "estimate": 2.0419092287152867,
+        "low": 1.5875830126560326,
+        "high": 2.4962354447745407,
+        "clipped_fraction": 0.006
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320087,
+      "oracle": {
+        "estimate": 1.9118787567600466,
+        "low": 1.6946455281381536,
+        "high": 2.1291119853819396
+      },
+      "estimate": {
+        "estimate": 1.9588740201694224,
+        "low": 1.650994669169302,
+        "high": 2.2667533711695427,
+        "clipped_fraction": 0.01
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320088,
+      "oracle": {
+        "estimate": 2.100200615094117,
+        "low": 1.8647208680275278,
+        "high": 2.3356803621607063
+      },
+      "estimate": {
+        "estimate": 2.053834355065997,
+        "low": 1.5020770946472901,
+        "high": 2.6055916154847045,
+        "clipped_fraction": 0.006
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320089,
+      "oracle": {
+        "estimate": 2.0911133811826783,
+        "low": 1.8883755790624552,
+        "high": 2.2938511833029014
+      },
+      "estimate": {
+        "estimate": 2.092908429903604,
+        "low": 1.5685212442259964,
+        "high": 2.6172956155812113,
+        "clipped_fraction": 0.036
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320090,
+      "oracle": {
+        "estimate": 2.221677381810582,
+        "low": 1.992961998432929,
+        "high": 2.450392765188235
+      },
+      "estimate": {
+        "estimate": 2.143526589436777,
+        "low": 1.7527582862620563,
+        "high": 2.534294892611498,
+        "clipped_fraction": 0.002
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320091,
+      "oracle": {
+        "estimate": 1.9964434366440387,
+        "low": 1.7833826427489161,
+        "high": 2.209504230539161
+      },
+      "estimate": {
+        "estimate": 1.948527269107567,
+        "low": 1.5627558073360743,
+        "high": 2.33429873087906,
+        "clipped_fraction": 0.008
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320092,
+      "oracle": {
+        "estimate": 1.9384561764887718,
+        "low": 1.7457054835888328,
+        "high": 2.131206869388711
+      },
+      "estimate": {
+        "estimate": 2.1607487229593234,
+        "low": 1.6743610045238428,
+        "high": 2.647136441394804,
+        "clipped_fraction": 0.03
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320093,
+      "oracle": {
+        "estimate": 2.066025679799158,
+        "low": 1.8144586193213887,
+        "high": 2.317592740276927
+      },
+      "estimate": {
+        "estimate": 2.303728785289233,
+        "low": 1.9102545164425404,
+        "high": 2.697203054135926,
+        "clipped_fraction": 0.002
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320094,
+      "oracle": {
+        "estimate": 1.9830167550171687,
+        "low": 1.766852964590073,
+        "high": 2.1991805454442646
+      },
+      "estimate": {
+        "estimate": 2.4053721554803302,
+        "low": 1.7228978676505156,
+        "high": 3.087846443310145,
+        "clipped_fraction": 0.012
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320095,
+      "oracle": {
+        "estimate": 1.9751659849553855,
+        "low": 1.7859269666357405,
+        "high": 2.1644050032750304
+      },
+      "estimate": {
+        "estimate": 2.0238561122987817,
+        "low": 1.611163904364103,
+        "high": 2.4365483202334604,
+        "clipped_fraction": 0.028
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320096,
+      "oracle": {
+        "estimate": 2.004504098037706,
+        "low": 1.8054204368985605,
+        "high": 2.203587759176851
+      },
+      "estimate": {
+        "estimate": 1.8297490826206608,
+        "low": 1.4065213849932954,
+        "high": 2.2529767802480265,
+        "clipped_fraction": 0.002
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320097,
+      "oracle": {
+        "estimate": 2.044600920746165,
+        "low": 1.8214501086996013,
+        "high": 2.267751732792729
+      },
+      "estimate": {
+        "estimate": 2.0816971713244805,
+        "low": 1.6504692939019363,
+        "high": 2.5129250487470247,
+        "clipped_fraction": 0.0
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320098,
+      "oracle": {
+        "estimate": 1.9475484579179259,
+        "low": 1.7555930003586884,
+        "high": 2.1395039154771633
+      },
+      "estimate": {
+        "estimate": 1.7450373895554268,
+        "low": 1.1829201963958242,
+        "high": 2.3071545827150293,
+        "clipped_fraction": 0.024
+      }
+    },
+    {
+      "scenario": "nonlinear",
+      "seed": 320099,
+      "oracle": {
+        "estimate": 1.9873711127544011,
+        "low": 1.76858295557256,
+        "high": 2.2061592699362422
+      },
+      "estimate": {
+        "estimate": 1.9894645241277817,
+        "low": 1.6732812493695537,
+        "high": 2.30564779888601,
+        "clipped_fraction": 0.024
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320000,
+      "oracle": {
+        "estimate": 1.7883156720226352,
+        "low": 1.5629617023491682,
+        "high": 2.013669641696102
+      },
+      "estimate": {
+        "estimate": 3.1629961029849367,
+        "low": 2.575780291745501,
+        "high": 3.7502119142243724,
+        "clipped_fraction": 0.016
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320001,
+      "oracle": {
+        "estimate": 1.945279097837234,
+        "low": 1.7122790090215552,
+        "high": 2.178279186652913
+      },
+      "estimate": {
+        "estimate": 2.8396190298970767,
+        "low": 2.4092863930886317,
+        "high": 3.2699516667055217,
+        "clipped_fraction": 0.014
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320002,
+      "oracle": {
+        "estimate": 2.168970184905849,
+        "low": 1.8999713340804592,
+        "high": 2.437969035731239
+      },
+      "estimate": {
+        "estimate": 3.442771974286154,
+        "low": 3.0901148865292534,
+        "high": 3.7954290620430546,
+        "clipped_fraction": 0.002
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320003,
+      "oracle": {
+        "estimate": 2.1440231952346194,
+        "low": 1.4949303344427376,
+        "high": 2.793116056026501
+      },
+      "estimate": {
+        "estimate": 2.548755110420372,
+        "low": 2.1782778514127132,
+        "high": 2.9192323694280304,
+        "clipped_fraction": 0.0
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320004,
+      "oracle": {
+        "estimate": 2.0097338531975244,
+        "low": 1.793056320042197,
+        "high": 2.226411386352852
+      },
+      "estimate": {
+        "estimate": 2.9367379649308987,
+        "low": 2.4901256249566033,
+        "high": 3.383350304905194,
+        "clipped_fraction": 0.004
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320005,
+      "oracle": {
+        "estimate": 1.8222115544839421,
+        "low": 1.5321751829414423,
+        "high": 2.1122479260264417
+      },
+      "estimate": {
+        "estimate": 2.6170751284310874,
+        "low": 2.1394163009336307,
+        "high": 3.094733955928544,
+        "clipped_fraction": 0.004
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320006,
+      "oracle": {
+        "estimate": 2.095543093556816,
+        "low": 1.8832073620519958,
+        "high": 2.307878825061636
+      },
+      "estimate": {
+        "estimate": 3.2114914597608277,
+        "low": 2.8570104936954617,
+        "high": 3.565972425826194,
+        "clipped_fraction": 0.002
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320007,
+      "oracle": {
+        "estimate": 2.0660631240848017,
+        "low": 1.8540082369982425,
+        "high": 2.278118011171361
+      },
+      "estimate": {
+        "estimate": 2.8916319440940135,
+        "low": 2.4325705577285848,
+        "high": 3.350693330459442,
+        "clipped_fraction": 0.022
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320008,
+      "oracle": {
+        "estimate": 2.138973185794536,
+        "low": 1.916756928726656,
+        "high": 2.3611894428624165
+      },
+      "estimate": {
+        "estimate": 2.9714288882362507,
+        "low": 2.682088481379055,
+        "high": 3.2607692950934464,
+        "clipped_fraction": 0.008
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320009,
+      "oracle": {
+        "estimate": 1.9560096656837918,
+        "low": 1.7621068818631025,
+        "high": 2.1499124495044812
+      },
+      "estimate": {
+        "estimate": 3.233847114040844,
+        "low": 2.799075323257126,
+        "high": 3.6686189048245614,
+        "clipped_fraction": 0.0
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320010,
+      "oracle": {
+        "estimate": 1.8674431436754748,
+        "low": 1.6132191987880757,
+        "high": 2.121667088562874
+      },
+      "estimate": {
+        "estimate": 2.595054767314665,
+        "low": 2.0939092438425058,
+        "high": 3.096200290786824,
+        "clipped_fraction": 0.0
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320011,
+      "oracle": {
+        "estimate": 2.0727563502034867,
+        "low": 1.8328650259517645,
+        "high": 2.312647674455209
+      },
+      "estimate": {
+        "estimate": 3.110759012147304,
+        "low": 2.6212435912940535,
+        "high": 3.6002744330005543,
+        "clipped_fraction": 0.0
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320012,
+      "oracle": {
+        "estimate": 1.931063423575457,
+        "low": 1.697065329675943,
+        "high": 2.165061517474971
+      },
+      "estimate": {
+        "estimate": 2.8054556722153046,
+        "low": 2.417989526916804,
+        "high": 3.192921817513805,
+        "clipped_fraction": 0.0
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320013,
+      "oracle": {
+        "estimate": 2.083271319544804,
+        "low": 1.8588081739535272,
+        "high": 2.3077344651360807
+      },
+      "estimate": {
+        "estimate": 3.2750856954592993,
+        "low": 2.9603746404420286,
+        "high": 3.58979675047657,
+        "clipped_fraction": 0.002
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320014,
+      "oracle": {
+        "estimate": 1.8800496151509407,
+        "low": 1.638387353622801,
+        "high": 2.1217118766790803
+      },
+      "estimate": {
+        "estimate": 3.045893235085576,
+        "low": 2.690188541033345,
+        "high": 3.401597929137807,
+        "clipped_fraction": 0.01
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320015,
+      "oracle": {
+        "estimate": 2.0059024416736677,
+        "low": 1.764525555961219,
+        "high": 2.2472793273861162
+      },
+      "estimate": {
+        "estimate": 2.79537576812043,
+        "low": 2.3619090026729608,
+        "high": 3.228842533567899,
+        "clipped_fraction": 0.002
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320016,
+      "oracle": {
+        "estimate": 1.9714557791685756,
+        "low": 1.6875730179969735,
+        "high": 2.255338540340178
+      },
+      "estimate": {
+        "estimate": 3.1665694599679046,
+        "low": 2.7075786486362006,
+        "high": 3.6255602712996087,
+        "clipped_fraction": 0.024
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320017,
+      "oracle": {
+        "estimate": 2.1103925848905685,
+        "low": 1.828123317818514,
+        "high": 2.392661851962623
+      },
+      "estimate": {
+        "estimate": 2.8217173578146872,
+        "low": 2.38579857837596,
+        "high": 3.2576361372534146,
+        "clipped_fraction": 0.0
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320018,
+      "oracle": {
+        "estimate": 1.660116670092122,
+        "low": 1.2827598983530053,
+        "high": 2.0374734418312386
+      },
+      "estimate": {
+        "estimate": 2.7698022447353394,
+        "low": 2.4307669123561104,
+        "high": 3.1088375771145684,
+        "clipped_fraction": 0.0
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320019,
+      "oracle": {
+        "estimate": 2.1279889629982596,
+        "low": 1.753739027634121,
+        "high": 2.502238898362398
+      },
+      "estimate": {
+        "estimate": 2.92147951853312,
+        "low": 2.4139833144203484,
+        "high": 3.428975722645892,
+        "clipped_fraction": 0.008
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320020,
+      "oracle": {
+        "estimate": 1.7734924680246378,
+        "low": 1.541618997999171,
+        "high": 2.0053659380501045
+      },
+      "estimate": {
+        "estimate": 2.6588180349223967,
+        "low": 2.236775572156023,
+        "high": 3.08086049768877,
+        "clipped_fraction": 0.002
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320021,
+      "oracle": {
+        "estimate": 1.9372808123732048,
+        "low": 1.5973448975433222,
+        "high": 2.277216727203087
+      },
+      "estimate": {
+        "estimate": 2.917398581278483,
+        "low": 2.418226499729103,
+        "high": 3.416570662827863,
+        "clipped_fraction": 0.002
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320022,
+      "oracle": {
+        "estimate": 1.6498413402819132,
+        "low": 0.9664011241695504,
+        "high": 2.333281556394276
+      },
+      "estimate": {
+        "estimate": 3.006893599222388,
+        "low": 2.635970228593436,
+        "high": 3.37781696985134,
+        "clipped_fraction": 0.0
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320023,
+      "oracle": {
+        "estimate": 1.9742602543728371,
+        "low": 1.7234156395048519,
+        "high": 2.2251048692408224
+      },
+      "estimate": {
+        "estimate": 2.8535302096800765,
+        "low": 2.468712599055104,
+        "high": 3.238347820305049,
+        "clipped_fraction": 0.004
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320024,
+      "oracle": {
+        "estimate": 1.9060715160922788,
+        "low": 1.5634240620953874,
+        "high": 2.24871897008917
+      },
+      "estimate": {
+        "estimate": 3.0346154602229864,
+        "low": 2.67811427810192,
+        "high": 3.391116642344053,
+        "clipped_fraction": 0.002
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320025,
+      "oracle": {
+        "estimate": 1.8192917198597325,
+        "low": 1.5967969096889585,
+        "high": 2.0417865300305063
+      },
+      "estimate": {
+        "estimate": 3.007270586463898,
+        "low": 2.539821602602867,
+        "high": 3.474719570324929,
+        "clipped_fraction": 0.008
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320026,
+      "oracle": {
+        "estimate": 2.2643655087393006,
+        "low": 2.0842850111403752,
+        "high": 2.444446006338226
+      },
+      "estimate": {
+        "estimate": 3.2429652725323876,
+        "low": 2.763217822969594,
+        "high": 3.7227127220951814,
+        "clipped_fraction": 0.002
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320027,
+      "oracle": {
+        "estimate": 1.996495660933872,
+        "low": 1.7798147613721402,
+        "high": 2.2131765604956035
+      },
+      "estimate": {
+        "estimate": 2.939494110147768,
+        "low": 2.58191804706421,
+        "high": 3.2970701732313263,
+        "clipped_fraction": 0.022
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320028,
+      "oracle": {
+        "estimate": 2.02988517249412,
+        "low": 1.769960371507323,
+        "high": 2.289809973480917
+      },
+      "estimate": {
+        "estimate": 3.1561262799909553,
+        "low": 2.7450453264810473,
+        "high": 3.5672072335008633,
+        "clipped_fraction": 0.002
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320029,
+      "oracle": {
+        "estimate": 2.0458182288919637,
+        "low": 1.774576436553431,
+        "high": 2.3170600212304966
+      },
+      "estimate": {
+        "estimate": 3.0525464017835637,
+        "low": 2.662991410683223,
+        "high": 3.4421013928839046,
+        "clipped_fraction": 0.006
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320030,
+      "oracle": {
+        "estimate": 1.928606827854237,
+        "low": 1.5099889667936695,
+        "high": 2.3472246889148045
+      },
+      "estimate": {
+        "estimate": 2.9161997562077575,
+        "low": 2.3572360810964432,
+        "high": 3.475163431319072,
+        "clipped_fraction": 0.0
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320031,
+      "oracle": {
+        "estimate": 2.039231092639692,
+        "low": 1.824700039375181,
+        "high": 2.2537621459042025
+      },
+      "estimate": {
+        "estimate": 3.2851097689948214,
+        "low": 2.8160600333088146,
+        "high": 3.7541595046808283,
+        "clipped_fraction": 0.014
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320032,
+      "oracle": {
+        "estimate": 2.1572649398376114,
+        "low": 1.9615381554973015,
+        "high": 2.3529917241779215
+      },
+      "estimate": {
+        "estimate": 2.9944676379583184,
+        "low": 2.6898456748575525,
+        "high": 3.299089601059084,
+        "clipped_fraction": 0.002
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320033,
+      "oracle": {
+        "estimate": 2.2529352066651764,
+        "low": 1.7749403415559284,
+        "high": 2.7309300717744245
+      },
+      "estimate": {
+        "estimate": 2.9712852010794717,
+        "low": 2.596671943162327,
+        "high": 3.3458984589966163,
+        "clipped_fraction": 0.002
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320034,
+      "oracle": {
+        "estimate": 2.118632318697475,
+        "low": 1.8271360676403592,
+        "high": 2.4101285697545904
+      },
+      "estimate": {
+        "estimate": 2.751382578511978,
+        "low": 2.222789719789425,
+        "high": 3.2799754372345307,
+        "clipped_fraction": 0.008
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320035,
+      "oracle": {
+        "estimate": 2.0295354579078815,
+        "low": 1.8235663904939234,
+        "high": 2.2355045253218395
+      },
+      "estimate": {
+        "estimate": 2.986760144703317,
+        "low": 2.675338862871304,
+        "high": 3.29818142653533,
+        "clipped_fraction": 0.002
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320036,
+      "oracle": {
+        "estimate": 2.1430011170628305,
+        "low": 1.9265113446199442,
+        "high": 2.3594908895057167
+      },
+      "estimate": {
+        "estimate": 3.072004699573055,
+        "low": 2.651090918632355,
+        "high": 3.4929184805137554,
+        "clipped_fraction": 0.002
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320037,
+      "oracle": {
+        "estimate": 2.280041546415573,
+        "low": 2.0285468589525992,
+        "high": 2.5315362338785468
+      },
+      "estimate": {
+        "estimate": 3.305058153093312,
+        "low": 2.952289270659568,
+        "high": 3.657827035527056,
+        "clipped_fraction": 0.002
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320038,
+      "oracle": {
+        "estimate": 1.834578468982409,
+        "low": 1.591871331989476,
+        "high": 2.0772856059753417
+      },
+      "estimate": {
+        "estimate": 2.8251065029017606,
+        "low": 2.503918616991573,
+        "high": 3.146294388811948,
+        "clipped_fraction": 0.026
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320039,
+      "oracle": {
+        "estimate": 1.9732832861289682,
+        "low": 1.7381708883656337,
+        "high": 2.2083956838923027
+      },
+      "estimate": {
+        "estimate": 2.9393083557171558,
+        "low": 2.632547821209486,
+        "high": 3.2460688902248256,
+        "clipped_fraction": 0.0
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320040,
+      "oracle": {
+        "estimate": 2.027731486659305,
+        "low": 1.8397645748105986,
+        "high": 2.215698398508011
+      },
+      "estimate": {
+        "estimate": 3.058064950753963,
+        "low": 2.524168173172308,
+        "high": 3.591961728335618,
+        "clipped_fraction": 0.02
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320041,
+      "oracle": {
+        "estimate": 2.139378463780058,
+        "low": 1.8782433684230784,
+        "high": 2.400513559137038
+      },
+      "estimate": {
+        "estimate": 2.9876807490121164,
+        "low": 2.597270391909366,
+        "high": 3.378091106114867,
+        "clipped_fraction": 0.002
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320042,
+      "oracle": {
+        "estimate": 1.9337841671651466,
+        "low": 1.732387292444486,
+        "high": 2.135181041885807
+      },
+      "estimate": {
+        "estimate": 3.1032572152017845,
+        "low": 2.6337287815999413,
+        "high": 3.572785648803628,
+        "clipped_fraction": 0.01
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320043,
+      "oracle": {
+        "estimate": 2.072186779717843,
+        "low": 1.8247775247561089,
+        "high": 2.319596034679577
+      },
+      "estimate": {
+        "estimate": 2.88598234142735,
+        "low": 2.4550795744538885,
+        "high": 3.316885108400812,
+        "clipped_fraction": 0.016
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320044,
+      "oracle": {
+        "estimate": 2.0664106696737936,
+        "low": 1.8361937477226926,
+        "high": 2.296627591624895
+      },
+      "estimate": {
+        "estimate": 2.840946083144288,
+        "low": 2.5244391131094397,
+        "high": 3.1574530531791365,
+        "clipped_fraction": 0.0
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320045,
+      "oracle": {
+        "estimate": 1.8661564827334598,
+        "low": 1.5239536104789415,
+        "high": 2.2083593549879783
+      },
+      "estimate": {
+        "estimate": 2.68643274266545,
+        "low": 1.9529566824864144,
+        "high": 3.4199088028444855,
+        "clipped_fraction": 0.01
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320046,
+      "oracle": {
+        "estimate": 2.2304621666332136,
+        "low": 2.0419397483342423,
+        "high": 2.418984584932185
+      },
+      "estimate": {
+        "estimate": 3.084962367290661,
+        "low": 2.5902539172241132,
+        "high": 3.5796708173572087,
+        "clipped_fraction": 0.022
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320047,
+      "oracle": {
+        "estimate": 2.1248802692764968,
+        "low": 1.904373645950369,
+        "high": 2.3453868926026242
+      },
+      "estimate": {
+        "estimate": 2.885622785051051,
+        "low": 2.4612590060622312,
+        "high": 3.3099865640398707,
+        "clipped_fraction": 0.01
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320048,
+      "oracle": {
+        "estimate": 2.036679704122751,
+        "low": 1.7821339684247084,
+        "high": 2.291225439820794
+      },
+      "estimate": {
+        "estimate": 3.0258236399204854,
+        "low": 2.620648469325372,
+        "high": 3.430998810515599,
+        "clipped_fraction": 0.004
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320049,
+      "oracle": {
+        "estimate": 2.31570208022901,
+        "low": 1.904584985440865,
+        "high": 2.726819175017155
+      },
+      "estimate": {
+        "estimate": 2.8088783303028593,
+        "low": 2.462740226246761,
+        "high": 3.1550164343589575,
+        "clipped_fraction": 0.006
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320050,
+      "oracle": {
+        "estimate": 2.2975847998970407,
+        "low": 2.0620413751990103,
+        "high": 2.533128224595071
+      },
+      "estimate": {
+        "estimate": 3.157842182182404,
+        "low": 2.807320939932964,
+        "high": 3.5083634244318436,
+        "clipped_fraction": 0.004
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320051,
+      "oracle": {
+        "estimate": 2.0730541862043728,
+        "low": 1.8479814430614112,
+        "high": 2.2981269293473345
+      },
+      "estimate": {
+        "estimate": 3.100254976908207,
+        "low": 2.764522574499688,
+        "high": 3.4359873793167255,
+        "clipped_fraction": 0.008
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320052,
+      "oracle": {
+        "estimate": 1.8681588101077653,
+        "low": 1.5158071674041278,
+        "high": 2.2205104528114026
+      },
+      "estimate": {
+        "estimate": 2.8177579864934694,
+        "low": 2.402187010764943,
+        "high": 3.233328962221996,
+        "clipped_fraction": 0.018
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320053,
+      "oracle": {
+        "estimate": 2.144982149015466,
+        "low": 1.875104266089758,
+        "high": 2.4148600319411737
+      },
+      "estimate": {
+        "estimate": 2.9656253331009346,
+        "low": 2.5502945718682644,
+        "high": 3.3809560943336048,
+        "clipped_fraction": 0.008
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320054,
+      "oracle": {
+        "estimate": 1.9837016827006042,
+        "low": 1.6970729161479843,
+        "high": 2.270330449253224
+      },
+      "estimate": {
+        "estimate": 2.4670720706261817,
+        "low": 1.7289093816367622,
+        "high": 3.2052347596156014,
+        "clipped_fraction": 0.018
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320055,
+      "oracle": {
+        "estimate": 2.1590665978389274,
+        "low": 1.9415181452263692,
+        "high": 2.376615050451486
+      },
+      "estimate": {
+        "estimate": 2.757668952664073,
+        "low": 2.2624438503030757,
+        "high": 3.2528940550250707,
+        "clipped_fraction": 0.012
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320056,
+      "oracle": {
+        "estimate": 1.9207742507234487,
+        "low": 1.6339229524864947,
+        "high": 2.2076255489604026
+      },
+      "estimate": {
+        "estimate": 2.996283101263651,
+        "low": 2.4566758145062377,
+        "high": 3.535890388021064,
+        "clipped_fraction": 0.01
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320057,
+      "oracle": {
+        "estimate": 2.016754157575193,
+        "low": 1.7391170430043355,
+        "high": 2.2943912721460507
+      },
+      "estimate": {
+        "estimate": 3.3505143274579097,
+        "low": 2.856955422467186,
+        "high": 3.8440732324486335,
+        "clipped_fraction": 0.006
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320058,
+      "oracle": {
+        "estimate": 1.9106784514831452,
+        "low": 1.6768060737672454,
+        "high": 2.144550829199045
+      },
+      "estimate": {
+        "estimate": 2.814552493862515,
+        "low": 2.2516952957985588,
+        "high": 3.377409691926471,
+        "clipped_fraction": 0.0
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320059,
+      "oracle": {
+        "estimate": 2.1934366710919395,
+        "low": 1.9905562069076757,
+        "high": 2.3963171352762034
+      },
+      "estimate": {
+        "estimate": 3.2716989109339503,
+        "low": 2.789036731957897,
+        "high": 3.7543610899100037,
+        "clipped_fraction": 0.002
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320060,
+      "oracle": {
+        "estimate": 2.2455344466389944,
+        "low": 1.952268895032286,
+        "high": 2.5387999982457026
+      },
+      "estimate": {
+        "estimate": 2.9364924015371803,
+        "low": 2.604028859908834,
+        "high": 3.2689559431655266,
+        "clipped_fraction": 0.0
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320061,
+      "oracle": {
+        "estimate": 1.9452427661977887,
+        "low": 1.7324928510022288,
+        "high": 2.1579926813933485
+      },
+      "estimate": {
+        "estimate": 2.414248213310694,
+        "low": 1.8299332351698112,
+        "high": 2.998563191451577,
+        "clipped_fraction": 0.01
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320062,
+      "oracle": {
+        "estimate": 2.230052536466412,
+        "low": 1.8876999684679194,
+        "high": 2.572405104464904
+      },
+      "estimate": {
+        "estimate": 3.1242678969253257,
+        "low": 2.6398782758143136,
+        "high": 3.608657518036338,
+        "clipped_fraction": 0.004
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320063,
+      "oracle": {
+        "estimate": 1.7816356643760312,
+        "low": 1.54527990054142,
+        "high": 2.0179914282106424
+      },
+      "estimate": {
+        "estimate": 2.5795297289083874,
+        "low": 2.1469347974218342,
+        "high": 3.0121246603949405,
+        "clipped_fraction": 0.0
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320064,
+      "oracle": {
+        "estimate": 2.1719066990351013,
+        "low": 1.8917770037939678,
+        "high": 2.452036394276235
+      },
+      "estimate": {
+        "estimate": 2.9395201527514487,
+        "low": 2.6585031513041084,
+        "high": 3.220537154198789,
+        "clipped_fraction": 0.004
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320065,
+      "oracle": {
+        "estimate": 2.0910133411391483,
+        "low": 1.8471413531998697,
+        "high": 2.3348853290784266
+      },
+      "estimate": {
+        "estimate": 3.2008265199580017,
+        "low": 2.8016817892963615,
+        "high": 3.599971250619642,
+        "clipped_fraction": 0.0
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320066,
+      "oracle": {
+        "estimate": 1.9306895722808635,
+        "low": 1.7189827433482632,
+        "high": 2.142396401213464
+      },
+      "estimate": {
+        "estimate": 3.1176259992375908,
+        "low": 2.7326862558316964,
+        "high": 3.502565742643485,
+        "clipped_fraction": 0.008
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320067,
+      "oracle": {
+        "estimate": 2.0328316016928176,
+        "low": 1.7768275742428135,
+        "high": 2.288835629142822
+      },
+      "estimate": {
+        "estimate": 2.7234056062421583,
+        "low": 2.2318802693816076,
+        "high": 3.214930943102709,
+        "clipped_fraction": 0.0
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320068,
+      "oracle": {
+        "estimate": 1.9399012428438682,
+        "low": 1.742179282206778,
+        "high": 2.1376232034809584
+      },
+      "estimate": {
+        "estimate": 2.8800066704147356,
+        "low": 2.419658995996945,
+        "high": 3.340354344832526,
+        "clipped_fraction": 0.002
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320069,
+      "oracle": {
+        "estimate": 2.0298080014637745,
+        "low": 1.8062461249446198,
+        "high": 2.253369877982929
+      },
+      "estimate": {
+        "estimate": 3.0295320432576065,
+        "low": 2.50238588241554,
+        "high": 3.556678204099673,
+        "clipped_fraction": 0.058
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320070,
+      "oracle": {
+        "estimate": 2.1932301255860263,
+        "low": 1.8233665033312438,
+        "high": 2.5630937478408087
+      },
+      "estimate": {
+        "estimate": 3.0986187795907574,
+        "low": 2.6745156572517583,
+        "high": 3.5227219019297564,
+        "clipped_fraction": 0.006
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320071,
+      "oracle": {
+        "estimate": 2.1661571229381216,
+        "low": 1.9460282328394956,
+        "high": 2.3862860130367474
+      },
+      "estimate": {
+        "estimate": 2.959011557304921,
+        "low": 2.5851277928765883,
+        "high": 3.332895321733254,
+        "clipped_fraction": 0.0
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320072,
+      "oracle": {
+        "estimate": 1.9207031940978372,
+        "low": 1.6394210036468357,
+        "high": 2.2019853845488386
+      },
+      "estimate": {
+        "estimate": 2.4943443122564033,
+        "low": 1.2818916981282007,
+        "high": 3.706796926384606,
+        "clipped_fraction": 0.036
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320073,
+      "oracle": {
+        "estimate": 2.128481276506792,
+        "low": 1.8490836862079933,
+        "high": 2.4078788668055906
+      },
+      "estimate": {
+        "estimate": 2.974221959054266,
+        "low": 2.418068380229212,
+        "high": 3.5303755378793196,
+        "clipped_fraction": 0.016
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320074,
+      "oracle": {
+        "estimate": 2.0476042667426295,
+        "low": 1.8091196983945974,
+        "high": 2.286088835090662
+      },
+      "estimate": {
+        "estimate": 2.9273799937995966,
+        "low": 2.577350412640763,
+        "high": 3.27740957495843,
+        "clipped_fraction": 0.0
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320075,
+      "oracle": {
+        "estimate": 2.025588717479192,
+        "low": 1.7924641337263347,
+        "high": 2.2587133012320493
+      },
+      "estimate": {
+        "estimate": 2.9249095774344176,
+        "low": 2.5146493926041256,
+        "high": 3.3351697622647096,
+        "clipped_fraction": 0.004
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320076,
+      "oracle": {
+        "estimate": 1.8147683864958408,
+        "low": 1.5701499912907435,
+        "high": 2.059386781700938
+      },
+      "estimate": {
+        "estimate": 2.6105057839229566,
+        "low": 2.2656259480456673,
+        "high": 2.955385619800246,
+        "clipped_fraction": 0.002
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320077,
+      "oracle": {
+        "estimate": 2.0528069869886822,
+        "low": 1.841909863892895,
+        "high": 2.2637041100844693
+      },
+      "estimate": {
+        "estimate": 3.0020666081163023,
+        "low": 2.643982993434774,
+        "high": 3.360150222797831,
+        "clipped_fraction": 0.02
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320078,
+      "oracle": {
+        "estimate": 2.100533726147075,
+        "low": 1.871281365822256,
+        "high": 2.3297860864718936
+      },
+      "estimate": {
+        "estimate": 2.9501811248999172,
+        "low": 2.655384793455985,
+        "high": 3.2449774563438494,
+        "clipped_fraction": 0.028
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320079,
+      "oracle": {
+        "estimate": 1.9385774500061288,
+        "low": 1.7459694496204101,
+        "high": 2.1311854503918477
+      },
+      "estimate": {
+        "estimate": 2.871717811714269,
+        "low": 2.4009722113612284,
+        "high": 3.3424634120673096,
+        "clipped_fraction": 0.012
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320080,
+      "oracle": {
+        "estimate": 1.8248249094317621,
+        "low": 1.4741260080741998,
+        "high": 2.1755238107893247
+      },
+      "estimate": {
+        "estimate": 3.236130248123689,
+        "low": 2.8322873179147496,
+        "high": 3.639973178332628,
+        "clipped_fraction": 0.014
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320081,
+      "oracle": {
+        "estimate": 1.915100652406915,
+        "low": 1.62903271575809,
+        "high": 2.2011685890557398
+      },
+      "estimate": {
+        "estimate": 2.7704686274989454,
+        "low": 2.2233882000453162,
+        "high": 3.3175490549525746,
+        "clipped_fraction": 0.01
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320082,
+      "oracle": {
+        "estimate": 2.0891472645676177,
+        "low": 1.7564322483962793,
+        "high": 2.421862280738956
+      },
+      "estimate": {
+        "estimate": 3.2714609017000975,
+        "low": 2.7639660178528613,
+        "high": 3.7789557855473337,
+        "clipped_fraction": 0.002
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320083,
+      "oracle": {
+        "estimate": 1.7248603526864108,
+        "low": 1.2566589679831353,
+        "high": 2.1930617373896863
+      },
+      "estimate": {
+        "estimate": 3.0023179613759843,
+        "low": 2.5175515274659044,
+        "high": 3.487084395286064,
+        "clipped_fraction": 0.004
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320084,
+      "oracle": {
+        "estimate": 2.199578421643529,
+        "low": 1.964436554447779,
+        "high": 2.4347202888392783
+      },
+      "estimate": {
+        "estimate": 3.240867206881487,
+        "low": 2.8433667980900807,
+        "high": 3.6383676156728937,
+        "clipped_fraction": 0.0
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320085,
+      "oracle": {
+        "estimate": 1.8969726733917505,
+        "low": 1.5820197658152195,
+        "high": 2.2119255809682814
+      },
+      "estimate": {
+        "estimate": 2.785741016248211,
+        "low": 2.196107972817776,
+        "high": 3.375374059678646,
+        "clipped_fraction": 0.006
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320086,
+      "oracle": {
+        "estimate": 1.912193972430111,
+        "low": 1.691696865543896,
+        "high": 2.132691079316326
+      },
+      "estimate": {
+        "estimate": 2.6917689303799817,
+        "low": 2.2879246587632425,
+        "high": 3.095613201996721,
+        "clipped_fraction": 0.01
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320087,
+      "oracle": {
+        "estimate": 2.04397101597435,
+        "low": 1.7784252322423806,
+        "high": 2.3095167997063193
+      },
+      "estimate": {
+        "estimate": 2.8555506920933595,
+        "low": 2.3717875680656997,
+        "high": 3.3393138161210194,
+        "clipped_fraction": 0.02
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320088,
+      "oracle": {
+        "estimate": 1.9647302447403159,
+        "low": 1.753531350955532,
+        "high": 2.1759291385251
+      },
+      "estimate": {
+        "estimate": 2.865593534358769,
+        "low": 2.3313756637015732,
+        "high": 3.3998114050159645,
+        "clipped_fraction": 0.0
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320089,
+      "oracle": {
+        "estimate": 2.138929794189647,
+        "low": 1.8752690199822362,
+        "high": 2.402590568397058
+      },
+      "estimate": {
+        "estimate": 3.4161224147384606,
+        "low": 3.0389372289909806,
+        "high": 3.7933076004859405,
+        "clipped_fraction": 0.01
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320090,
+      "oracle": {
+        "estimate": 1.8146854554267495,
+        "low": 1.5020038303164704,
+        "high": 2.1273670805370286
+      },
+      "estimate": {
+        "estimate": 2.8420266712865816,
+        "low": 2.3828559944609333,
+        "high": 3.30119734811223,
+        "clipped_fraction": 0.002
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320091,
+      "oracle": {
+        "estimate": 1.9521818580580175,
+        "low": 1.7240859014059995,
+        "high": 2.1802778147100352
+      },
+      "estimate": {
+        "estimate": 3.048876558100401,
+        "low": 2.6634538881211864,
+        "high": 3.4342992280796154,
+        "clipped_fraction": 0.0
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320092,
+      "oracle": {
+        "estimate": 2.0906234575825677,
+        "low": 1.8823190448046407,
+        "high": 2.2989278703604947
+      },
+      "estimate": {
+        "estimate": 3.2693881017755366,
+        "low": 2.740793594508709,
+        "high": 3.7979826090423643,
+        "clipped_fraction": 0.02
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320093,
+      "oracle": {
+        "estimate": 1.6343819173772818,
+        "low": 1.2321741669071493,
+        "high": 2.036589667847414
+      },
+      "estimate": {
+        "estimate": 2.6772498029617755,
+        "low": 2.2102349817005917,
+        "high": 3.1442646242229593,
+        "clipped_fraction": 0.018
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320094,
+      "oracle": {
+        "estimate": 1.97652150036569,
+        "low": 1.7911963475335209,
+        "high": 2.161846653197859
+      },
+      "estimate": {
+        "estimate": 2.804924595574347,
+        "low": 2.3610307798503176,
+        "high": 3.2488184112983762,
+        "clipped_fraction": 0.022
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320095,
+      "oracle": {
+        "estimate": 2.113538687154527,
+        "low": 1.8927980151165806,
+        "high": 2.3342793591924735
+      },
+      "estimate": {
+        "estimate": 2.979583055602297,
+        "low": 2.5726420246791224,
+        "high": 3.3865240865254713,
+        "clipped_fraction": 0.006
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320096,
+      "oracle": {
+        "estimate": 1.9096911674190238,
+        "low": 1.6932037972433909,
+        "high": 2.1261785375946567
+      },
+      "estimate": {
+        "estimate": 2.722610799394503,
+        "low": 2.153301222795011,
+        "high": 3.2919203759939952,
+        "clipped_fraction": 0.006
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320097,
+      "oracle": {
+        "estimate": 1.7329074416603172,
+        "low": 1.4237673923440919,
+        "high": 2.0420474909765423
+      },
+      "estimate": {
+        "estimate": 2.5206835510314245,
+        "low": 2.0066586505745483,
+        "high": 3.0347084514883007,
+        "clipped_fraction": 0.0
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320098,
+      "oracle": {
+        "estimate": 1.9162592827158946,
+        "low": 1.6247413906687118,
+        "high": 2.2077771747630774
+      },
+      "estimate": {
+        "estimate": 2.9071350359369763,
+        "low": 2.4502027777182347,
+        "high": 3.364067294155718,
+        "clipped_fraction": 0.014
+      }
+    },
+    {
+      "scenario": "misspecified",
+      "seed": 320099,
+      "oracle": {
+        "estimate": 1.9859213243192373,
+        "low": 1.7631400557466406,
+        "high": 2.208702592891834
+      },
+      "estimate": {
+        "estimate": 2.8706041656277295,
+        "low": 2.4585808429389706,
+        "high": 3.2826274883164883,
+        "clipped_fraction": 0.002
+      }
+    }
+  ]
+}

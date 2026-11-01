@@ -5,10 +5,13 @@ broken import in app.py ships green (all unit tests pass, CI import-smoke covers
 AppTest executes the real script against the committed demo warehouse in Streamlit's test harness.
 """
 import io
+from pathlib import Path
 
 from pypdf import PdfWriter
 from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 from streamlit.testing.v1 import AppTest
+
+APP_FILE = str(Path(__file__).resolve().parents[1] / "app.py")
 
 
 def _publication_pdf() -> bytes:
@@ -39,7 +42,7 @@ def _publication_pdf() -> bytes:
 
 def test_app_renders_without_exception():
     """Default view — About, since that is what a first-time visitor loads."""
-    at = AppTest.from_file("app.py", default_timeout=120)
+    at = AppTest.from_file(APP_FILE, default_timeout=120)
     at.run()
     assert not at.exception, [str(e.value) for e in at.exception]
     assert at.title or at.markdown or at.tabs        # something actually rendered
@@ -67,7 +70,7 @@ def test_reproduction_protocol_lock_runs_confirmed_design(monkeypatch):
     }
     monkeypatch.setattr(reproduction, "parse_published_design", lambda _text: parsed.copy())
 
-    at = AppTest.from_file("app.py", default_timeout=120).run()
+    at = AppTest.from_file(APP_FILE, default_timeout=120).run()
     at.segmented_control[0].set_value("🧾 Reproduce").run()
     at.button(key="repro_load_example").click().run()
     at.button(key="repro_parse").click().run()
@@ -86,7 +89,7 @@ def test_reproduction_protocol_lock_runs_confirmed_design(monkeypatch):
 
 
 def test_reproduction_pdf_mode_exposes_bounded_upload_path():
-    at = AppTest.from_file("app.py", default_timeout=120).run()
+    at = AppTest.from_file(APP_FILE, default_timeout=120).run()
     at.segmented_control[0].set_value("🧾 Reproduce").run()
     at.radio(key="repro_source_mode").set_value("Upload publication PDF").run()
 
@@ -162,7 +165,7 @@ def test_reproduction_pdf_upload_populates_page_linked_protocol_lock(monkeypatch
 
     monkeypatch.setattr(reproduction, "parse_published_pdf_design", fake_parse)
     monkeypatch.setattr(reproduction, "discover_pdf_design_scenarios", fake_discovery)
-    at = AppTest.from_file("app.py", default_timeout=120).run()
+    at = AppTest.from_file(APP_FILE, default_timeout=120).run()
     at.segmented_control[0].set_value("🧾 Reproduce").run()
     at.radio(key="repro_source_mode").set_value("Upload publication PDF").run()
     at.file_uploader(key="repro_pdf").upload(
@@ -243,7 +246,7 @@ def test_reproduction_pdf_explicitly_stops_an_unsupported_selected_scenario(monk
 
     monkeypatch.setattr(reproduction, "discover_pdf_design_scenarios", fake_discovery)
     monkeypatch.setattr(reproduction, "parse_published_pdf_design", fake_parse)
-    at = AppTest.from_file("app.py", default_timeout=120).run()
+    at = AppTest.from_file(APP_FILE, default_timeout=120).run()
     at.segmented_control[0].set_value("🧾 Reproduce").run()
     at.radio(key="repro_source_mode").set_value("Upload publication PDF").run()
     at.file_uploader(key="repro_pdf").upload(
@@ -261,7 +264,7 @@ def test_reproduction_pdf_explicitly_stops_an_unsupported_selected_scenario(monk
 def test_analyze_view_renders_without_exception():
     """About is the default landing view, so test_app_renders_without_exception no longer reaches
     the analyze flow. Drive the nav back to it, or a break in the question path ships green."""
-    at = AppTest.from_file("app.py", default_timeout=120)
+    at = AppTest.from_file(APP_FILE, default_timeout=120)
     at.run()
     at.segmented_control[0].set_value("🔬 Analyze").run()
     assert not at.exception, [str(e.value) for e in at.exception]
@@ -270,7 +273,7 @@ def test_analyze_view_renders_without_exception():
 def test_byod_upload_still_works_when_deid_is_unavailable(monkeypatch):
     """Fail open: a missing model must never block an upload."""
     monkeypatch.setattr("agent.deid.available", lambda: False)
-    at = AppTest.from_file("app.py", default_timeout=120).run()
+    at = AppTest.from_file(APP_FILE, default_timeout=120).run()
     at.segmented_control[0].set_value("🔬 Analyze").run()
     at.radio[0].set_value("Bring your own data").run()
     assert not at.exception, [str(e.value) for e in at.exception]

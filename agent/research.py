@@ -84,6 +84,8 @@ def validate_spec(spec: dict) -> None:
     for key in ("predictors", "assumptions", "exclusions"):
         if not isinstance(spec[key], list) or any(not isinstance(v, str) for v in spec[key]):
             raise ValueError(f"{key} must be a list of strings")
+    if not spec["assumptions"] or any(not value.strip() for value in spec["assumptions"]):
+        raise ValueError("assumptions must include at least one non-empty statement for review")
     if not isinstance(spec["parameters"], dict) or not isinstance(spec["sql"], str):
         raise ValueError("parameters must be an object and sql must be text")
     alias = "event" if spec["method"] in {"survival", "cox", "survival_ml"} else \

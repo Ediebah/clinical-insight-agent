@@ -47,11 +47,18 @@ soundness of a conclusion. This library occupies the gap: given a *result*, whic
 | `skew` | a mean that misrepresents a skewed distribution, or one shown with no dispersion |
 | `confounding` | an outcome compared across groups with no adjustment |
 | `missing_denominator` | a rate with no N behind it |
+| `rate_denominator_consistency` | a supplied rate disagrees with the supplied counts, or the relationship cannot be checked |
 | `multiple_comparisons` | many groups ranked without correction |
 | `missing_data` | nulls that silently change every denominator below them |
 
 When nothing survives correction, `contrasts` reports the **minimum detectable effect** — because
 "no difference" only means something next to what the data could have detected.
+
+When a supplied rate does not match the counts as a fraction or percentage within 0.5 percentage
+points, count-based contrasts and related checks are withheld. The rate may be adjusted, use other
+units, or describe a different population; the check does not determine which value is correct.
+Likewise, agreement cannot establish that the denominator represents the intended population.
+Missing or invalid inputs also withhold those checks. Review column roles and the rate definition.
 
 ## Column roles
 

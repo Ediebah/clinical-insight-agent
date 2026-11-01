@@ -223,6 +223,7 @@ def test_run_records_the_threshold_and_model_it_measured_at(monkeypatch):
     rec = deid_eval.run(limit=1)
     assert rec["threshold"] == 0.42
     assert rec["model"] == deid.MODEL_ID
+    assert rec["model_revision"] == deid.MODEL_REVISION
 
 
 def test_main_exits_nonzero_and_says_so_when_the_model_is_unavailable(monkeypatch, capsys):

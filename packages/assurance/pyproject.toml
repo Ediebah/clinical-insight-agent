@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "assurance"
+name = "clinical-insight-assurance"
 version = "0.2.0"
 description = "Bayesian go/no-go for trial design and interim decisions. Conjugate, closed-form, no Monte Carlo."
 readme = "README.md"

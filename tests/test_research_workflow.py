@@ -1,10 +1,13 @@
 """Research workflow must be usable without an LLM and must not export source records."""
 import json
+from pathlib import Path
 
 import pandas as pd
 import pytest
 
 from agent import research
+
+APP_FILE = str(Path(__file__).resolve().parents[1] / "app.py")
 
 
 def _spec():
@@ -203,7 +206,7 @@ def test_app_shows_editable_spec_before_approval(monkeypatch):
         calls.append(kwargs.get("approved_spec"))
         return agent.AgentResult(question=question, analysis_spec=_spec())
     monkeypatch.setattr(agent, "run_analysis", fake_run)
-    app = AppTest.from_file("app.py", default_timeout=120).run()
+    app = AppTest.from_file(APP_FILE, default_timeout=120).run()
     app.segmented_control[0].set_value("🔬 Analyze").run()
     app.text_input(key="question").set_value("Association?")
     next(button for button in app.button if "Run analysis" in button.label).click().run()
@@ -223,7 +226,7 @@ def test_app_displays_clarification_after_approval(monkeypatch):
                                  clarification="Explicit decision thresholds required" if kwargs.get(
                                      "approved_spec") else "")
     monkeypatch.setattr(agent, "run_analysis", fake_run)
-    app = AppTest.from_file("app.py", default_timeout=120).run()
+    app = AppTest.from_file(APP_FILE, default_timeout=120).run()
     app.segmented_control[0].set_value("🔬 Analyze").run()
     app.text_input(key="question").set_value("Association?")
     next(button for button in app.button if "Run analysis" in button.label).click().run()

@@ -33,6 +33,20 @@ def _fake_model(spans_by_text):
     return _call
 
 
+def test_model_loader_requests_the_reviewed_immutable_revision(monkeypatch):
+    calls = []
+    sentinel = object()
+
+    def fake_load(model_id, *, revision):
+        calls.append((model_id, revision))
+        return sentinel
+
+    monkeypatch.setitem(sys.modules, "openmed", types.SimpleNamespace(
+        OnnxModel=types.SimpleNamespace(from_pretrained=fake_load)))
+    assert deid._load_model() is sentinel
+    assert calls == [(deid.MODEL_ID, "82f57fcab68125b05f1aa9fdd41319732358311b")]
+
+
 def test_available_is_false_when_openmed_is_absent(monkeypatch):
     monkeypatch.setitem(sys.modules, "openmed", None)
     assert deid.available() is False

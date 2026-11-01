@@ -53,6 +53,7 @@ class Ctx:
     findings: list = field(default_factory=list)
     skipped: list = field(default_factory=list)
     tests_run: int = 0
+    rate_consistency_blocks_counts: bool = False
 
     def add(self, kind, severity, message):
         self.findings.append(Finding(kind, severity, message))
@@ -102,6 +103,43 @@ def _contrast_units(ctx) -> list[tuple]:
 
 
 # ───────────────────────────── proportion checks ─────────────────────────────
+def rate_denominator_consistency(ctx: Ctx) -> None:
+    """Compare a supplied rate with raw counts without assuming what the rate represents."""
+    r, df = ctx.roles, ctx.df
+    if not (r.rate and r.numerator and r.denominator):
+        return
+    columns = (r.rate, r.numerator, r.denominator)
+    if len(set(columns)) != 3:
+        ctx.rate_consistency_blocks_counts = True
+        ctx.add("rate_denominator_unverifiable", "caution",
+                "A rate and its count roles refer to the same column. Review the roles before "
+                "using count-based inference.")
+        return
+    values = [pd.to_numeric(df[column], errors="coerce").to_numpy(dtype=float) for column in columns]
+    rate, k, n = values
+    valid = (np.isfinite(rate) & np.isfinite(k) & np.isfinite(n) & (k >= 0) & (n > 0) &
+             (k <= n) & (k == np.floor(k)) & (n == np.floor(n)))
+    if not valid.all():
+        ctx.rate_consistency_blocks_counts = True
+        ctx.add("rate_denominator_unverifiable", "caution",
+                "The supplied rate and count columns cannot be compared on every row: values "
+                "are missing, non-finite, or invalid binomial counts. Review them before "
+                "using count-based inference.")
+        return
+    fraction = k / n
+    # Permit rounding up to half a percentage point, using one scale for the entire column.
+    fraction_match = np.allclose(rate, fraction, rtol=0, atol=0.005)
+    percent_match = np.allclose(rate, fraction * 100, rtol=0, atol=0.5)
+    if not (fraction_match or percent_match):
+        ctx.rate_consistency_blocks_counts = True
+        ctx.add("rate_denominator_mismatch", "caution",
+                "The supplied rate does not match the supplied numerator and denominator as a "
+                "fraction or percentage within 0.5 percentage points. It may be adjusted, "
+                "rounded coarsely, use different units, or describe a different population. Count-based "
+                "inference is withheld until the relationship is clarified; this check cannot "
+                "determine which value is correct.")
+
+
 def small_sample(ctx: Ctx) -> None:
     r, df, cfg = ctx.roles, ctx.df, ctx.config
     if not r.denominator:
@@ -390,6 +428,7 @@ def missing_data(ctx: Ctx) -> None:
 
 
 CHECKS = {
+    "rate_denominator_consistency": rate_denominator_consistency,
     "missing_data": missing_data,
     "small_sample": small_sample,
     "contrasts": contrasts,
