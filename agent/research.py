@@ -70,8 +70,8 @@ def from_route(question: str, route: dict, data_source: str) -> dict:
             r"(\d+(?:\.\d+)?)\s*\)\s+as\s+(?:the|a)\s+control\s+(?:analysis\s+)?prior"
             r"(?=\s*(?:[.;!?]|$))", question, re.IGNORECASE)
         pilot = re.search(
-            r"\btreatment\s+(?:pilot|study)\s+(?:had|observed)\s+(\d+)\s+"
-            r"(?:responses|responders)\s+in\s+(\d+)\s+(?:patients|participants)\b",
+            r"(?:^|[;.!?])\s*(?:a|the)\s+treatment\s+(?:pilot|study)\s+(?:had|observed)\s+(\d+)\s+"
+            r"(?:responses|responders)\s+in\s+(\d+)\s+(?:patients|participants)\b(?=\s*(?:[;.!?]|$))",
             question, re.IGNORECASE)
         if (method == "assurance" and parameters.get("framing") == "two_arm"
                 and len(beta_shapes) == 1 and control_beta and pilot
