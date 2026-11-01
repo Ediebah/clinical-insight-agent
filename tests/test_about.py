@@ -8,6 +8,10 @@ rewrite that quietly drops one of them should fail CI rather than ship.
 Deliberately no Streamlit import: about.py is stdlib-only precisely so this runs without the app
 harness.
 """
+from pathlib import Path
+
+import duckdb
+
 import about
 
 
@@ -20,18 +24,22 @@ def test_the_data_disclosures_survive():
     """These four are what someone relies on before uploading a file. Losing one is a real defect."""
     md = about.ABOUT_MD.lower()
     assert "synthetic" in md
-    assert "no phi" in md
+    assert "non-sensitive" in md
+    assert "no phi anywhere in the system" not in md.replace("**", "")
     assert "read-only" in md
     assert "1,000 rows" in md
 
 
 def test_the_warehouse_counts_match_the_manifest():
-    """26 models / 108 tests / 1,139 patients are verified against warehouse/target/manifest.json
+    """26 models / 108 tests / 1,334 patients are verified against warehouse/target/manifest.json
     and the shipped demo DB — see the design spec §5. Changing the copy alone must not pass."""
     facts = {label: value for label, value, _ in about.DATA_FACTS}
     assert facts["dbt models"] == "26"
     assert facts["Data tests"] == "108"
-    assert facts["Patients"] == "1,139"
+    demo = Path(__file__).resolve().parents[1] / "data" / "healthcare_demo.duckdb"
+    with duckdb.connect(str(demo), read_only=True) as connection:
+        patient_count = connection.execute("select count(*) from main.dim_patient").fetchone()[0]
+    assert facts["Patients"] == f"{patient_count:,}"
     assert facts["Queryable tables"] == "16"
 
 

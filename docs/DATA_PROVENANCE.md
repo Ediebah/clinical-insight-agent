@@ -1,8 +1,25 @@
 # Data and dependency provenance
 
-The demo database is described as a slim Synthea-derived warehouse, with its observation table sampled to reduce distribution size. The dbt models and loader are in `warehouse/` and `scripts/load_raw.py`. CI generates a separate dataset using Synthea 4.0.0, but the repository does not establish that the committed database was generated with that version or provide a complete manifest to reproduce it exactly. Its SHA-256 is `195dc959f6231178b5ffd60f0056ff4a39d29ff8f9f949b80dd91fd1fd50cda0`.
+The current demo warehouse was generated from the official Synthea 4.0.0 release using fixed
+seeds, reference and end dates, and a recorded Java environment. The [build manifest](demo_dataset_manifest.json)
+records the generator checksum, command arguments, input CSV checksums and row counts, project-file
+checksums, software versions, 16 exported table counts, and the demo file fingerprint. The export
+contains all rows from those models; it does not copy the raw schema or sample observations.
+Synthea output is synthetic and is not a substitute for clinical evidence.
 
-The [original demo commit](https://github.com/Ediebah/clinical-insight-agent/commit/948c4be4ea6214188954149d93bc83cf07902b9f) describes a slim, sampled database; its contemporaneous README mentions seed 12345. A [later commit](https://github.com/Ediebah/clinical-insight-agent/commit/d20b141) says the demo database was refreshed after a readmission-model change. These are historical repository statements, not a complete generation record for the current file: they do not establish the exact Synthea release, input files, sampling operation, or full sequence of transformations.
+The [earlier demo commit](https://github.com/Ediebah/clinical-insight-agent/commit/948c4be4ea6214188954149d93bc83cf07902b9f)
+and [refresh](https://github.com/Ediebah/clinical-insight-agent/commit/d20b141) did not establish a
+complete generation record for the prior database. That file remains in Git history. The new
+manifest describes the replacement, not the provenance of historical versions.
+
+To regenerate, verify the Synthea JAR SHA-256 against the manifest, use the recorded version of
+Java and the exact arguments in the manifest, run `python scripts/load_raw.py`, run `dbt build`
+from `warehouse/` with `--profiles-dir .`, then run `python scripts/create_demo_database.py
+--source data/healthcare.duckdb --output data/healthcare_demo_new.duckdb` from the repository root.
+Review the new file, counts, hashes, and app behavior before replacing the committed demo. Keep
+raw CSVs out of the repository. The generator uses multiple threads; fixed inputs support a
+traceable reconstruction but do not guarantee byte-identical CSV or DuckDB files across runs or
+platforms. Hashes identify this build; they do not prove scientific validity.
 
 The three public example datasets below are derived from clinical observations; they are not synthetic. Their UCI records state that they are distributed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). See [third-party notices](../THIRD_PARTY_NOTICES.md) for attribution and source links. UCI describes replacing names and Social Security numbers with dummy values in the Heart Disease data; that statement is not an independent assessment of re-identification risk for these files.
 

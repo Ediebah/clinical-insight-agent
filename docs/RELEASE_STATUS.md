@@ -2,7 +2,7 @@
 
 Status checked 2026-10-31. This is a technical inventory, not a legal opinion or clinical validation. The two standalone distributions are published on PyPI; the full application remains a research prototype.
 
-For standalone release notes, artifact scope, clean runtime inventories, advisory checks, and the unresolved Berkeley fixture provenance, see [standalone package release review](STANDALONE_RELEASE_REVIEW.md).
+For standalone release notes, artifact scope, clean runtime inventories, advisory checks, and historical fixture provenance, see [standalone package release review](STANDALONE_RELEASE_REVIEW.md).
 
 ## Package names
 
@@ -23,7 +23,7 @@ A local development-environment advisory check found findings in 11 installed di
 
 The optional identifier model now requests immutable revision `82f57fcab68125b05f1aa9fdd41319732358311b`, which the upstream metadata identified as its main revision on 2026-10-31. New local evaluation records include that revision; historical records did not record one. The pin improves traceability, not evidence of de-identification or compliance. Verify the exact artifact and its terms for the distribution.
 
-The demo database checksum identifies the current file, but its exact Synthea version and generating inputs remain unresolved. CI separately generates data with Synthea 4.0.0; that does not prove the origin of the committed database. See [data provenance](DATA_PROVENANCE.md).
+The current demo database was rebuilt from the checksum-verified Synthea 4.0.0 release and has a recorded [generation manifest](demo_dataset_manifest.json). The provenance of the earlier demo database remains incomplete in Git history. See [data provenance](DATA_PROVENANCE.md).
 
 ## Build evidence and outstanding checks
 

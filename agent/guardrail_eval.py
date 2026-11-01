@@ -94,8 +94,8 @@ CASES = [
                        "total": [87, 270, 263, 80]}),
          "Which treatment has the higher success rate?",
          # the pooled A-vs-B contrast is the answer to the question asked; `simpsons` immediately
-         # says not to trust it. Reporting both is the behaviour validated on the Berkeley 1973
-         # admissions table (packages/caveat/validation), not an over-flag.
+         # says not to trust it. This synthetic case tests both outputs; it is not validation
+         # against external data.
          expected={"simpsons", "contrasts"}, forbidden={"confounding"}),
 
     Case("clean_balanced_no_overflag",

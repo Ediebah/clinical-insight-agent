@@ -73,14 +73,15 @@ QUESTION_CELLS: list[tuple[str, str, str]] = [
 # 26 models produce 16 queryable tables; the 10 staging models are views and are not materialized
 # in the shipped demo warehouse. Stating only one of those numbers misleads.
 DATA_FACTS: list[tuple[str, str, str]] = [
-    ("Patients", "1,139", "seed 12345"),
+    ("Patients", "1,334", "seed 12345"),
     ("dbt models", "26", "staging · core · marts"),
     ("Queryable tables", "16", "in the demo warehouse"),
     ("Data tests", "108", "green in CI on every push"),
 ]
 DATA_NOTE = (
-    "The demo runs on **Synthea synthetic EHR data** — computer-generated and reproducible from a "
-    "fixed seed, so there is **no PHI** anywhere in the system. dbt builds the models above across "
+    "The demo uses **Synthea synthetic EHR data**, generated with documented settings. Use only "
+    "synthetic or non-sensitive data; an upload can contain sensitive information despite these "
+    "instructions. dbt builds the models above across "
     "staging, a core star schema, and analytics marts, and the data tests run against them on "
     "every push."
 )

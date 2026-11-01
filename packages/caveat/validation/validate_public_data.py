@@ -2,14 +2,13 @@
 
 The package's own tests use frames the author invented. That proves the code does what the author
 expected and nothing about whether the expectations hold outside their head. This script runs the
-library over data it was not built for, computes the ground truth separately (from the raw data or
-from the published literature), and prints where the two agree and where they do not.
+library over data it was not built for, compares selected outputs with calculations based on those same data, and prints where the two
+agree and where they do not. Some checks use the package's own helper functions; these are not
+independent numerical validation.
 
     python packages/caveat/validation/validate_public_data.py      # from the repo root
 
-Datasets (all committed under examples/, all originally from the UCI ML Repository, plus one
-published table):
-  * UC Berkeley graduate admissions, 1973 — Bickel, Hammel & O'Connell, Science 187:398 (1975)
+Datasets (all committed under examples/, all originally from the UCI ML Repository):
   * Heart Disease, Cleveland    — archive.ics.uci.edu/dataset/45
   * Heart Failure Clinical Records — archive.ics.uci.edu/dataset/519
   * Breast Cancer Wisconsin (Diagnostic) — archive.ics.uci.edu/dataset/17
@@ -40,27 +39,6 @@ def section(title: str, df: pd.DataFrame, question: str, **kw) -> caveat.Report:
     for line in (caveat.render(rep) or "  (no findings)").splitlines():
         print(f"    {line}")
     return rep
-
-
-def berkeley() -> None:
-    df = pd.DataFrame({
-        "dept": list("AABBCCDDEEFF"), "gender": ["M", "W"] * 6,
-        "admitted": [512, 89, 353, 17, 120, 202, 138, 131, 53, 94, 22, 24],
-        "applied": [825, 108, 560, 25, 325, 593, 417, 375, 191, 393, 373, 341]})
-    m, w = df[df.gender == "M"], df[df.gender == "W"]
-    marg = m.admitted.sum() / m.applied.sum() - w.admitted.sum() / w.applied.sum()
-    rep = section("UC BERKELEY ADMISSIONS 1973 — a documented Simpson's paradox", df,
-                  "Which gender has the higher admission rate?")
-
-    check("PASS" if rep.of_kind("simpsons") else "MISS", "berkeley",
-          "detects the published reversal from raw counts, with no roles supplied")
-    got = rep.of_kind("contrasts")
-    ok = got and f"{marg*100:+.1f}pp" in got[0].message
-    check("PASS" if ok else "FAIL", "berkeley",
-          f"pooled contrast reproduces the published marginal ({marg*100:+.1f}pp)")
-    r = caveat.infer_roles(df)
-    check("PASS" if (r.numerator, r.denominator) == ("admitted", "applied") else "FAIL", "berkeley",
-          "structural inference finds numerator/denominator despite non-matching names")
 
 
 def heart_disease() -> None:
@@ -137,7 +115,6 @@ def breast_cancer() -> None:
 
 def main() -> int:
     print(__doc__.split("\n\n")[0])
-    berkeley()
     heart_disease()
     heart_failure()
     breast_cancer()
@@ -150,7 +127,7 @@ def main() -> int:
             for _, ds, note in hits:
                 print(f"      [{ds}] {note}")
     bad = [r for r in _results if r[0] != "PASS"]
-    print(f"\n  {len(_results) - len(bad)}/{len(_results)} checks agree with independent ground truth")
+    print(f"\n  {len(_results) - len(bad)}/{len(_results)} checks agree with their reference calculations")
     return 1 if bad else 0
 
 

@@ -1,0 +1,143 @@
+{
+  "demo": {
+    "path": "data/healthcare_demo.duckdb",
+    "sampling": "none; all rows of the 16 selected models are included",
+    "sha256": "e0333d63ed75e556e5a514779234d8422822a008eebd53f773fa82eb1b5e08b2",
+    "tables_and_rows": {
+      "dim_condition": 501,
+      "dim_medication": 262,
+      "dim_organization": 845,
+      "dim_patient": 1334,
+      "dim_payer": 10,
+      "dim_provider": 845,
+      "fct_conditions": 47289,
+      "fct_encounters": 81768,
+      "fct_medications": 61858,
+      "fct_observations": 1042507,
+      "fct_procedures": 172455,
+      "mart_condition_prevalence": 1354,
+      "mart_cost_by_condition": 501,
+      "mart_experiments": 22600,
+      "mart_readmissions": 1497,
+      "mart_trials": 3600
+    }
+  },
+  "generated_utc": "2026-11-01T06:53:30+00:00",
+  "generator": {
+    "arguments": [
+      "--exporter.csv.export=true",
+      "--exporter.fhir.export=false",
+      "--generate.thread_pool_size=4",
+      "-p",
+      "1139",
+      "-s",
+      "12345",
+      "-cs",
+      "12345",
+      "-r",
+      "20261031",
+      "-e",
+      "20261031",
+      "Massachusetts"
+    ],
+    "java": "Eclipse Temurin 17.0.21+9",
+    "name": "Synthea",
+    "sha256": "ed43c20ad40ba5c3bc724503a5af032715fe3c491620b766148e7c2361e6ecc1",
+    "timezone": "UTC",
+    "url": "https://github.com/synthetichealth/synthea/releases/download/v4.0.0/synthea-with-dependencies.jar",
+    "version": "4.0.0"
+  },
+  "project_files_sha256": {
+    "scripts/create_demo_database.py": "f28b6d468d1cc451674900143fdf8027d3b98f6166c41a5e7208ed68ff95e6b4",
+    "scripts/load_raw.py": "721fc16a94b95735579ecfdcbb64c88873819f99d962bb5c2ecd594827f74c55",
+    "warehouse/dbt_project.yml": "329a9aa1595b61d114b16684e3cb7bde3db622e9a1be0ba1456ba3a0bc6a977e",
+    "warehouse/models/marts/analytics/_analytics.yml": "7e931cf5d05535a7b01ba7254162aa957ad97e8f2b51bf44875635bef12d0a96",
+    "warehouse/models/marts/analytics/mart_condition_prevalence.sql": "2ca18b852d6ffd295525e081ca1df1da24c584a651817c6489e2bf59ea7ac53a",
+    "warehouse/models/marts/analytics/mart_cost_by_condition.sql": "ef826834f33bd1c3aaa9aa65ceeb01ffe7bd735bd89059e7b47801e1c3674cc4",
+    "warehouse/models/marts/analytics/mart_experiments.sql": "64a8be92a906f151dc3782a4ef11738d1de818789073d33e52d1ee671c1c4a38",
+    "warehouse/models/marts/analytics/mart_readmissions.sql": "fa80b53a875e057aa8ead94ce746f0c9ac8832b7d65f6b1dc3832e0cd1d9c8bf",
+    "warehouse/models/marts/analytics/mart_trials.sql": "91f4a63b966ecf4faa5750d3096d8f6c5401098c66a08d7656f51d06b7026198",
+    "warehouse/models/marts/core/_core.yml": "629985cf6b0f42494d11a499bf86de12ddc0c717e8d9d2b543f34d4943c8b392",
+    "warehouse/models/marts/core/dim_condition.sql": "cafa90373362ddbbe468fcb251e58aad1fe60ba1a0f12a923923e1f0b299a0f7",
+    "warehouse/models/marts/core/dim_medication.sql": "cccb04492e57de4c5e912c8e9d562e40405b97861c725f4b4688710f3176d38e",
+    "warehouse/models/marts/core/dim_organization.sql": "a42ac97c0d407fa510df83dc18c03a4f009441a6606daef77c71e7bacf0d8854",
+    "warehouse/models/marts/core/dim_patient.sql": "173ed78003091562c5225f9124666becdb7017c87468ec879a57193e89bf6bf4",
+    "warehouse/models/marts/core/dim_payer.sql": "2a3ce30e321edda1074ffc8ac2351c0943ca86be9e665162c1b688016c7aa897",
+    "warehouse/models/marts/core/dim_provider.sql": "03e47a3468dd380f292a24bad2d89bf565f3a4f0ba94f88eca5fc490fbfb6dc5",
+    "warehouse/models/marts/core/fct_conditions.sql": "3ef1dc9a9a070da9063e47121ecfaedea40d25de40ef4bafa1605fc5c6465728",
+    "warehouse/models/marts/core/fct_encounters.sql": "fc17e0331f0b3a55d995d3e5e816408cdd140a12fcd7273807f33ccbbd6ad0a1",
+    "warehouse/models/marts/core/fct_medications.sql": "5860ec36ca7adb952eccc0dfaebd64fd3aad8b01991d154c9b21fd0d08a0512d",
+    "warehouse/models/marts/core/fct_observations.sql": "53fe1b1b2fdb5ac029c3cb2fa3f1dbf7528427761252a3fdebae74ac353b1fe6",
+    "warehouse/models/marts/core/fct_procedures.sql": "257cd08178232c49de51fbc1771b39840666ff52e1505538d833ed245a08d579",
+    "warehouse/models/staging/_sources.yml": "bb059bb61cdb101442681511e98e5f8fba28d1c474922b240c643882aa9a8db8",
+    "warehouse/models/staging/_staging.yml": "f6e8415bd25f6a0a02709bcbcf3062d39a45a92f84184cf890ca956022a5c2f1",
+    "warehouse/models/staging/stg_claims.sql": "a976b3e3a76604ce22c24f140eff79d84416c8e60de266822626658085e48023",
+    "warehouse/models/staging/stg_conditions.sql": "9b9a9901c0532f663742aba2ceb0992f68c5dc2cab2fb335016b9b6a4cca2d1a",
+    "warehouse/models/staging/stg_encounters.sql": "84f7cda8fc7c4b55d16c7b824a8fb1a49e0a468387ba71403a456b4802fbf370",
+    "warehouse/models/staging/stg_medications.sql": "bf485171962a165478292cd527ab2d4b8ba126742e0af2218805652b9e25327a",
+    "warehouse/models/staging/stg_observations.sql": "1d7b3e7dd784aa56d671da492ee0c47f5c4f6745544444bfc22935669fbd2045",
+    "warehouse/models/staging/stg_organizations.sql": "93c32a131efa4dcbabcb70261bf9f410fece53fe10d0e4e933f02cbefc2a9f13",
+    "warehouse/models/staging/stg_patients.sql": "27b28c8324974a6957014b0eca01c9e7e6d9a20e236fc3afe6e1dc2c49d5a61d",
+    "warehouse/models/staging/stg_payers.sql": "18eddeac8af67f65859db17d76aaf15e6c6765ef255b53a32d8f7040bb65655e",
+    "warehouse/models/staging/stg_procedures.sql": "1c7f2d80f923db58ba7adef7a1370a0391d7fc7594c5c6d36fb2d96949df060a",
+    "warehouse/models/staging/stg_providers.sql": "e599bcc309dcb30c9a4c392ffcc1f300111cf687f55ccb9b0fe922e8936e84c6",
+    "warehouse/package-lock.yml": "3b69fa4efd7fbb7479f377cdbd7f658ad8d5e9b83df8d95f8c7674c331e5c295",
+    "warehouse/packages.yml": "8c197b485cbf693982076571c5d1a24a2f324f56050334079a1426ea8dea6d90",
+    "warehouse/tests/assert_readmission_window.sql": "557a8b6b2a4631a1bcedab6cbc989a42dface5acef7345580a6290f82abcd5ac"
+  },
+  "raw_inputs": {
+    "claims.csv": {
+      "rows": 143626,
+      "sha256": "2fe7641df61a2cd8e3abddc4e5e4fd2da6d640298c54c38ef06e69ddf288342d"
+    },
+    "conditions.csv": {
+      "rows": 47289,
+      "sha256": "2ebe0aebab5aaa1883a8566e64a7bc28af80d4a3f90492fec54fee5e048de550"
+    },
+    "encounters.csv": {
+      "rows": 81768,
+      "sha256": "4cc68c920b02ca847f3c830b2a2a9b5f98bf436ac45cd05d78adbe889a187586"
+    },
+    "medications.csv": {
+      "rows": 61858,
+      "sha256": "a62f123e9191829de51cb92567a13ebe774d50ce6815e44f012344e35895685e"
+    },
+    "observations.csv": {
+      "rows": 1042507,
+      "sha256": "a92e36e830334bb0ca4247540e0caf6943f10f06b873268899d2ff078dac3866"
+    },
+    "organizations.csv": {
+      "rows": 845,
+      "sha256": "d6873fa9eb49cc5f53e9ab757fbff8206b15214128763d1db8217c3582d4afaa"
+    },
+    "patients.csv": {
+      "rows": 1334,
+      "sha256": "7642dc769210e390e0a00ad32c87d9c779bc1ddf3b25100a3762d3dfd3c0b59d"
+    },
+    "payers.csv": {
+      "rows": 10,
+      "sha256": "2dd56d1d103d5e7220e153ef78b7f28c93d138865f017b8e73429ede52f0ec95"
+    },
+    "procedures.csv": {
+      "rows": 172455,
+      "sha256": "04741a03b5c16ef5bbc57ac21e92b9a00371d268d546b9799d41d0aa0af2a076"
+    },
+    "providers.csv": {
+      "rows": 845,
+      "sha256": "57cd8fa47b9801af7d966d4c4a522763395fc99535b2c4fb5377ea2003fa3e8c"
+    }
+  },
+  "runtime": {
+    "dbt_core": "1.11.11",
+    "dbt_duckdb": "1.10.1",
+    "dbt_utils": "1.4.1",
+    "duckdb": "1.5.4",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "python": "3.12.13"
+  },
+  "schema_version": 1,
+  "verification": {
+    "dbt_build": "PASS=134 WARN=0 ERROR=0 SKIP=0",
+    "description": "Hashes identify this build; multi-threaded generation, row ordering and database serialization can vary between runs and platforms."
+  }
+}

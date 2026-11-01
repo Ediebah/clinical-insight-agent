@@ -160,6 +160,42 @@ jobs:
           done
           docker logs clinical-insight-smoke
           exit 1
+      - name: Record the built image and its installed packages
+        run: |
+          mkdir -p image-audit
+          docker image inspect clinical-insight-ci:${{ github.sha }} > image-audit/image.json
+          docker image inspect python:3.12-slim > image-audit/base-image.json
+          docker exec clinical-insight-smoke python -m pip list --format=json > image-audit/python-packages.json
+          docker exec clinical-insight-smoke dpkg-query -W > image-audit/os-packages.txt
+          python3 -c 'import json; p=json.load(open("image-audit/python-packages.json")); open("image-audit/python-requirements.txt", "w").write("".join(sorted("{}=={}\n".format(x["name"], x["version"]) for x in p)))'
+      - name: Audit installed Python package versions
+        run: |
+          python3 -m venv /tmp/image-audit-venv
+          /tmp/image-audit-venv/bin/pip install pip-audit==2.10.1
+          status=0
+          /tmp/image-audit-venv/bin/pip-audit --disable-pip --no-deps \
+            -r image-audit/python-requirements.txt --format json \
+            --output image-audit/pip-audit.json || status=$?
+          echo "$status" > image-audit/pip-audit-exit-code.txt
+          # Exit 1 means findings are present, which are retained for review. Other values are tool errors.
+          if [ "$status" -gt 1 ]; then exit "$status"; fi
+      - name: Scan image OS and library vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: clinical-insight-ci:${{ github.sha }}
+          format: json
+          output: image-audit/trivy.json
+          exit-code: '0' # Record findings for review; successful scanning is not a clean report.
+          vuln-type: os,library
+          scanners: vuln
+      - name: Upload image audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-audit-${{ github.sha }}
+          path: image-audit/
+          if-no-files-found: error
+          retention-days: 90
       - name: Remove the test container
         if: always()
         run: docker rm --force clinical-insight-smoke || true
