@@ -2,13 +2,14 @@
 
 The most useful thing you can contribute here is **a labelled case**.
 
-This project is an AI agent that picks and fits the right statistical model for a clinical question.
-Its correctness rests almost entirely on four labelled datasets, and every one of them is short,
-readable, and reviewable without understanding the rest of the codebase. Adding a case is a
-self-contained pull request that makes the agent measurably better, and it needs no API key to
-verify.
+This exploratory research toolkit can propose statistical methods for review. The labelled case
+collections help detect selected regressions; they do not establish correctness, clinical validity,
+or performance on arbitrary questions. A small synthetic case can be contributed and tested
+without an API key.
 
-That is deliberate. Most of this repo is hard to contribute to; these four files are not.
+Start with [issue #58](https://github.com/Ediebah/clinical-insight-agent/issues/58) for a
+missing-denominator example or [issue #59](https://github.com/Ediebah/clinical-insight-agent/issues/59)
+for an in-memory adapter example. Both use synthetic data and need no model or database.
 
 ## The four contribution surfaces
 
@@ -76,7 +77,7 @@ python -m agent.guardrail_eval      # free, no key: precision / recall / per-cas
 ```bash
 uv venv --python 3.12
 uv pip install -r requirements-dev.txt
-pytest -q                            # ~450 tests, no key, no network
+pytest -q                            # key-free application test suite
 ruff check .
 ```
 
@@ -103,9 +104,11 @@ what it got wrong, and that second section is the more useful one.
 Every push and PR runs the deterministic, free half: ruff, the full pytest suite, both package
 suites, a dbt build with data tests, and `guardrail_eval`.
 
-The three LLM-backed evals cost real API calls, so they run **weekly** rather than per-PR
-(`.github/workflows/evals.yml`), plus on demand. You will not be asked to pay for them, and a
-labelled case you add is protected by the free checks regardless.
+The older LLM-backed workflow contains a configured schedule, but it was disabled when last
+checked on 2026-11-01; see [evaluation](docs/EVALUATION.md). The separate prospective challenge is
+manual-only and requires explicit authorization for paid calls. Its public cases are not an
+independent benchmark. Do not assume a newly added labelled case is fully evaluated by the free
+checks: model routing and SQL generation require separate evaluation.
 
 ## House rules
 

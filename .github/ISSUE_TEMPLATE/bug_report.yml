@@ -5,8 +5,8 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for the report. This project runs on synthetic data only. Please do not paste real patient
-        data, PHI, or API keys.
+        Thanks for the report. Use synthetic or other non-sensitive inputs. Please do not paste real
+        patient data, PHI, confidential information, or API keys into an issue.
   - type: textarea
     id: what-happened
     attributes:

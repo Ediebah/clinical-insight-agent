@@ -3,6 +3,18 @@
 Notable changes to the Clinical Insight Agent. Format follows [Keep a Changelog](https://keepachangelog.com/);
 versions follow [SemVer](https://semver.org/).
 
+## [1.1.0-rc.3] — 2026-11-01 — research preview
+
+- Show rate-like values in original units until the user explicitly chooses fraction or percent;
+  require selected, consistent counts for categorical Wilson intervals and carry choices into reports.
+- Flag Cox optimizer non-convergence or unavailable status for each fit; avoid cross-session report
+  cache collisions and fall back to uncached export when result serialization fails.
+- Add a reproducible public-data research demonstration and independent-evaluation, reviewer, and
+  distribution-review handoffs. These do not establish independent validation or review.
+- Welcome voluntary review with key-free steps and reporting templates; link two starter issues.
+- Correct the survival example to report integrated Brier score separately and clarify limitations
+  in older examples and data-provenance notices.
+
 ## [1.1.0-rc.2] — 2026-11-01 — research preview
 
 - Record bounded diagnostics for rejected synthetic specifications without retaining arbitrary
