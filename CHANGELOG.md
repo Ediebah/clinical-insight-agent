@@ -5,6 +5,18 @@ versions follow [SemVer](https://semver.org/).
 
 ## Unreleased — research workflow changes
 
+- Clear generated prior-study counts that duplicate stated Beta shape parameters when no treatment
+  Beta prior was extracted; request a correction. Recognize explicitly stated percentage-point inputs. The paid Bayesian
+  evaluation identified this issue and remains separate from deterministic validation.
+
+- Rebuild the synthetic demo warehouse from recorded Synthea 4.0.0 inputs and export all rows of
+  its 16 named models. Add a build manifest and a safe export tool. Earlier Git history retains the
+  previous demo and Berkeley fixture, whose exact provenance remains incomplete.
+- Fix a readmission false negative where a same-day return hid a later qualifying admission.
+  Add a regression test for that case.
+- Replace the unverified Berkeley numeric table in the current checkout with a constructed
+  stratified regression case. The replacement is not external validation.
+
 - Publish `clinical-insight-caveat` 0.1.3 and `clinical-insight-assurance` 0.3.1 as metadata-only
   patches that correct outdated publication statements on their PyPI pages. The package calculations
   are unchanged from 0.1.2 and 0.3.0 respectively.

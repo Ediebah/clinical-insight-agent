@@ -397,14 +397,19 @@ def _route(question: str, context: str) -> dict:
         "previous study as `prior_successes` + `prior_n` (e.g. 'Phase I showed 8/20' -> 8 and 20). For "
         "a DEVICE performance goal (a single-arm objective performance criterion, e.g. 'success rate "
         "above 85%') set tv AND lrv BOTH to the goal (0.85) and `framing`='single_arm'. Express rates "
-        "as proportions (30% -> 0.30). Optional: `higher_is_better` (false for an adverse-event rate).\n"
+        "as proportions (30% -> 0.30). Extract explicit `gate_tv`, `gate_lrv`, and `stop_lrv`; "
+        "leave any unstated decision threshold null. A stated Beta(a,b) prior uses `prior_a`=a "
+        "and `prior_b`=b, not `prior_successes` and `prior_n`. Optional: `higher_is_better` "
+        "(false for an adverse-event rate).\n"
         "For a RANDOMIZED / two-arm design (treatment vs a concurrent control or placebo), set "
         "`framing`='two_arm', `control_rate`=the known control response rate (e.g. standard of care "
         "responds 35% -> 0.35), and express `tv`/`lrv` as RISK DIFFERENCES treatment-minus-control (a "
         "15-point benefit hoped for -> tv 0.15; any benefit is the floor -> lrv 0). Supply the treatment "
         "prior from Phase I as `prior_successes` + `prior_n`. Extract explicit control Beta prior "
         "parameters as `control_prior_a` and `control_prior_b`; leave them null if unstated. "
-        "n_planned is the TOTAL across both arms.\n"
+        "A control Beta prior belongs only in control_prior_a/control_prior_b; do not copy it "
+        "into the treatment prior fields. A treatment prior study belongs only in "
+        "prior_successes/prior_n. n_planned is the TOTAL across both arms.\n"
         "  'interim'     an INTERIM Bayesian go/no-go on data collected SO FAR — 'we are 40 patients "
         "in with 12 responses, continue or stop', 'stop for futility?', 'predictive probability of "
         "success'. analytic_sql returns ONE ROW PER SUBJECT OBSERVED SO FAR with a binary `outcome` "
@@ -413,7 +418,9 @@ def _route(question: str, context: str) -> dict:
         "the per-subject rows with range(): `SELECT 1 AS responded FROM range(12) UNION ALL SELECT 0 AS "
         "responded FROM range(28)` (successes, then n_observed - successes failures). Also extract "
         "`n_planned` (the FULL planned enrolment, which is larger than the rows returned), `tv`, `lrv`, "
-        "and the prior as `prior_successes` + `prior_n` or `prior_a` + `prior_b` if stated. Extract "
+        "and the prior as `prior_successes` + `prior_n` for stated previous-study counts, or "
+        "`prior_a` + `prior_b` for a stated Beta(a,b) distribution. Beta shape parameters are "
+        "not a count of successes and patients. Extract "
         "`gate_tv` and `gate_lrv` as the final posterior-probability thresholds, and `stop_lrv` as the "
         "interim predictive-probability futility threshold, ONLY when the question states them. Never "
         "invent a gate or silently substitute one from a different design. If any target, reference, "
@@ -448,7 +455,7 @@ def _route(question: str, context: str) -> dict:
         '"kind":"superiority", "outcome_type":"proportion", "p_control":0.7, "p_treatment":0.8, '
         '"effect":0.1, "mean_control":0, "mean_treatment":0, "sd":1, "alpha":0.05, "power":0.8, "ratio":1, '
         '"n_planned":100, "tv":0.3, "lrv":0.15, "gate_tv":0.8, "gate_lrv":0.9, "stop_lrv":0.1, '
-        '"prior_successes":8, "prior_n":20, "prior_a":1, "prior_b":1, '
+        '"prior_successes":null, "prior_n":null, "prior_a":null, "prior_b":null, '
         '"control_prior_a":null, "control_prior_b":null, "framing":"single_arm", '
         '"analytic_sql":"SELECT ...", "hypothesis":"one sentence"}. '
         'Plain aggregation → {"mode":"aggregate"}.\n'
@@ -460,7 +467,9 @@ def _route(question: str, context: str) -> dict:
         'subject anywhere in it ("show me the trends", "run the analysis", "what are the patterns", '
         '"any correlations?") → {"mode":"aggregate"}. Do NOT invent a subject to model. This applies '
         'ONLY when the subject is absent: if the question names the thing ("trend in encounter '
-        'volume", "what predicts readmission"), model it as normal.',
+        'volume", "what predicts readmission"), model it as normal. A proposed study with a stated '
+        'response-rate endpoint and prior study counts is a concrete trial-design question, even if '
+        'it does not name a warehouse table or explicitly use the word assurance.',
     )
 
 

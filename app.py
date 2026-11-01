@@ -2092,7 +2092,7 @@ if result is not None:
 # ───────────────────────────── footer ─────────────────────────────
 st.markdown("""
 <div class="footer">
-  <span>Synthetic data (Synthea) · no PHI</span><span class="dot">·</span>
+  <span>Synthetic demo · non-sensitive data only</span><span class="dot">·</span>
   <a href="https://github.com/Ediebah/clinical-insight-agent" target="_blank">GitHub ↗</a>
   <span class="dot">·</span><span>dbt · DuckDB · OpenAI</span>
 </div>

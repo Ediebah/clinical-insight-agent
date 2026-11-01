@@ -39,10 +39,11 @@ def from_route(question: str, route: dict, data_source: str) -> dict:
         # The model may return illustrative values from its prompt. Keep numerical values only if the
         # question contains the number; this is a necessary check, not proof of correct attribution.
         numbers = set()
-        for match in re.finditer(r"(?<![\w.])-?(?:\d+(?:\.\d+)?|\.\d+)\s*%?", question):
-            token = match.group().strip()
-            value = float(token.rstrip("%").strip())
-            numbers.add(value / 100 if token.endswith("%") else value)
+        number_pattern = (r"(?<![\w.])(-?(?:\d+(?:\.\d+)?|\.\d+))"
+                          r"\s*(%|(?:-\s*|\s*)(?:percentage\s+)?points?\b)?")
+        for match in re.finditer(number_pattern, question, re.IGNORECASE):
+            value = float(match.group(1))
+            numbers.add(value / 100 if match.group(2) else value)
         for key in ("n_planned", "tv", "lrv", "gate_tv", "gate_lrv", "stop_lrv", "prior_successes",
                     "prior_n", "prior_a", "prior_b", "prior_mu", "prior_sd", "sd", "control_rate",
                     "control_prior_a", "control_prior_b"):
@@ -55,6 +56,18 @@ def from_route(question: str, route: dict, data_source: str) -> dict:
                 if not math.isfinite(numeric) or not any(
                         math.isclose(numeric, n, rel_tol=1e-9, abs_tol=1e-9) for n in numbers):
                     parameters[key] = None
+        # A Beta(a,b) is not a successes / sample-size pair. If the extracted counts exactly
+        # duplicate stated shape parameters and no treatment Beta was extracted, abstain rather
+        # than guessing. Distinct prior-study counts remain available for review.
+        beta_shapes = re.findall(r"\bbeta\s*\(\s*(\d+(?:\.\d+)?)\s*,\s*"
+                                 r"(\d+(?:\.\d+)?)\s*\)", question, re.IGNORECASE)
+        counts = (parameters.get("prior_successes"), parameters.get("prior_n"))
+        if (parameters.get("prior_a") is None or parameters.get("prior_b") is None) and \
+                all(value is not None for value in counts):
+            if any(float(counts[0]) == float(a) and float(counts[1]) == float(b)
+                   for a, b in beta_shapes):
+                parameters["prior_successes"] = None
+                parameters["prior_n"] = None
     return {"schema_version": SCHEMA_VERSION, "question": question,
             "population": "Population selected by the SQL; review the query.",
             "outcome": route.get("event") if method in {"survival", "cox", "survival_ml"} else

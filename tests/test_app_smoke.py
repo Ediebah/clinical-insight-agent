@@ -268,6 +268,7 @@ def test_analyze_view_renders_without_exception():
     at.run()
     at.segmented_control[0].set_value("🔬 Analyze").run()
     assert not at.exception, [str(e.value) for e in at.exception]
+    assert any("Synthetic demo · non-sensitive data only" in str(item.value) for item in at.markdown)
 
 
 def test_byod_upload_still_works_when_deid_is_unavailable(monkeypatch):

@@ -1,9 +1,8 @@
 """Label integrity for the Bayesian numeric oracle (no API key needed).
 
-agent.bayes_eval measures the agent against a reference computed from bayes.py. That only means
-something if the reference itself is sound, so these pin the LABELS — deterministically, in CI —
-even though comparing the agent to them needs a key. A case whose params no longer produce its
-stated verdict is a broken ruler, and would otherwise be discovered as a mystery agent regression.
+These tests check that the reference runs and remains consistent with the case labels. Because
+the reference calls the same modeling implementation, label consistency does not independently
+validate the calculations. Comparing the agent with the reference needs an API key.
 """
 import pandas as pd
 import pytest
@@ -71,3 +70,17 @@ def test_interim_df_is_the_shape_fit_interim_expects():
     assert list(df.columns) == ["responded"]
     assert set(df["responded"].unique()) <= {0, 1}
     assert pd.api.types.is_integer_dtype(df["responded"])
+
+
+def test_failed_case_diagnostic_reports_only_relevant_extracted_parameters():
+    from types import SimpleNamespace
+
+    case = next(c for c in BAYES if c.id == "bo_interim_consider")
+    result = SimpleNamespace(analysis_spec={"parameters": {
+        "n_planned": 100, "tv": 0.30, "lrv": 0.15, "prior_a": 12, "prior_b": 1,
+        "unrelated_model_text": "do not include this",
+    }})
+    info = bayes_eval.extraction_diagnostics(case, result)
+    assert info["expected"]["prior_a"] == 1.0
+    assert info["extracted"]["prior_a"] == 12
+    assert "unrelated_model_text" not in info["extracted"]

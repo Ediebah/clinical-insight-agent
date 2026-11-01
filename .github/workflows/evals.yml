@@ -15,6 +15,13 @@ on:
   schedule:
     - cron: "0 6 * * 1"        # Mondays 06:00 UTC
   workflow_dispatch:
+    inputs:
+      suite:
+        description: Evaluation suite to run
+        required: true
+        type: choice
+        options: [all, bayes_only]
+        default: all
 
 concurrency:
   group: evals-${{ github.ref }}
@@ -94,11 +101,13 @@ jobs:
       # any failure back into a red run — a partial picture is the thing worth avoiding here,
       # since these three fail for quite different reasons.
       - name: Accuracy eval (aggregation path, reference-SQL ground truth)
+        if: github.event_name != 'workflow_dispatch' || inputs.suite == 'all'
         id: accuracy
         continue-on-error: true
         run: python -m agent.eval
 
       - name: Routing eval (inferential layer, labelled routes)
+        if: github.event_name != 'workflow_dispatch' || inputs.suite == 'all'
         id: routing
         continue-on-error: true
         run: python -m agent.route_eval

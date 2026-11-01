@@ -4,15 +4,11 @@ agent.route_eval checks the agent reaches the right MODEL. That is not the same 
 correctly to `assurance` and then reading "30%" as the LRV instead of the TV yields a confident GO
 on a trial that should stop, and every routing metric still scores it green.
 
-This is the agent.eval pattern — deterministic ground truth, agent measured against it — moved to
-the inferential layer. bayes.py is closed-form conjugate, so the reference is obtained by calling
-the SAME modeling entry point with the CORRECT parameters. Both paths then run identical
-arithmetic, and the only thing that can differ is what the agent pulled out of English. A numeric
-mismatch is therefore an EXTRACTION bug, never an arithmetic one — which is what makes the failures
-actionable rather than merely visible.
-
-Being able to say "the agent's Bayesian decision is checked against a deterministic reference on
-every run" is a stronger claim than most clinical-AI products can make about anything they ship.
+This is the agent.eval pattern applied to the inferential layer. The reference uses the same
+modeling entry point with specified parameters, so it tests extraction and execution agreement;
+it is not an independent numerical validation. The benchmark automatically approves the generated
+specification for synthetic cases and does not measure human review. A mismatch can come from
+parameter extraction, generated SQL, or another execution difference.
 
 Run:  .venv/bin/python -m agent.bayes_eval        (needs OPENAI_API_KEY in agent/.env)
 Companions: agent.eval (aggregation), agent.route_eval (routing), agent.guardrail_eval (no key).
@@ -31,9 +27,8 @@ from .eval_dataset import BAYES
 
 HISTORY = Path(__file__).resolve().parent / "bayes_eval_history.jsonl"
 
-# Both paths run the same closed-form code, so a correct extraction agrees to within float noise.
-# A whole percentage point of slack is already far looser than "right"; anything beyond it is a
-# different parameter, not a rounding difference.
+# Both paths call the same modeling implementation. The tolerance is a benchmark choice, not
+# a bound on numerical error or evidence of independent correctness.
 TOL = 0.01
 PASS_THRESHOLD = 0.85
 
@@ -56,6 +51,25 @@ def reference(case) -> modeling.ModelResult:
     if case.fn == "assurance":
         return modeling.calc_assurance(**case.params)
     return modeling.fit_interim(_interim_df(case.observed), "responded", **case.params)
+
+
+_DIAGNOSTIC_KEYS = (
+    "n_planned", "tv", "lrv", "gate_tv", "gate_lrv", "stop_lrv", "framing", "group", "control",
+    "control_rate", "prior_successes", "prior_n", "prior_a", "prior_b",
+    "control_prior_a", "control_prior_b",
+)
+
+
+def extraction_diagnostics(case, result) -> dict:
+    """Report bounded, selected parameters for synthetic benchmark failures, not arbitrary text."""
+    spec = result.analysis_spec or {}
+    values = spec.get("parameters") or {}
+    return {
+        "expected": {key: case.params[key] for key in _DIAGNOSTIC_KEYS if key in case.params},
+        "extracted": {key: values[key] for key in _DIAGNOSTIC_KEYS
+                      if key in values and isinstance(values[key], (int, float, bool, str, type(None)))
+                      and (not isinstance(values[key], str) or len(values[key]) <= 80)},
+    }
 
 
 def main() -> int:
@@ -92,6 +106,9 @@ def main() -> int:
                 print(f"       agent used: {model['fit_stat']}")
                 print(f"       should be : {ref.fit_stat}")
             print(f"       ({c.why})")
+            print(f"       parameters: {json.dumps(extraction_diagnostics(c, res), sort_keys=True)}")
+            if res.clarification:
+                print(f"       clarification: {res.clarification}")
 
         rows.append({"id": c.id, "ok": ok})
 

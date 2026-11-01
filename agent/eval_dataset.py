@@ -349,12 +349,9 @@ ROUTE_NO_SQL = {"sample_size", "assurance", "aggregate"}
 # of the TV produces a confident GO on a trial that should stop, and nothing in the routing eval
 # would notice.
 #
-# bayes.py is closed-form conjugate, so the reference is computed by calling the same modeling
-# entry point with the CORRECT parameters at eval time — deliberately not hardcoded. Hardcoding
-# would re-test bayes.py (which has its own unit suite) and would rot whenever a grid legitimately
-# changes. Computing it live isolates the one thing the agent actually controls here: pulling
-# n_planned / tv / lrv / the prior out of English. A numeric mismatch is therefore an EXTRACTION
-# bug, never an arithmetic one.
+# The reference calls the same modeling entry point with the benchmark's selected parameters.
+# It tests whether the routed execution agrees with that reference, not independent numerical
+# accuracy. Mismatches can reflect parameter extraction, generated SQL, or execution differences.
 # ---------------------------------------------------------------------------------------------
 
 @dataclass(frozen=True)
@@ -447,7 +444,9 @@ BAYES = [
                   "reference, and stopping, respectively."
                   + (" Use a Beta(1,1) prior for each observed arm." if case.fn == "interim" else "")
                   + (" Use a Beta(1,1) control analysis prior." if case.fn == "assurance"
-                     and case.params.get("framing") == "two_arm" else "")),
+                     and case.params.get("framing") == "two_arm" else "")
+                  + (" Set the lower reference to 0 percentage points." if
+                     case.params.get("framing") == "two_arm" else "")),
         params={**case.params, "gate_tv": .8, "gate_lrv": .9, "stop_lrv": .1,
                 **({"prior_a": 1., "prior_b": 1.} if case.fn == "interim" else {}),
                 **({"control_prior_a": 1., "control_prior_b": 1.}

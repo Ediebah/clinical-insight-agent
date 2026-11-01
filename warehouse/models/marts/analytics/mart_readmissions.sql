@@ -11,9 +11,9 @@
 -- BEFORE discharge (elapsed time negative, but date_diff('day', ...) reads 0).
 -- Why min() over qualifying admissions and NOT lead() over admission order: lead() only sees the
 -- single next admission, so an overlapping/nested stay sitting between the index stay and a genuine
--- later readmission "shadows" it and the flag reads false. Against the seeded dataset lead() missed
--- 14 real readmissions (rate 7.29% instead of the correct 8.96%). The earliest admission that starts
--- strictly after discharge is the readmission candidate, wherever it falls in admission order.
+-- later readmission "shadows" it and the flag reads false. A same-calendar-day admission can also
+-- shadow a later qualifying readmission. Choose the earliest admission strictly after discharge
+-- whose calendar-day difference is at least one, wherever it falls in admission order.
 
 with inpatient as (
     select
@@ -46,6 +46,7 @@ next_post_discharge as (
       on n.patient_id = i.patient_id
      and n.encounter_id <> i.encounter_id
      and n.encounter_start > i.encounter_stop
+     and date_diff('day', i.encounter_stop, n.encounter_start) >= 1
     group by i.encounter_id
 )
 
@@ -55,8 +56,8 @@ select
     i.encounter_start                                           as admission_date,
     i.encounter_stop                                            as discharge_date,
     n.next_admission_start,
-    -- days from discharge to the earliest strictly-post-discharge admission; null when the patient
-    -- has no later inpatient admission at all. Overlapping/concurrent stays never appear here.
+    -- Days to the earliest strictly post-discharge admission on a later calendar day; null when
+    -- no such inpatient admission exists. Same-day and overlapping stays never appear here.
     date_diff('day', i.encounter_stop, n.next_admission_start)  as days_to_next_admission,
     -- Readmission = that earliest post-discharge admission lands within a 1-30 day window
     -- (day 0 excluded: a same-calendar-day return is indistinguishable from a transfer here).
