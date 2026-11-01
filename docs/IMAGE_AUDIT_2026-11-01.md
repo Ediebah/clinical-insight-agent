@@ -39,3 +39,19 @@ The CI scan records findings without failing on severity, so a green CI status d
 the image is free of advisories. Assess the specific execution paths, available vendor updates, and
 deployment controls before distribution. The base tag and transitive dependencies can change at
 later builds; scan the exact image to be used.
+
+## Debian source-package review
+
+On 2026-11-01, Debian's tracker listed the scanned Trixie source versions as vulnerable for the
+eight high-severity IDs. It classified the corresponding [ncurses](https://security-tracker.debian.org/tracker/CVE-2025-69720),
+[util-linux](https://security-tracker.debian.org/tracker/CVE-2026-76642),
+[systemd](https://security-tracker.debian.org/tracker/CVE-2026-16742), and
+[acl](https://security-tracker.debian.org/tracker/CVE-2026-54369) issues as not requiring a
+separate security update; the acl tracker mentions a possible future point-release update. Debian
+marked the [Perl issue](https://security-tracker.debian.org/tracker/CVE-2026-9538) as postponed.
+The other util-linux IDs are [CVE-2026-78408](https://security-tracker.debian.org/tracker/CVE-2026-78408),
+[CVE-2026-78409](https://security-tracker.debian.org/tracker/CVE-2026-78409), and
+[CVE-2026-78410](https://security-tracker.debian.org/tracker/CVE-2026-78410). These are
+source-package statuses, not proof that the vulnerable functionality is reachable in this image.
+The application runs as a non-root user by default; that does not establish that a deployment is
+protected against every listed issue. Recheck vendor status and the exact deployment environment.

@@ -30,3 +30,12 @@ prior, changing the predictive probability from 0.2896 to 0.4172. The benchmark 
 approved that incorrect specification, so this is not evidence that a human reviewed it. The code
 now clears that ambiguous representation and requires correction; updated percentage-point
 grounding and prompt guidance need separate evaluation.
+
+A [repeat after the prior safeguard and percentage-point changes](https://github.com/Ediebah/clinical-insight-agent/actions/runs/41283448761)
+on commit `06eab022198f1c38cbd114a7920bc73ad9a48c78` scored 6/8 and failed the same threshold.
+The previously misread single-arm Beta-prior case agreed with the reference in this run. One
+study-design case was routed to a request for clarification, and one two-arm case was stopped
+because the control prior was not extracted into the required fields. These refusals did not produce
+an incorrect numerical result, but the benchmark did not complete those requested analyses. A
+single small repeat is not sufficient to estimate a stable failure rate or prove the safeguard
+covers every prior-extraction error.

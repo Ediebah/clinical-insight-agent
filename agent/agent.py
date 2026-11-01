@@ -407,7 +407,9 @@ def _route(question: str, context: str) -> dict:
         "15-point benefit hoped for -> tv 0.15; any benefit is the floor -> lrv 0). Supply the treatment "
         "prior from Phase I as `prior_successes` + `prior_n`. Extract explicit control Beta prior "
         "parameters as `control_prior_a` and `control_prior_b`; leave them null if unstated. "
-        "n_planned is the TOTAL across both arms.\n"
+        "A control Beta prior belongs only in control_prior_a/control_prior_b; do not copy it "
+        "into the treatment prior fields. A treatment prior study belongs only in "
+        "prior_successes/prior_n. n_planned is the TOTAL across both arms.\n"
         "  'interim'     an INTERIM Bayesian go/no-go on data collected SO FAR — 'we are 40 patients "
         "in with 12 responses, continue or stop', 'stop for futility?', 'predictive probability of "
         "success'. analytic_sql returns ONE ROW PER SUBJECT OBSERVED SO FAR with a binary `outcome` "
@@ -465,7 +467,9 @@ def _route(question: str, context: str) -> dict:
         'subject anywhere in it ("show me the trends", "run the analysis", "what are the patterns", '
         '"any correlations?") → {"mode":"aggregate"}. Do NOT invent a subject to model. This applies '
         'ONLY when the subject is absent: if the question names the thing ("trend in encounter '
-        'volume", "what predicts readmission"), model it as normal.',
+        'volume", "what predicts readmission"), model it as normal. A proposed study with a stated '
+        'response-rate endpoint and prior study counts is a concrete trial-design question, even if '
+        'it does not name a warehouse table or explicitly use the word assurance.',
     )
 
 
