@@ -65,6 +65,40 @@ def _equal(actual, expected) -> bool:
     return type(actual) is type(expected) and actual == expected
 
 
+def _invalid_proposal_diagnostics(case: dict, params: dict, stage: str, exc: ValueError) -> dict:
+    """Keep bounded synthetic fields, never arbitrary model output or exception text."""
+    message = str(exc).lower()
+    issue = "other"
+    if stage == "bayesian_inputs":
+        if "control prior" in message:
+            issue = "control_prior"
+        elif "prior" in message:
+            issue = "treatment_prior"
+        elif "threshold" in message or any(key in message for key in ("gate_tv", "gate_lrv", "stop_lrv")):
+            issue = "decision_threshold"
+        elif "higher_is_better" in message:
+            issue = "direction"
+        elif "endpoint" in message:
+            issue = "endpoint"
+        elif "framing" in message:
+            issue = "framing"
+        elif any(key in message for key in ("n_planned", "control_rate", "tv", "lrv")):
+            issue = "numeric_input"
+    keys = set(case["parameters"]) | set(_PRIOR_FIELDS) | {"framing", "higher_is_better"}
+    fields = {}
+    for key in sorted(keys):
+        value = params.get(key)
+        if value is None or type(value) is bool:
+            fields[key] = value
+        elif type(value) in (int, float) and math.isfinite(value):
+            fields[key] = value
+        elif key == "framing" and value in ("single_arm", "two_arm"):
+            fields[key] = value
+        else:
+            fields[key] = "<invalid>"
+    return {"validation_stage": stage, "validation_issue": issue, "actual_parameters": fields}
+
+
 def score(case: dict, result) -> dict:
     """Score a proposal or a specific required refusal; generic errors never count as safe."""
     expectation = case["expect"]
@@ -99,15 +133,20 @@ def score(case: dict, result) -> dict:
     if not isinstance(params, dict):
         row["reason"] = "invalid_parameters"
         return row
+    stage = "specification"
     try:
         research.validate_spec(spec)
+        stage = "bayesian_inputs"
         research.require_bayesian_inputs(params)
+        stage = "design_inputs"
         missing = [key for key in ("n_planned", "tv", "lrv") if params.get(key) is None]
         if missing:
             raise ValueError("missing required design inputs")
     except ValueError as exc:
         row["passed"] = expectation == "abstain" and case["reason"].lower() in str(exc).lower()
         row["reason"] = "specific_refusal" if row["passed"] else "invalid_specification"
+        if expectation == "proposal":
+            row.update(_invalid_proposal_diagnostics(case, params, stage, exc))
         return row
     if expectation == "abstain":
         row["reason"] = "missing_input_was_invented_or_ignored"

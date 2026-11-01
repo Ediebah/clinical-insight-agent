@@ -48,6 +48,15 @@ identify a model snapshot. It records available token counts, not a billing tota
 only synthetic case IDs, selected specification fields, and run metadata. Workflow artifacts
 expire after 90 days; archive an appropriately reviewed report if it is needed for a release.
 
+For an invalid proposal, newer reports also record the validation stage, a coarse issue category,
+and bounded numeric, boolean, and known framing fields. They do not record arbitrary provider text
+or exception messages. These diagnostics are not available in reports generated before this change.
+They cannot reconstruct a previous model response. The original v1 baseline was 7/8; its two-arm
+proposal failed validation for a reason that was not retained. A key-free replay of the expected
+fields passes, but it does not reveal what the model actually returned. This diagnostic change was
+motivated by that result; any subsequent use of this case set is development evaluation, not a new
+independent or held-out assessment.
+
 Freeze the source commit and cases before the baseline run. Do not tune the routing prompt or
 labels against these cases and then describe a repeated score as held out. If results guide a
 change, this set becomes development data for that change; prepare and freeze a new set before

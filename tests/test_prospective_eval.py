@@ -137,3 +137,21 @@ def test_failed_proposal_keeps_usage_and_resets_trace(monkeypatch):
     assert reset == [True]
     assert not row["passed"] and row["reason"] == "execution_error"
     assert row["usage"] == {"calls": 1, "prompt_tokens": 101, "completion_tokens": 12}
+
+
+def test_invalid_proposal_records_bounded_diagnostics_without_provider_text():
+    run = evaluator()
+    case = {"id": "trial", "expect": "proposal", "method": "assurance",
+            "parameters": {"n_planned": 80, "prior_successes": 7, "prior_n": 20}}
+    params = {"framing": "two_arm", "n_planned": 80, "prior_successes": 7, "prior_n": 20,
+              "control_prior_a": 2, "control_prior_b": None,
+              "gate_tv": .8, "gate_lrv": .9, "stop_lrv": .1,
+              "prior_a": "sensitive provider text", "other": "sensitive provider text"}
+    row = run.score(case, _result(params=params))
+    assert not row["passed"] and row["reason"] == "invalid_specification"
+    assert row["validation_stage"] == "bayesian_inputs"
+    assert row["validation_issue"] == "control_prior"
+    assert row["actual_parameters"]["control_prior_b"] is None
+    assert row["actual_parameters"]["prior_successes"] == 7
+    assert row["actual_parameters"]["prior_a"] == "<invalid>"
+    assert "sensitive provider text" not in json.dumps(row)
