@@ -1,0 +1,116 @@
+# Proposed in a draft PR. No PyPI trusted publishers have been configured.
+# Review the `pypi` GitHub environment, source, checksums, license terms, and
+# matching PyPI trusted publishers before merging or dispatching this workflow.
+name: Publish a reviewed Python package
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: Package to publish
+        required: true
+        type: choice
+        options:
+          - caveat
+          - clinical-insight-assurance
+      approval:
+        description: Type PUBLISH REVIEWED ARTIFACTS after the release review
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: 0dff8a848724c08a23ecae6c3a9ad14f08ffc22d
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - name: Build and compare with the reviewed candidate checksums
+        env:
+          PACKAGE: ${{ inputs.package }}
+          APPROVAL: ${{ inputs.approval }}
+        run: |
+          set -euo pipefail
+          test "$APPROVAL" = 'PUBLISH REVIEWED ARTIFACTS'
+          case "$PACKAGE" in
+            caveat)
+              project=packages/caveat
+              wheel=caveat-0.1.2-py3-none-any.whl
+              source=caveat-0.1.2.tar.gz
+              wheel_sha=1b8772d3f8cc85e8f44c62eea0c6166f3a9b686ff77d37d30d588a19e8795a63
+              source_sha=97b02a6ee9b1fe3b18dcefad1350acb78b4731c86ceff65e4f7242f4e548d0fc
+              ;;
+            clinical-insight-assurance)
+              project=packages/assurance
+              wheel=clinical_insight_assurance-0.2.0-py3-none-any.whl
+              source=clinical_insight_assurance-0.2.0.tar.gz
+              wheel_sha=e4d67b121621bfba44647cbc10bca790690c9e6c0578c486137ff5f4d20b4cca
+              source_sha=21701d35de44bd7ce7517d1392de7aca85e85f7fec1615f17e7fa3fcafac7733
+              ;;
+            *) echo 'Unsupported package' >&2; exit 1 ;;
+          esac
+          python -m pip install 'build==1.5.0'
+          python -m build "$project" --outdir dist
+          cd dist
+          shopt -s nullglob dotglob
+          files=(*)
+          test "${#files[@]}" -eq 2
+          printf '%s  %s\n%s  %s\n' "$wheel_sha" "$wheel" "$source_sha" "$source" | sha256sum -c -
+          cd "$RUNNER_TEMP"
+          python -m venv release-test
+          release-test/bin/python -m pip install pytest "$GITHUB_WORKSPACE/dist/$wheel"
+          release-test/bin/python -m pytest "$GITHUB_WORKSPACE/$project/tests" -q
+          cd "$GITHUB_WORKSPACE/dist"
+          files=(*)
+          test "${#files[@]}" -eq 2
+          printf '%s  %s\n%s  %s\n' "$wheel_sha" "$wheel" "$source_sha" "$source" | sha256sum -c -
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: reviewed-package
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    needs: build-and-verify
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: reviewed-package
+          path: dist/
+      - name: Recheck the reviewed artifacts immediately before publishing
+        env:
+          PACKAGE: ${{ inputs.package }}
+        run: |
+          set -euo pipefail
+          case "$PACKAGE" in
+            caveat)
+              wheel=caveat-0.1.2-py3-none-any.whl
+              source=caveat-0.1.2.tar.gz
+              wheel_sha=1b8772d3f8cc85e8f44c62eea0c6166f3a9b686ff77d37d30d588a19e8795a63
+              source_sha=97b02a6ee9b1fe3b18dcefad1350acb78b4731c86ceff65e4f7242f4e548d0fc
+              ;;
+            clinical-insight-assurance)
+              wheel=clinical_insight_assurance-0.2.0-py3-none-any.whl
+              source=clinical_insight_assurance-0.2.0.tar.gz
+              wheel_sha=e4d67b121621bfba44647cbc10bca790690c9e6c0578c486137ff5f4d20b4cca
+              source_sha=21701d35de44bd7ce7517d1392de7aca85e85f7fec1615f17e7fa3fcafac7733
+              ;;
+            *) echo 'Unsupported package' >&2; exit 1 ;;
+          esac
+          cd dist
+          shopt -s nullglob dotglob
+          files=(*)
+          test "${#files[@]}" -eq 2
+          printf '%s  %s\n%s  %s\n' "$wheel_sha" "$wheel" "$source_sha" "$source" | sha256sum -c -
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # release/v1
