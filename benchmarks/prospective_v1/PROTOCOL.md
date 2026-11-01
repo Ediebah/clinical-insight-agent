@@ -77,6 +77,14 @@ replay is a development check and not a model rerun or an independent performanc
 parser does not establish the intent of unrestricted natural language. Users must review every
 proposed specification before approval.
 
+On the same date, a post-change development rerun of source commit
+`5dbe914687bce77e6be5f7a9e071706d0ad26975` met 8 of 8 expectations, including the two-arm
+case. The [report](results/2026-11-01-post-change-development.json) has SHA-256
+`6348b5eaaf0cdf91e2363ae8caee3ca10fa888f47a5790c6bc550a77659f34f2`.
+The cases had already informed the attribution change, and the `gpt-4o` alias can change. This
+single rerun is development feedback, not an independent test or a reliable estimate of future
+performance. It checks selected proposal fields and refusals, not numerical or SQL validity.
+
 Freeze the source commit and cases before the baseline run. Do not tune the routing prompt or
 labels against these cases and then describe a repeated score as held out. If results guide a
 change, this set becomes development data for that change; prepare and freeze a new set before

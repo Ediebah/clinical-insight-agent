@@ -3,6 +3,15 @@
 Notable changes to the Clinical Insight Agent. Format follows [Keep a Changelog](https://keepachangelog.com/);
 versions follow [SemVer](https://semver.org/).
 
+## [1.1.0-rc.2] — 2026-11-01 — research preview
+
+- Record bounded diagnostics for rejected synthetic specifications without retaining arbitrary
+  provider text or exception messages.
+- Correct a narrowly recognized control-prior attribution and disclose the treatment-prior base
+  in the proposed specification. Negated and conflicting examples remain subject to review.
+- Archive the pre-correction 7/8 and post-correction 8/8 synthetic development reruns. The cases
+  informed the change; the results are not independent validation.
+
 ## [1.1.0-rc.1] — 2026-11-01 — research preview
 
 - Reject an explicitly null or non-boolean Bayesian outcome direction instead of interpreting it as lower-is-better.
