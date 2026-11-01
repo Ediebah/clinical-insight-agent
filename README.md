@@ -85,6 +85,8 @@ See [capability map](docs/CAPABILITIES.md), [evaluation](docs/EVALUATION.md), an
 
 See [CONTRIBUTING.md](CONTRIBUTING.md), the [starter backlog](docs/STARTER_ISSUES.md), [security policy](.github/SECURITY.md), and [code of conduct](.github/CODE_OF_CONDUCT.md). Statistical failure cases, documentation, and independently calculated numerical references are welcome. Please do not include patient data, credentials, or confidential information in an issue.
 
+Two scoped first contributions need no API key: [a missing-denominator caveat example](https://github.com/Ediedah/clinical-insight-agent/issues/58) and [an in-memory adapter and truncation example](https://github.com/Ediedah/clinical-insight-agent/issues/59). The [review brief](docs/EXTERNAL_REVIEW.md) explains how independent researchers can assess the toolkit; no independent review has yet been completed.
+
 ```bash
 .venv/bin/python -m pip install -r requirements-dev.txt
 .venv/bin/python -m pytest tests packages/caveat/tests packages/assurance/tests
