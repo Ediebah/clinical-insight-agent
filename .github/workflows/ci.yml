@@ -119,3 +119,31 @@ jobs:
         with:
           name: ${{ matrix.package }}-python-${{ matrix.python }}
           path: dist/${{ matrix.package }}
+
+  container-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the local application image
+        run: docker build --tag clinical-insight-ci:${{ github.sha }} .
+      - name: Start the image and check health without an API key
+        run: |
+          docker run --detach --name clinical-insight-smoke \
+            --publish 127.0.0.1:18501:8080 \
+            --env OPENAI_API_KEY= clinical-insight-ci:${{ github.sha }}
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --show-error http://127.0.0.1:18501/_stcore/health; then
+              docker exec clinical-insight-smoke python -c 'import caveat, assurance; print("standalone imports OK")'
+              exit 0
+            fi
+            if [ "$(docker inspect --format '{{.State.Running}}' clinical-insight-smoke)" != "true" ]; then
+              break
+            fi
+            sleep 2
+          done
+          docker logs clinical-insight-smoke
+          exit 1
+      - name: Remove the test container
+        if: always()
+        run: docker rm --force clinical-insight-smoke || true
