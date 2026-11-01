@@ -354,7 +354,7 @@ ROUTE_NO_SQL = {"sample_size", "assurance", "aggregate"}
 # would re-test bayes.py (which has its own unit suite) and would rot whenever a grid legitimately
 # changes. Computing it live isolates the one thing the agent actually controls here: pulling
 # n_planned / tv / lrv / the prior out of English. A numeric mismatch is therefore an EXTRACTION
-# bug, never an arithmetic one.
+# mismatch may also reflect generated SQL or other execution differences.
 # ---------------------------------------------------------------------------------------------
 
 @dataclass(frozen=True)

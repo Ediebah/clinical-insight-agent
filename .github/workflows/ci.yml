@@ -153,6 +153,7 @@ jobs:
           for attempt in $(seq 1 60); do
             if curl --fail --silent --show-error http://127.0.0.1:18501/_stcore/health; then
               docker exec clinical-insight-smoke python -c 'import caveat, assurance; print("standalone imports OK")'
+              docker exec clinical-insight-smoke python -c 'import importlib.util; assert importlib.util.find_spec("pip") is None; print("pip removed from runtime image")'
               docker exec clinical-insight-smoke python -c 'from streamlit import config; assert config.get_option("server.enableCORS") and config.get_option("server.enableXsrfProtection"); print("CORS and XSRF protections enabled")'
               docker exec clinical-insight-smoke python -c 'from streamlit.testing.v1 import AppTest; app = AppTest.from_file("/app/app.py", default_timeout=120).run(); assert not app.exception, [str(e.value) for e in app.exception]; print("app rendered without an API key")'
               exit 0
@@ -169,7 +170,7 @@ jobs:
           mkdir -p image-audit
           docker image inspect clinical-insight-ci:${{ github.sha }} > image-audit/image.json
           docker image inspect python:3.12-slim > image-audit/base-image.json
-          docker exec clinical-insight-smoke python -m pip list --format=json > image-audit/python-packages.json
+          docker exec clinical-insight-smoke python -c 'import importlib.metadata as m,json; print(json.dumps([{"name": d.metadata["Name"], "version": d.version} for d in m.distributions() if d.metadata["Name"]]))' > image-audit/python-packages.json
           docker exec clinical-insight-smoke dpkg-query -W > image-audit/os-packages.txt
           python3 -c 'import json; p=json.load(open("image-audit/python-packages.json")); open("image-audit/python-requirements.txt", "w").write("".join(sorted("{}=={}\n".format(x["name"], x["version"]) for x in p)))'
       - name: Audit installed Python package versions

@@ -17,8 +17,11 @@ WORKDIR /app
 COPY requirements.txt .
 COPY packages/caveat packages/caveat
 COPY packages/assurance packages/assurance
+# The installer and its vendored libraries are not needed by the running application.
 RUN python -m pip install --upgrade pip==26.2.2 && \
-    python -m pip install -r requirements.txt
+    python -m pip install -r requirements.txt && \
+    python -m pip check && \
+    python -m pip uninstall --yes pip
 
 # App code + the committed slim demo warehouse. The full 200MB DB is excluded via .dockerignore,
 # so warehouse._resolve_db_path() falls back to data/healthcare_demo.duckdb.

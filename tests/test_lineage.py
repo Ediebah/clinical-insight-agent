@@ -42,7 +42,7 @@ def test_downstream_direction():
 
 def test_provenance_traces_readmissions():
     p = lineage.provenance("mart_readmissions", CAT)
-    assert p["depends_on"] == ["fct_encounters"]
+    assert set(p["depends_on"]) == {"fct_encounters", "dim_patient"}
     assert "synthea.encounters" in p["sources"]
     upstream_names = {d["name"] for d in p["upstream"]}
     assert {"stg_encounters", "fct_encounters"} <= upstream_names

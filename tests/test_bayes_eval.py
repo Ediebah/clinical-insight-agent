@@ -71,3 +71,17 @@ def test_interim_df_is_the_shape_fit_interim_expects():
     assert list(df.columns) == ["responded"]
     assert set(df["responded"].unique()) <= {0, 1}
     assert pd.api.types.is_integer_dtype(df["responded"])
+
+
+def test_failed_case_diagnostic_reports_only_relevant_extracted_parameters():
+    from types import SimpleNamespace
+
+    case = next(c for c in BAYES if c.id == "bo_interim_consider")
+    result = SimpleNamespace(analysis_spec={"parameters": {
+        "n_planned": 100, "tv": 0.30, "lrv": 0.15, "prior_a": 12, "prior_b": 1,
+        "unrelated_model_text": "do not include this",
+    }})
+    info = bayes_eval.extraction_diagnostics(case, result)
+    assert info["expected"]["prior_a"] == 1.0
+    assert info["extracted"]["prior_a"] == 12
+    assert "unrelated_model_text" not in info["extracted"]
