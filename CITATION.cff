@@ -1,7 +1,7 @@
 cff-version: 1.2.0
 message: "If you use this research prototype, please cite the software and the specific version used."
 title: "Clinical Insight Agent"
-version: "1.1.0-rc.1"
+version: "1.1.0-rc.2"
 type: software
 authors:
   - family-names: Ediebah
