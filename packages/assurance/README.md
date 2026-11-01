@@ -127,7 +127,7 @@ compose them themselves.
 python -m pip install ./packages/assurance
 ```
 
-Run from the repository root, or install `clinical-insight-assurance==0.3.0` from PyPI. Requires
+Run from the repository root, or install `clinical-insight-assurance` from PyPI. Requires
 NumPy and SciPy. The Python import remains `assurance`. PyPI's separate project named `assurance`
 is unrelated; do not install it expecting this library. Python distributions can expose the same
 import name, so avoid installing another package that provides `assurance` in the same environment.

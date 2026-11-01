@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "clinical-insight-assurance"
-version = "0.3.0"
+version = "0.3.1"
 description = "Exploratory Bayesian calculations for trial design, with explicit assumptions."
 readme = "README.md"
 requires-python = ">=3.10"
