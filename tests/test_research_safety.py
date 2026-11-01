@@ -218,9 +218,13 @@ def test_ambiguous_or_conflicting_control_beta_is_not_automatically_reassigned()
     examples = [
         (base.replace("use Beta", "do not use Beta"), route),
         (base.replace("A treatment pilot had", "No treatment pilot had"), route),
+        (base.replace("A treatment pilot had", "Do not assume the treatment pilot had"), route),
         (base.replace("patients;", "patients, but do not use those counts;"), route),
         (base + " Use Beta(2,2) as the treatment prior.", route),
+        ("A treatment pilot had 8 responses in 24 patients. A treatment pilot had 7 responses in 20 patients; "
+         "use Beta(3,4) as the control analysis prior.", route),
         (base, {**route, "control_prior_a": 4, "control_prior_b": 4}),
+        (base, {**route, "control_prior_a": 5, "control_prior_b": 6}),
         (base, {**route, "prior_successes": 24, "prior_n": 24}),
     ]
     for question, candidate in examples:

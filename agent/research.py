@@ -75,6 +75,8 @@ def from_route(question: str, route: dict, data_source: str) -> dict:
             question, re.IGNORECASE)
         if (method == "assurance" and parameters.get("framing") == "two_arm"
                 and len(beta_shapes) == 1 and control_beta and pilot
+                and len(re.findall(r"\btreatment\s+(?:pilot|study)\b", question, re.IGNORECASE)) == 1
+                and route.get("control_prior_a") is None and route.get("control_prior_b") is None
                 and parameters.get("control_prior_a") is None and parameters.get("control_prior_b") is None
                 and (parameters.get("prior_a"), parameters.get("prior_b")) ==
                     (float(control_beta.group(1)), float(control_beta.group(2)))
