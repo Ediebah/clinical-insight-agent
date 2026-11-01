@@ -63,6 +63,18 @@ def test_direct_two_arm_interim_requires_a_named_control_arm():
     assert result.error and "control" in result.error.lower()
 
 
+def test_two_arm_interim_uses_the_separately_specified_control_prior():
+    frame = pd.DataFrame({"arm": ["treatment"] * 4 + ["control"] * 4,
+                          "response": [1, 1, 0, 0, 1, 0, 0, 0]})
+    result = modeling.fit_interim(frame, "response", framing="two_arm", group="arm", control="control",
+                                  n_planned=20, tv=.2, lrv=0, prior_a=1, prior_b=1,
+                                  control_prior_a=4, control_prior_b=2,
+                                  gate_tv=.8, gate_lrv=.9, stop_lrv=.1)
+    assert result.error is None
+    # Treatment Beta(3,3) and control Beta(5,5) both have posterior mean 0.5.
+    assert abs(result.terms[0].estimate) < 1e-12
+
+
 def test_unknown_bayesian_framing_is_refused():
     result = modeling.calc_assurance(framing="competing_risk", n_planned=20, tv=.4, lrv=.3,
                                     prior_a=1, prior_b=1, gate_tv=.8, gate_lrv=.9, stop_lrv=.1)

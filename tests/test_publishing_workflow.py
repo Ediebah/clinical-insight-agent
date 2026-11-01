@@ -11,10 +11,10 @@ import yaml
 @pytest.fixture(params=[
     ("publish-caveat.yml", "clinical-insight-caveat",
      "clinical_insight_caveat-0.1.2-py3-none-any.whl", "clinical_insight_caveat-0.1.2.tar.gz",
-     "b78290d26b3f153f042fca2f6741de2a495c6385"),
+     "68ffbeddef8fc7d8fba4f3eb612959a849a92fe6"),
     ("publish-assurance.yml", "clinical-insight-assurance",
-     "clinical_insight_assurance-0.2.0-py3-none-any.whl", "clinical_insight_assurance-0.2.0.tar.gz",
-     "0dff8a848724c08a23ecae6c3a9ad14f08ffc22d"),
+     "clinical_insight_assurance-0.3.0-py3-none-any.whl", "clinical_insight_assurance-0.3.0.tar.gz",
+     "68ffbeddef8fc7d8fba4f3eb612959a849a92fe6"),
 ])
 def release(request):
     filename, package, wheel, source, commit = request.param
