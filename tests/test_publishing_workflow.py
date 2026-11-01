@@ -4,16 +4,23 @@ import re
 import subprocess
 from pathlib import Path
 
+import pytest
 import yaml
 
 
-def _workflow():
-    path = Path(__file__).resolve().parents[1] / ".github/workflows/publish.yml"
-    return yaml.load(path.read_text(), Loader=yaml.BaseLoader)
+@pytest.fixture(params=[
+    ("publish.yml", "caveat", "caveat-0.1.2-py3-none-any.whl", "caveat-0.1.2.tar.gz"),
+    ("publish-assurance.yml", "clinical-insight-assurance",
+     "clinical_insight_assurance-0.2.0-py3-none-any.whl", "clinical_insight_assurance-0.2.0.tar.gz"),
+])
+def release(request):
+    filename, package, wheel, source = request.param
+    path = Path(__file__).resolve().parents[1] / ".github/workflows" / filename
+    return yaml.load(path.read_text(), Loader=yaml.BaseLoader), package, wheel, source
 
 
-def test_publishing_is_manual_and_separates_oidc_from_the_build():
-    workflow = _workflow()
+def test_publishing_is_manual_and_separates_oidc_from_the_build(release):
+    workflow, _, _, _ = release
     assert set(workflow["on"]) == {"workflow_dispatch"}
     assert workflow["permissions"] == {"contents": "read"}
     build = workflow["jobs"]["build-and-verify"]
@@ -28,10 +35,10 @@ def test_publishing_is_manual_and_separates_oidc_from_the_build():
                 assert re.fullmatch(r"[^@]+@[0-9a-f]{40}", step["uses"])
 
 
-def test_candidate_build_checks_reviewed_source_artifacts_and_runs_tests():
-    workflow = _workflow()
+def test_candidate_build_checks_reviewed_source_artifacts_and_runs_tests(release):
+    workflow, package, _, _ = release
     dispatch = workflow["on"]["workflow_dispatch"]["inputs"]
-    assert dispatch["package"]["options"] == ["caveat", "clinical-insight-assurance"]
+    assert dispatch["package"]["options"] == [package]
     assert dispatch["approval"]["required"] == "true"
     steps = workflow["jobs"]["build-and-verify"]["steps"]
     assert steps[0]["with"]["ref"] == "0dff8a848724c08a23ecae6c3a9ad14f08ffc22d"
@@ -43,11 +50,14 @@ def test_candidate_build_checks_reviewed_source_artifacts_and_runs_tests():
     assert "*) echo 'Unsupported package'" in script
 
 
-def test_build_refuses_missing_approval_and_unknown_package(tmp_path):
-    script = _workflow()["jobs"]["build-and-verify"]["steps"][2]["run"]
+def test_build_refuses_missing_approval_and_unknown_package(tmp_path, release):
+    workflow, package, _, _ = release
+    script = workflow["jobs"]["build-and-verify"]["steps"][2]["run"]
+    other_package = "clinical-insight-assurance" if package == "caveat" else "caveat"
     for package, approval in (
-        ("caveat", "not approved"),
+        (package, "not approved"),
         ("unexpected", "PUBLISH REVIEWED ARTIFACTS"),
+        (other_package, "PUBLISH REVIEWED ARTIFACTS"),
     ):
         result = subprocess.run(
             ["bash", "-c", script],
@@ -60,13 +70,14 @@ def test_build_refuses_missing_approval_and_unknown_package(tmp_path):
         assert not (tmp_path / "dist").exists()
 
 
-def test_prepublication_check_refuses_tampered_or_extra_files(tmp_path):
-    script = _workflow()["jobs"]["publish"]["steps"][1]["run"]
+def test_prepublication_check_refuses_tampered_or_extra_files(tmp_path, release):
+    workflow, package, wheel, source = release
+    script = workflow["jobs"]["publish"]["steps"][1]["run"]
     dist = tmp_path / "dist"
     dist.mkdir()
-    (dist / "caveat-0.1.2-py3-none-any.whl").write_text("tampered")
-    (dist / "caveat-0.1.2.tar.gz").write_text("tampered")
-    env = {**os.environ, "PACKAGE": "caveat"}
+    (dist / wheel).write_text("tampered")
+    (dist / source).write_text("tampered")
+    env = {**os.environ, "PACKAGE": package}
     result = subprocess.run(
         ["bash", "-c", script], cwd=tmp_path, env=env, capture_output=True, check=False
     )

@@ -1,7 +1,5 @@
-# Proposed in a draft PR. No PyPI trusted publishers have been configured.
-# Review the `pypi` GitHub environment, source, checksums, license terms, and
-# matching PyPI trusted publishers before merging or dispatching this workflow.
-name: Publish a reviewed Python package
+# Review the `pypi` environment, source, checksums, and license terms before dispatch.
+name: Publish reviewed caveat
 
 on:
   workflow_dispatch:
@@ -12,7 +10,6 @@ on:
         type: choice
         options:
           - caveat
-          - clinical-insight-assurance
       approval:
         description: Type PUBLISH REVIEWED ARTIFACTS after the release review
         required: true
@@ -46,13 +43,6 @@ jobs:
               source=caveat-0.1.2.tar.gz
               wheel_sha=1b8772d3f8cc85e8f44c62eea0c6166f3a9b686ff77d37d30d588a19e8795a63
               source_sha=97b02a6ee9b1fe3b18dcefad1350acb78b4731c86ceff65e4f7242f4e548d0fc
-              ;;
-            clinical-insight-assurance)
-              project=packages/assurance
-              wheel=clinical_insight_assurance-0.2.0-py3-none-any.whl
-              source=clinical_insight_assurance-0.2.0.tar.gz
-              wheel_sha=e4d67b121621bfba44647cbc10bca790690c9e6c0578c486137ff5f4d20b4cca
-              source_sha=21701d35de44bd7ce7517d1392de7aca85e85f7fec1615f17e7fa3fcafac7733
               ;;
             *) echo 'Unsupported package' >&2; exit 1 ;;
           esac
@@ -99,12 +89,6 @@ jobs:
               source=caveat-0.1.2.tar.gz
               wheel_sha=1b8772d3f8cc85e8f44c62eea0c6166f3a9b686ff77d37d30d588a19e8795a63
               source_sha=97b02a6ee9b1fe3b18dcefad1350acb78b4731c86ceff65e4f7242f4e548d0fc
-              ;;
-            clinical-insight-assurance)
-              wheel=clinical_insight_assurance-0.2.0-py3-none-any.whl
-              source=clinical_insight_assurance-0.2.0.tar.gz
-              wheel_sha=e4d67b121621bfba44647cbc10bca790690c9e6c0578c486137ff5f4d20b4cca
-              source_sha=21701d35de44bd7ce7517d1392de7aca85e85f7fec1615f17e7fa3fcafac7733
               ;;
             *) echo 'Unsupported package' >&2; exit 1 ;;
           esac
