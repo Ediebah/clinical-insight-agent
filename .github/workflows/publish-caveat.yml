@@ -24,7 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: 68ffbeddef8fc7d8fba4f3eb612959a849a92fe6
+          ref: 73c7876b24e4f853a1d5e90de3e24afc0669c096
           persist-credentials: false
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
@@ -42,7 +42,7 @@ jobs:
               wheel=clinical_insight_caveat-0.1.2-py3-none-any.whl
               source=clinical_insight_caveat-0.1.2.tar.gz
               wheel_sha=58ec40d509d1dab2d8d3610e5a3955ebbc44ce6f6c174c88a0666a5b69150a84
-              source_sha=91696f113f9468f84a2f2dc38f389c6a2fb9bb53b028e7a5f197967cd76fd5fc
+              source_sha=a226b889052ee2ee1062b10522340a7c6d02bc7ab18ec3d33158fd95fd73aa08
               ;;
             *) echo 'Unsupported package' >&2; exit 1 ;;
           esac
@@ -88,7 +88,7 @@ jobs:
               wheel=clinical_insight_caveat-0.1.2-py3-none-any.whl
               source=clinical_insight_caveat-0.1.2.tar.gz
               wheel_sha=58ec40d509d1dab2d8d3610e5a3955ebbc44ce6f6c174c88a0666a5b69150a84
-              source_sha=91696f113f9468f84a2f2dc38f389c6a2fb9bb53b028e7a5f197967cd76fd5fc
+              source_sha=a226b889052ee2ee1062b10522340a7c6d02bc7ab18ec3d33158fd95fd73aa08
               ;;
             *) echo 'Unsupported package' >&2; exit 1 ;;
           esac

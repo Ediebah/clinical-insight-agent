@@ -11,7 +11,7 @@ import yaml
 @pytest.fixture(params=[
     ("publish-caveat.yml", "clinical-insight-caveat",
      "clinical_insight_caveat-0.1.2-py3-none-any.whl", "clinical_insight_caveat-0.1.2.tar.gz",
-     "68ffbeddef8fc7d8fba4f3eb612959a849a92fe6"),
+     "73c7876b24e4f853a1d5e90de3e24afc0669c096"),
     ("publish-assurance.yml", "clinical-insight-assurance",
      "clinical_insight_assurance-0.3.0-py3-none-any.whl", "clinical_insight_assurance-0.3.0.tar.gz",
      "4e2ce9fb3694bdf83476924341337dc89b72f9f5"),
