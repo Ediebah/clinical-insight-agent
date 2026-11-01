@@ -135,6 +135,7 @@ jobs:
           for attempt in $(seq 1 60); do
             if curl --fail --silent --show-error http://127.0.0.1:18501/_stcore/health; then
               docker exec clinical-insight-smoke python -c 'import caveat, assurance; print("standalone imports OK")'
+              docker exec clinical-insight-smoke python -c 'from streamlit import config; assert config.get_option("server.enableCORS") and config.get_option("server.enableXsrfProtection"); print("CORS and XSRF protections enabled")'
               docker exec clinical-insight-smoke python -c 'from streamlit.testing.v1 import AppTest; app = AppTest.from_file("/app/app.py", default_timeout=120).run(); assert not app.exception, [str(e.value) for e in app.exception]; print("app rendered without an API key")'
               exit 0
             fi

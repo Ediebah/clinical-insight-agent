@@ -36,11 +36,8 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
     CMD python -c "import os,urllib.request;urllib.request.urlopen(f'http://localhost:{os.environ.get(\"PORT\",\"8080\")}/_stcore/health', timeout=4)"
 
 # Shell form so ${PORT} expands at runtime (Cloud Run / Render / Railway inject PORT; default 8080).
-# CORS/XSRF are disabled because Streamlit runs behind the platform's HTTPS proxy (standard recipe);
-# for a direct `docker run` exposure, front it with a TLS proxy or drop these two flags.
+# Retain Streamlit's CORS and XSRF protections. Configure a trusted proxy for the deployment.
 CMD streamlit run app.py \
     --server.port=${PORT:-8080} \
     --server.address=0.0.0.0 \
-    --server.headless=true \
-    --server.enableCORS=false \
-    --server.enableXsrfProtection=false
+    --server.headless=true
