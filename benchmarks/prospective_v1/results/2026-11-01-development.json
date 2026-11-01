@@ -1,0 +1,189 @@
+{
+  "case_sha256": "6c4daf00a80a823782ef6deff251704fe7452a276d25aa037950609a25841448",
+  "case_version": "1.0.0",
+  "demo_sha256": "e0333d63ed75e556e5a514779234d8422822a008eebd53f773fa82eb1b5e08b2",
+  "limitations": "Public synthetic cases, not independently authored or blind; no numerical or SQL validation.",
+  "model_alias": "gpt-4o",
+  "passed": 7,
+  "prompt_source_sha256": "674c99bf20c0e07966a621d97722034011f415072c00d0f137b021b25e1d5ddd",
+  "python": "3.12.15",
+  "results": [
+    {
+      "actual_parameters": {
+        "gate_lrv": 0.9,
+        "gate_tv": 0.85,
+        "lrv": 0.21,
+        "n_planned": 84,
+        "prior_a": 2,
+        "prior_b": 3,
+        "stop_lrv": 0.1,
+        "tv": 0.36
+      },
+      "expected": "proposal",
+      "expected_parameters": {
+        "gate_lrv": 0.9,
+        "gate_tv": 0.85,
+        "lrv": 0.21,
+        "n_planned": 84,
+        "prior_a": 2,
+        "prior_b": 3,
+        "stop_lrv": 0.1,
+        "tv": 0.36
+      },
+      "id": "design_beta_single",
+      "mismatched_fields": [],
+      "passed": true,
+      "reason": "matched_selected_fields",
+      "usage": {
+        "calls": 1,
+        "completion_tokens": 87,
+        "prompt_tokens": 4049
+      }
+    },
+    {
+      "actual_parameters": {
+        "gate_lrv": 0.88,
+        "gate_tv": 0.75,
+        "lrv": 0.24,
+        "n_planned": 110,
+        "prior_n": 18,
+        "prior_successes": 6,
+        "stop_lrv": 0.05,
+        "tv": 0.43
+      },
+      "expected": "proposal",
+      "expected_parameters": {
+        "gate_lrv": 0.88,
+        "gate_tv": 0.75,
+        "lrv": 0.24,
+        "n_planned": 110,
+        "prior_n": 18,
+        "prior_successes": 6,
+        "stop_lrv": 0.05,
+        "tv": 0.43
+      },
+      "id": "design_previous_counts",
+      "mismatched_fields": [],
+      "passed": true,
+      "reason": "matched_selected_fields",
+      "usage": {
+        "calls": 1,
+        "completion_tokens": 88,
+        "prompt_tokens": 4695
+      }
+    },
+    {
+      "actual_parameters": {
+        "control_prior_a": null,
+        "control_prior_b": null,
+        "control_rate": 0.42,
+        "framing": "two_arm",
+        "gate_lrv": 0.91,
+        "gate_tv": 0.78,
+        "higher_is_better": null,
+        "lrv": 0.03,
+        "n_planned": 140,
+        "prior_a": 2,
+        "prior_b": 3,
+        "prior_mu": null,
+        "prior_n": 30,
+        "prior_sd": null,
+        "prior_successes": 9,
+        "stop_lrv": 0.07,
+        "tv": 0.12
+      },
+      "expected": "proposal",
+      "id": "design_two_arm_separate_prior",
+      "passed": false,
+      "reason": "invalid_specification",
+      "usage": {
+        "calls": 1,
+        "completion_tokens": 100,
+        "prompt_tokens": 4814
+      },
+      "validation_issue": "control_prior",
+      "validation_stage": "bayesian_inputs"
+    },
+    {
+      "actual_parameters": {
+        "gate_lrv": 0.92,
+        "gate_tv": 0.82,
+        "lrv": 0.19,
+        "n_planned": 96,
+        "prior_a": 3,
+        "prior_b": 2,
+        "stop_lrv": 0.08,
+        "tv": 0.33
+      },
+      "expected": "proposal",
+      "expected_parameters": {
+        "gate_lrv": 0.92,
+        "gate_tv": 0.82,
+        "lrv": 0.19,
+        "n_planned": 96,
+        "prior_a": 3,
+        "prior_b": 2,
+        "stop_lrv": 0.08,
+        "tv": 0.33
+      },
+      "id": "interim_beta_shapes",
+      "mismatched_fields": [],
+      "passed": true,
+      "reason": "matched_selected_fields",
+      "usage": {
+        "calls": 1,
+        "completion_tokens": 106,
+        "prompt_tokens": 4696
+      }
+    },
+    {
+      "expected": "abstain",
+      "id": "missing_prior",
+      "passed": true,
+      "reason": "specific_refusal",
+      "usage": {
+        "calls": 1,
+        "completion_tokens": 80,
+        "prompt_tokens": 4428
+      }
+    },
+    {
+      "expected": "abstain",
+      "id": "missing_gates",
+      "passed": true,
+      "reason": "specific_refusal",
+      "usage": {
+        "calls": 1,
+        "completion_tokens": 96,
+        "prompt_tokens": 4360
+      }
+    },
+    {
+      "expected": "abstain",
+      "id": "invalid_beta_prior",
+      "passed": true,
+      "reason": "specific_refusal",
+      "usage": {
+        "calls": 1,
+        "completion_tokens": 79,
+        "prompt_tokens": 4013
+      }
+    },
+    {
+      "expected": "unsupported",
+      "id": "competing_risk_unsupported",
+      "passed": true,
+      "reason": "specific_refusal",
+      "usage": {
+        "calls": 0,
+        "completion_tokens": 0,
+        "prompt_tokens": 0
+      }
+    }
+  ],
+  "run_utc": "2026-11-01T17:17:18.302144+00:00",
+  "schema_version": "1.0",
+  "source_commit": "d6bae1d41c0b7b9049bd6af1817de23de5d53a9e",
+  "specification_source_sha256": "38f40ae1ad731382c2c716223538a08b2f014e83d018d5fcfa1ab10cf2f92c8e",
+  "total": 8
+}

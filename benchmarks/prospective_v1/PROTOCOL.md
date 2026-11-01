@@ -57,6 +57,26 @@ fields passes, but it does not reveal what the model actually returned. This dia
 motivated by that result; any subsequent use of this case set is development evaluation, not a new
 independent or held-out assessment.
 
+## Development rerun and attribution change
+
+On 2026-11-01, a development rerun of source commit
+`d6bae1d41c0b7b9049bd6af1817de23de5d53a9e` with the `gpt-4o` alias met 7 of 8 case
+expectations. The report is [archived here](results/2026-11-01-development.json); its SHA-256 is
+`2c2c3a402304c093cf64e91206416f74e1ac72a3404d16e114522a8e9fd81e35`.
+For the failed two-arm case, the selected fields showed the control Beta shapes in the treatment
+Beta fields, alongside treatment pilot counts, while the control-prior fields were absent or null.
+The validator refused the resulting conflicting specification. The first 7/8 baseline did not
+retain these fields, so this does not establish why the first run failed.
+
+The subsequent specification-builder change recognizes only a narrow, explicit treatment-pilot
+and control-prior wording when the router also copied that sole Beta prior into treatment fields.
+It places the shapes in the control fields, preserves the separate pilot counts, and adds an
+assumption requiring user review. Tests include conflicting, negated, and multiple-prior examples
+that the rule leaves unchanged. A key-free replay of the rerun's selected fields passes that case after the change; this
+replay is a development check and not a model rerun or an independent performance result. The
+parser does not establish the intent of unrestricted natural language. Users must review every
+proposed specification before approval.
+
 Freeze the source commit and cases before the baseline run. Do not tune the routing prompt or
 labels against these cases and then describe a repeated score as held out. If results guide a
 change, this set becomes development data for that change; prepare and freeze a new set before

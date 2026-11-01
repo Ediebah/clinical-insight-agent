@@ -195,6 +195,38 @@ def test_control_beta_does_not_discard_different_prior_study_counts():
     assert (params["prior_successes"], params["prior_n"]) == (14, 20)
 
 
+def test_explicit_control_beta_is_attributed_without_losing_treatment_counts():
+    question = ("A treatment pilot had 8 responses in 24 patients; use Beta(3,4) as the control analysis prior. "
+                "Set target, minimum and stop gates to 0.8, 0.9 and 0.1.")
+    route = {"model_type": "assurance", "framing": "two_arm", "prior_successes": 8, "prior_n": 24,
+             "prior_a": 3, "prior_b": 4, "control_prior_a": None, "control_prior_b": None,
+             "gate_tv": .8, "gate_lrv": .9, "stop_lrv": .1}
+    spec = research.from_route(question, route, "demo warehouse")
+    params = spec["parameters"]
+    assert (params["control_prior_a"], params["control_prior_b"]) == (3, 4)
+    assert (params["prior_a"], params["prior_b"]) == (None, None)
+    assert (params["prior_successes"], params["prior_n"]) == (8, 24)
+    assert any("control prior" in item.lower() and "review" in item.lower() for item in spec["assumptions"])
+    assert any("beta(1,1)" in item.lower() and "pilot" in item.lower() for item in spec["assumptions"])
+    research.require_bayesian_inputs(params)
+
+
+def test_ambiguous_or_conflicting_control_beta_is_not_automatically_reassigned():
+    base = ("A treatment pilot had 8 responses in 24 patients; use Beta(3,4) as the control analysis prior.")
+    route = {"model_type": "assurance", "framing": "two_arm", "prior_successes": 8, "prior_n": 24,
+             "prior_a": 3, "prior_b": 4, "control_prior_a": None, "control_prior_b": None}
+    examples = [
+        (base.replace("use Beta", "do not use Beta"), route),
+        (base + " Use Beta(2,2) as the treatment prior.", route),
+        (base, {**route, "control_prior_a": 4, "control_prior_b": 4}),
+        (base, {**route, "prior_successes": 24, "prior_n": 24}),
+    ]
+    for question, candidate in examples:
+        spec = research.from_route(question, candidate, "demo warehouse")
+        assert (spec["parameters"]["prior_a"], spec["parameters"]["prior_b"]) == (3, 4)
+        assert not any("automatically attributed" in item.lower() for item in spec["assumptions"])
+
+
 def test_bayesian_direction_must_be_boolean_when_supplied():
     frame = pd.DataFrame({"response": [1, 0] * 8})
     params = {"n_planned": 40, "tv": .3, "lrv": .15, "gate_tv": .8, "gate_lrv": .9,

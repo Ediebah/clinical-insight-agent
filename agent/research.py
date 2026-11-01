@@ -27,6 +27,7 @@ FIELDS = ("schema_version", "question", "population", "outcome", "predictors", "
 
 def from_route(question: str, route: dict, data_source: str) -> dict:
     method = ALIASES.get(route.get("model_type"), route.get("model_type"))
+    assumptions = ["Exploratory analysis; review method assumptions."]
     parameters = {k: v for k, v in route.items()
                   if k not in {"model_type", "outcome", "predictors", "analytic_sql"}}
     if method in {"survival", "cox", "survival_ml"}:
@@ -61,6 +62,29 @@ def from_route(question: str, route: dict, data_source: str) -> dict:
         # than guessing. Distinct prior-study counts remain available for review.
         beta_shapes = re.findall(r"\bbeta\s*\(\s*(\d+(?:\.\d+)?)\s*,\s*"
                                  r"(\d+(?:\.\d+)?)\s*\)", question, re.IGNORECASE)
+        # Recover one narrowly specified control prior when a router copies it into the treatment
+        # Beta fields despite also extracting explicit treatment-pilot counts. Do not generalize
+        # this to ambiguous language or multiple priors; the proposal still requires review.
+        control_beta = re.search(
+            r"(?:^|[;.!?])\s*use\s+beta\s*\(\s*(\d+(?:\.\d+)?)\s*,\s*"
+            r"(\d+(?:\.\d+)?)\s*\)\s+as\s+(?:the|a)\s+control\s+(?:analysis\s+)?prior"
+            r"(?=\s*(?:[.;!?]|$))", question, re.IGNORECASE)
+        pilot = re.search(
+            r"\btreatment\s+(?:pilot|study)\s+(?:had|observed)\s+(\d+)\s+"
+            r"(?:responses|responders)\s+in\s+(\d+)\s+(?:patients|participants)\b",
+            question, re.IGNORECASE)
+        if (method == "assurance" and parameters.get("framing") == "two_arm"
+                and len(beta_shapes) == 1 and control_beta and pilot
+                and parameters.get("control_prior_a") is None and parameters.get("control_prior_b") is None
+                and (parameters.get("prior_a"), parameters.get("prior_b")) ==
+                    (float(control_beta.group(1)), float(control_beta.group(2)))
+                and (parameters.get("prior_successes"), parameters.get("prior_n")) ==
+                    (int(pilot.group(1)), int(pilot.group(2)))):
+            parameters["control_prior_a"], parameters["control_prior_b"] = (
+                parameters["prior_a"], parameters["prior_b"])
+            parameters["prior_a"] = parameters["prior_b"] = None
+            assumptions.append("Control prior automatically attributed from the question; review before approval.")
+            assumptions.append("Treatment prior uses a uniform Beta(1,1) updated with pilot counts; review this choice.")
         counts = (parameters.get("prior_successes"), parameters.get("prior_n"))
         if (parameters.get("prior_a") is None or parameters.get("prior_b") is None) and \
                 all(value is not None for value in counts):
@@ -74,7 +98,7 @@ def from_route(question: str, route: dict, data_source: str) -> dict:
                        (route.get("var_b") if method == "association" else
                         (route.get("value_col") if method == "timeseries" else route.get("outcome"))) or "",
             "predictors": route.get("predictors") or [], "method": method,
-            "assumptions": ["Exploratory analysis; review method assumptions."],
+            "assumptions": assumptions,
             "exclusions": [], "data_source": data_source, "sql": route.get("analytic_sql") or "",
             "parameters": parameters}
 
