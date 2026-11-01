@@ -1,22 +1,18 @@
-"""Validation on real public data (keyless, no LLM).
+"""Key-free development regression checks using public data and one published-design example.
 
-The agent must not merely *run* on real inputs; it must reproduce the *established* findings. This file
-is the "judged against the literature" guardrail across the agent's statistical methods: if a change
-silently breaks the modeling, CI catches it against real ground truth, not synthetic data. Three
-independent literatures are pinned here:
+These familiar data and broad checks are not independent validation or real-world ground truth.
+They can detect some changes in behavior but cannot establish statistical or clinical validity.
+The following checks are included:
 
-  * Logistic + random forest — UCI Cleveland heart-disease dataset (Detrano et al., 1989). The
-    dominant coronary-artery-disease predictors (diseased vessels ``ca``, asymptomatic chest pain,
-    male sex, ST depression ``oldpeak``, max heart rate ``thalach`` inverse) and the achievable
-    discrimination (AUC ~0.84–0.91) are long settled. Data: ``examples/heart_disease_cleveland.csv``.
-  * Cox proportional hazards + Kaplan-Meier — UCI Heart Failure Clinical Records (Chicco & Jurman,
-    2020). Lower ejection fraction and higher serum creatinine are the headline mortality predictors.
+  * Logistic + random forest — checks selected terms and an AUC range on the local UCI Cleveland
+    heart-disease copy: ``examples/heart_disease_cleveland.csv``.
+  * Cox proportional hazards + Kaplan-Meier — checks selected terms and group ordering on the local
+    UCI Heart Failure Clinical Records copy.
     Data: ``examples/heart_failure.csv``.
   * Bayesian interim go/no-go — applies the published Chen & Chen (2019) design and hypothetical
-    stopping-boundary case, then checks the independently computed predictive probability.
-  * Machine learning (random forest) — Wisconsin Diagnostic Breast Cancer (Wolberg et al., 1995). The
-    cross-validated AUC lands in the long-reported ~0.97-0.99 band and the top permutation-importance
-    features are the settled tumour markers (size and concavity). Data: ``examples/breast_cancer.csv``.
+    stopping-boundary case, then checks the predictive probability against an engine-derived value.
+  * Machine learning (random forest) — checks an internal AUC range and selected permutation-importance
+    features on the local Wisconsin Diagnostic Breast Cancer copy: ``examples/breast_cancer.csv``.
 """
 import re
 from pathlib import Path
@@ -48,12 +44,12 @@ def test_dataset_is_present_and_shaped_as_expected():
 
 
 def test_random_forest_discrimination_matches_the_literature():
-    """Cross-validated AUC must land in the published range (~0.84–0.91); seeded, so deterministic."""
+    """Check a broad development AUC range; this is not external validation."""
     r = modeling.fit_forest(_data(), "heart_disease", _PREDICTORS)
     assert r.error is None
     auc = float(re.search(r"AUC=([\d.]+)", r.fit_stat).group(1))
-    assert 0.84 <= auc <= 0.93, f"AUC {auc} outside the published band"   # observed 0.903
-    top = {t.name for t in r.terms[:4]}                   # the top features are the established CAD markers
+    assert 0.84 <= auc <= 0.93, f"AUC {auc} outside the development range"
+    top = {t.name for t in r.terms[:4]}
     assert "ca" in top and "thal" in top
 
 

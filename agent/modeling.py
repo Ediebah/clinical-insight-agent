@@ -458,7 +458,7 @@ def fit_ols(df: pd.DataFrame, outcome: str, predictors: list[str]) -> ModelResul
 def fit_cox(df: pd.DataFrame, duration: str, event: str, predictors: list[str]) -> ModelResult:
     """Cox proportional-hazards → adjusted hazard ratios (time-to-event / survival)."""
     try:
-        from statsmodels.duration.hazard_regression import PHReg
+        from statsmodels.duration.hazard_regression import PHReg, PHRegResults
         d, preds, issues = _prepare(df, [duration, event], predictors)
         if not preds:
             return ModelResult("cox", duration, len(d), "hazard ratio",
@@ -475,7 +475,18 @@ def fit_cox(df: pd.DataFrame, duration: str, event: str, predictors: list[str]) 
             return ModelResult("cox", duration, len(d), "hazard ratio",
                                error="No events observed (all rows are censored) — a Cox model needs events.")
         mod = PHReg.from_formula(_formula(duration, preds, d), data=d, status=d[event])
-        r = mod.fit()
+        # PHReg.fit discards optimizer status when it wraps the generic results. Obtain the
+        # per-fit status before constructing the same ungrouped PHRegResults wrapper. Avoid
+        # process-global warning capture, which can mix warnings across Streamlit sessions.
+        mod.groups = None
+        fit_result = super(PHReg, mod).fit(disp=False)
+        r = PHRegResults(mod, fit_result.params, fit_result.cov_params())
+        status = (getattr(fit_result, "mle_retvals", None) or {}).get("converged")
+        if status is None:
+            issues.append("Cox optimizer convergence status is unavailable; review the fit before interpretation.")
+        elif not status:
+            issues.append("The Cox fit did not converge; estimates, confidence intervals and p-values "
+                          "may be unreliable. Do not interpret them without further review.")
         ci = r.conf_int()
         terms = [Term(name, float(np.exp(r.params[i])), float(np.exp(ci[i, 0])),
                       float(np.exp(ci[i, 1])), float(r.pvalues[i]))

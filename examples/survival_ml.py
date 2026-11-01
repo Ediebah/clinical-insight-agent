@@ -1,11 +1,8 @@
-"""Reproduce a survival result with a machine-learning survival model, judged by concordance index.
+"""Demonstrate exploratory survival-model comparison on a public dataset.
 
-The heart-failure survival example fits a Cox model. This one adds the *machine-learning* survival path:
-the agent's `compare_survival_models` tunes a Cox proportional-hazards model and a random survival forest
-(scikit-survival) and keeps whichever scores higher on a cross-validated **survival composite** — the mean
-of Harrell's concordance index, time-dependent AUC, and a Brier skill score (1 - integrated Brier). On the
-UCI heart-failure cohort the tuned forest edges Cox — a non-linear model captures a little more of the
-time-to-event signal — while still recovering the same two predictors the paper highlights.
+The agent tunes a Cox model and a random survival forest inside training folds, selecting by
+concordance. It reports concordance, time-dependent AUC, and integrated Brier score separately.
+Fold variation is not a confidence interval. This demonstration is not external validation.
 
     Dataset : examples/heart_failure.csv  (299 patients, time-to-event)
     Source  : UCI Heart Failure Clinical Records; Chicco D., Jurman G. (2020), BMC Med. Inform. Decis.
@@ -16,6 +13,7 @@ Run:  .venv/bin/python examples/survival_ml.py
 """
 from __future__ import annotations
 
+import math
 import sys
 from pathlib import Path
 
@@ -37,31 +35,23 @@ def main() -> None:
         return
 
     print("UCI Heart Failure · survival model selection")
-    print("composite = mean of Harrell's C-index, time-dependent AUC, and Brier skill (1 - integ. Brier)")
+    print("Model selection uses concordance; other metrics are reported separately.")
     print("-" * 78)
+    def fmt(value):
+        return f"{value:.3f}" if value is not None and math.isfinite(value) else "unavailable"
+
     for row in r.leaderboard:
         mark = " * " if row["is_winner"] else "   "
         c = row["components"]
-        print(f"  {mark}{row['model']:26s} composite {row['score']:.3f}   "
-              f"(C {c['harrell_c']:.3f} · tAUC {c['td_auc']:.3f} · Brier-skill {c['brier_skill']:.3f})")
+        print(f"  {mark}{row['model']:26s} C {fmt(c.get('harrell_c'))} · "
+              f"time-dependent AUC {fmt(c.get('td_auc'))} · "
+              f"integrated Brier {fmt(c.get('integrated_brier_score'))}")
     print(f"\n   engine picked: {r.verdict['winner']}")
-
+    print(f"   {r.fit_stat}")
     print("   winning model's top predictors: " + ", ".join(t.name for t in r.terms[:3]))
-    top3 = [t.name for t in r.terms[:3]]
-    rsf = next(row for row in r.leaderboard if row["model"] == "random survival forest")
-
-    print("\nJudged against the literature (Chicco & Jurman 2020)")
-    print("-" * 78)
-    checks = [
-        ("The random survival forest reaches a concordance index of 0.70+", rsf["components"]["harrell_c"] >= 0.70),
-        ("Serum creatinine and ejection fraction are among the top predictors",
-         "serum_creatinine" in top3 and "ejection_fraction" in top3),
-    ]
-    for label, ok in checks:
-        print(f"   [{'PASS' if ok else 'FAIL'}] {label}")
-    print("\nA tuned machine-learning survival model, compared fairly against Cox and judged by a survival "
-          "composite (ranking, time-varying discrimination, and calibration), recovers the settled "
-          "heart-failure predictors from real data.")
+    for issue in r.issues:
+        print(f"   review: {issue}")
+    print(f"\n{r.note}")
 
 
 if __name__ == "__main__":

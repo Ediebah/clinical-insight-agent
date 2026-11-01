@@ -78,8 +78,6 @@ _TIERS = [
 ]
 _ID = re.compile(r"(_id$|^id$|code$|zip|latitude|longitude|_seq$)", re.I)
 _TIME = re.compile(r"(date|year|month|day|_at$|start|stop|time)", re.I)
-_NUMER = re.compile(r"(patients_with|_with_|numerator|cases|events|readmit|readmiss|affected|positive)", re.I)
-_DENOM = re.compile(r"(total|denom|cohort|sample|population|_size|(^|_)n($|_)|num_patients|total_patients)", re.I)
 _PCTISH = re.compile(r"(pct|percent|rate|prevalence|proportion)", re.I)
 _MONEY = re.compile(r"(cost|amount|charge|price|expense|income|revenue)", re.I)
 
@@ -103,25 +101,44 @@ def _pick_measure(df):
     return nums[0]
 
 
-def _pct_scale(series) -> float:
-    """For a rate/proportion column, return 100 when the values are stored as a fraction (0-1) rather than
-    an already-scaled percentage (0-100), so 0.1443 renders as '14.4%' — not '0.1%'."""
-    m = pd.to_numeric(pd.Series(series), errors="coerce").abs().max()
-    return 100.0 if (m == m and m <= 1.5) else 1.0
+def rate_measure(df: pd.DataFrame) -> str | None:
+    """Identify the displayed rate-like measure without inferring its units."""
+    if df is None or df.empty:
+        return None
+    measure = _pick_measure(df)
+    return measure if measure is not None and _PCTISH.search(str(measure)) else None
 
 
-def _fmt(col, v, pct_scale: float = 1.0) -> str:
+def supports_wilson_chart(df: pd.DataFrame) -> bool:
+    """Only the categorical bar-chart path can render selected Wilson intervals."""
+    if df is None or len(df) < 2 or _pick_measure(df) is None:
+        return False
+    if any(_TIME.search(str(c)) or pd.api.types.is_datetime64_any_dtype(df[c]) for c in df.columns):
+        return False
+    return any(not _ID.search(str(c)) for c in _cats(df))
+
+
+def _pct_scale(rate_unit: str | None) -> float | None:
+    """Use declared units only; magnitudes and column names do not establish units."""
+    if rate_unit not in (None, "fraction", "percent"):
+        raise ValueError("rate_unit must be 'fraction', 'percent', or None")
+    return {None: None, "fraction": 100.0, "percent": 1.0}[rate_unit]
+
+
+def _fmt(col, v, pct_scale: float | None = None) -> str:
     if v is None or (isinstance(v, float) and np.isnan(v)):
         return "—"
     c = str(col).lower()
     if _PCTISH.search(c):
+        if pct_scale is None:
+            return str(v)
         return f"{v * pct_scale:.1f}%"
     if _MONEY.search(c):
         return f"${v:,.0f}"
     return f"{int(v):,}" if float(v).is_integer() else f"{v:,.1f}"
 
 
-def kpi_cards(df: pd.DataFrame, question: str = "") -> list[dict]:
+def kpi_cards(df: pd.DataFrame, question: str = "", *, rate_unit: str | None = None) -> list[dict]:
     """1-3 headline cards. For a category × measure result: the top, the bottom, and the spread."""
     if df is None or len(df) == 0:
         return []
@@ -129,7 +146,7 @@ def kpi_cards(df: pd.DataFrame, question: str = "") -> list[dict]:
     y = _pick_measure(df)
     if y is None or df[y].dropna().empty:                # no measure, or all values missing
         return []
-    psc = _pct_scale(df[y])                              # render a fraction rate (0-1) as a percentage
+    psc = _pct_scale(rate_unit)
     cats = [c for c in _cats(df) if not _ID.search(str(c))]
     if len(df) == 1:
         return [{"label": str(y).replace("_", " "), "value": _fmt(y, df.iloc[0][y], psc), "sub": ""}]
@@ -148,33 +165,43 @@ def kpi_cards(df: pd.DataFrame, question: str = "") -> list[dict]:
     ]
 
 
-def _add_ci(d: pd.DataFrame, y: str):
-    """Add Wilson 95% CI columns (in the measure's units) if a numerator + denominator are present."""
-    numer = [c for c in _numeric(d) if _NUMER.search(str(c))]
-    denom = [c for c in _numeric(d) if _DENOM.search(str(c))]
-    if not numer or not denom:
+def _add_ci(d: pd.DataFrame, y: str, *, rate_unit: str | None = None,
+            numerator: str | None = None, denominator: str | None = None):
+    """Add Wilson bounds only for selected count columns consistent with declared units."""
+    _pct_scale(rate_unit)
+    if rate_unit is None or numerator is None or denominator is None or len({y, numerator, denominator}) != 3:
         return False
-    kcol, ncol = numer[0], max(denom, key=lambda c: d[c].sum())
-    ymax = float(d[y].max())
-    if _PCTISH.search(str(y)) and ymax <= 100:
-        scale = 100.0 if ymax > 1.5 else 1.0             # percentage (0-100) vs fraction (0-1)
-    elif ymax <= 1.5:
-        scale = 1.0                                      # a bare proportion
-    else:
-        return False                                     # a count/cost — a Wilson CI in these units is meaningless
+    if any(col not in d.columns or not pd.api.types.is_numeric_dtype(d[col]) for col in (y, numerator, denominator)):
+        return False
+    try:
+        values = d[[y, numerator, denominator]].to_numpy(dtype=float)
+    except (TypeError, ValueError):
+        return False
+    if not np.isfinite(values).all():
+        return False
+    rates, ks, ns = values.T
+    if (ns <= 0).any() or (ks < 0).any() or (ks > ns).any() or \
+            (ks != np.floor(ks)).any() or (ns != np.floor(ns)).any():
+        return False
+    scale = 100.0 if rate_unit == "percent" else 1.0
+    # Permit common displayed rounding, but never infer the denominator's meaning from the match.
+    if (rates < 0).any() or (rates > scale).any():
+        return False
+    if not np.isclose(rates, scale * ks / ns, rtol=0, atol=0.01 if scale == 100 else 0.0001).all():
+        return False
     los, his = [], []
-    for _, row in d.iterrows():
-        n = int(row[ncol]) if np.isfinite(row[ncol]) else 0    # finite guard (inf → int() OverflowError)
-        k = int(row[kcol]) if np.isfinite(row[kcol]) else 0
-        lo, hi = wilson_ci(k, n) if n > 0 else (np.nan, np.nan)
+    for k, n in zip(ks, ns):
+        lo, hi = wilson_ci(int(k), int(n))
         los.append(lo * scale)
         his.append(hi * scale)
     d["_ci_lo"], d["_ci_hi"] = los, his
     return not d["_ci_lo"].isna().all()
 
 
-def build_chart(df: pd.DataFrame, question: str = ""):
+def build_chart(df: pd.DataFrame, question: str = "", *, rate_unit: str | None = None,
+                numerator: str | None = None, denominator: str | None = None):
     """Layered Altair chart: bars + value labels + highlighted extreme + Wilson CI error bars."""
+    psc = _pct_scale(rate_unit)
     if df is None or len(df) < 2:
         return None
     y = _pick_measure(df)
@@ -188,9 +215,12 @@ def build_chart(df: pd.DataFrame, question: str = ""):
         x = time_cols[0]
         d = df[[x, y]].dropna()
         is_dt = pd.api.types.is_datetime64_any_dtype(df[x])
+        y_title = str(y)
+        if _PCTISH.search(y_title):
+            y_title += {None: " (units unspecified)", "fraction": " (fraction)", "percent": " (%)"}[rate_unit]
         chart = alt.Chart(d).mark_line(point=alt.OverlayMarkDef(color=TEAL), color=TEAL).encode(
             x=alt.X(f"{x}:{'T' if is_dt else 'O'}", title=str(x)),
-            y=alt.Y(f"{y}:Q", title=str(y)),
+            y=alt.Y(f"{y}:Q", title=y_title),
             tooltip=list(d.columns),
         )
         return _finish(chart, 300)
@@ -201,9 +231,8 @@ def build_chart(df: pd.DataFrame, question: str = ""):
         d = df[keep].dropna(subset=[y]).sort_values(y, ascending=False).head(15).copy()
         top_val = d[y].max()
         d["_top"] = d[y] == top_val
-        psc = _pct_scale(d[y])
         d["_label"] = d[y].map(lambda v: _fmt(y, v, psc))
-        has_ci = _add_ci(d, y)
+        has_ci = _add_ci(d, y, rate_unit=rate_unit, numerator=numerator, denominator=denominator)
 
         base = alt.Chart(d).encode(y=alt.Y(f"{x}:N", sort="-x", title=None))
         bars = base.mark_bar().encode(
@@ -221,6 +250,9 @@ def build_chart(df: pd.DataFrame, question: str = ""):
             x=alt.X(f"{y}:Q"), text="_label:N"))
         chart = alt.layer(*layers)
         title = f"{str(y).replace('_', ' ')} by {str(x).replace('_', ' ')}"
+        if _PCTISH.search(str(y)):
+            title += {None: " · units unspecified", "fraction": " · values in fractions; labels in %",
+                      "percent": " · values in %"}[rate_unit]
         if has_ci:
             title += "  ·  bars = estimate, whiskers = 95% CI"
         return _finish(chart, min(400, 70 + 30 * len(d)), title)

@@ -33,6 +33,76 @@ def test_nonconverged_logistic_fit_discloses_it():
     assert any("converg" in issue.lower() for issue in result.issues)
 
 
+def test_nonconverged_cox_fit_discloses_it(monkeypatch):
+    from pathlib import Path
+
+    import pandas as pd
+    from statsmodels.base.model import LikelihoodModel
+
+    original_fit = LikelihoodModel.fit
+
+    def one_iteration(self, *args, **kwargs):
+        kwargs.update(maxiter=1, disp=False)
+        return original_fit(self, *args, **kwargs)
+
+    monkeypatch.setattr(LikelihoodModel, "fit", one_iteration)
+    data = pd.read_csv(Path(__file__).resolve().parents[1] / "examples/heart_failure.csv")
+    result = modeling.fit_cox(data, "time", "DEATH_EVENT", ["age", "serum_creatinine"])
+    assert result.error is None
+    assert any("converg" in issue.lower() for issue in result.issues)
+
+
+def test_concurrent_cox_fits_keep_convergence_status_with_the_correct_fit(monkeypatch):
+    import threading
+    from pathlib import Path
+
+    import pandas as pd
+    from statsmodels.base.model import LikelihoodModel
+
+    original_fit = LikelihoodModel.fit
+    entered_a, entered_b, emitted_a, done_b = (threading.Event() for _ in range(4))
+    local = threading.local()
+
+    def controlled(self, *args, **kwargs):
+        count = getattr(local, "count", 0)
+        local.count = count + 1
+        if count:
+            return original_fit(self, *args, **kwargs)
+        kwargs["disp"] = False
+        if threading.current_thread().name == "A":
+            entered_a.set()
+            assert entered_b.wait(10)
+            kwargs["maxiter"] = 1
+            result = original_fit(self, *args, **kwargs)
+            emitted_a.set()
+            assert done_b.wait(10)
+            return result
+        entered_b.set()
+        assert emitted_a.wait(10)
+        return original_fit(self, *args, **kwargs)
+
+    monkeypatch.setattr(LikelihoodModel, "fit", controlled)
+    data = pd.read_csv(Path(__file__).resolve().parents[1] / "examples/heart_failure.csv")
+    results = {}
+
+    def run(name):
+        results[name] = modeling.fit_cox(data, "time", "DEATH_EVENT", ["age", "serum_creatinine"])
+        if name == "B":
+            done_b.set()
+
+    a = threading.Thread(target=run, args=("A",), name="A")
+    b = threading.Thread(target=run, args=("B",), name="B")
+    a.start()
+    assert entered_a.wait(10)
+    b.start()
+    a.join(20)
+    b.join(20)
+    assert not a.is_alive() and not b.is_alive()
+    assert results["A"].error is None and results["B"].error is None
+    assert any("converg" in issue.lower() for issue in results["A"].issues)
+    assert not any("converg" in issue.lower() for issue in results["B"].issues)
+
+
 def test_survival_reports_integrated_brier_score_not_skill():
     from sklearn.model_selection import KFold
     from sksurv.linear_model import CoxPHSurvivalAnalysis

@@ -1,9 +1,8 @@
-"""Reproduce established coronary-artery-disease findings on real public data.
+"""Run exploratory regression checks on the public Cleveland heart-disease dataset.
 
-This runs the agent's own models (the same `agent.modeling` code the app uses) against the UCI
-Cleveland heart-disease dataset and checks the result against the published literature. It is the
-answer to "the demo is synthetic, how do I know the statistics are right?" — on a dataset that has
-been analysed for decades, the agent recovers the settled findings.
+This runs the application's modeling code and checks selected directions and an approximate AUC
+range. These checks are development regressions, not an independent literature reproduction,
+external validation, or evidence of clinical performance.
 
     Dataset : examples/heart_disease_cleveland.csv  (297 complete cases)
     Source  : UCI Machine Learning Repository, Heart Disease (Cleveland)
@@ -51,7 +50,7 @@ def main() -> None:
     print(f"   cross-validated {rf.fit_stat}")
     print("   top features: " + ", ".join(t.name for t in rf.terms[:5]))
 
-    print("\nJudged against the literature")
+    print("\nSelected development checks")
     print("-" * 62)
     checks = [
         ("Number of diseased vessels (ca) is the strongest marker",
@@ -63,11 +62,11 @@ def main() -> None:
          next(t for t in lr.terms if t.name == "thalach").estimate < 1.0),
         ("Asymptomatic chest pain is the highest-risk category",
          all(t.estimate < 1.0 for t in lr.terms if t.name.startswith("C(cp)") and "(ref)" not in t.name)),
-        ("Discrimination AUC in the published 0.84-0.91 band", 0.84 <= auc <= 0.93),
+        ("Internal AUC falls in the development check range 0.84–0.93", 0.84 <= auc <= 0.93),
     ]
     for label, ok in checks:
         print(f"   [{'PASS' if ok else 'FAIL'}] {label}")
-    print("\nEvery established finding is recovered from real data, using the same code the demo runs.")
+    print("\nThese checks do not establish external validity or clinical utility.")
 
 
 if __name__ == "__main__":

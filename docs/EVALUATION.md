@@ -2,6 +2,10 @@
 
 Tests support software maintenance; they do not establish clinical performance. The project uses authored unit cases, synthetic warehouse checks, selected public-data comparisons, and separate LLM evaluations. Each has a different scope.
 
+For a runnable, specified public-data example, see the [research demonstration](../examples/breast_cancer_research_demo.md).
+For an independent evaluator, use the [evaluation handoff](../benchmarks/independent_review/README.md).
+The handoff is a proposal; no external authorship or adjudication has yet occurred.
+
 ```bash
 pytest tests packages/caveat/tests packages/assurance/tests
 python -m agent.public_benchmark

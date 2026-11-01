@@ -1,9 +1,7 @@
-"""Reproduce established heart-failure survival findings on real public data.
+"""Run exploratory survival checks on the public heart-failure dataset.
 
-Runs the agent's own Cox proportional-hazards and Kaplan-Meier code (`agent.modeling`) against the UCI
-Heart Failure Clinical Records dataset and checks the result against the published literature. It is
-the survival counterpart to the heart-disease example: on data a cardiology cohort has already been
-analysed, the agent recovers the settled predictors of mortality.
+This uses the application's Cox and Kaplan-Meier code and checks selected output directions.
+The familiar dataset and these broad checks are not independent or clinical validation.
 
     Dataset : examples/heart_failure.csv  (299 patients, time-to-event)
     Source  : UCI Machine Learning Repository, Heart Failure Clinical Records
@@ -57,7 +55,7 @@ def main() -> None:
 
     ef_surv = {g: [p for p in km.km if p["group"] == g][-1]["survival"]
                for g in {p["group"] for p in km.km}}
-    print("\nJudged against the literature (Chicco & Jurman 2020)")
+    print("\nSelected development checks")
     print("-" * 62)
     checks = [
         ("Lower ejection fraction raises mortality (HR < 1 per %)", hr("ejection_fraction") < 1.0),
@@ -68,8 +66,7 @@ def main() -> None:
     ]
     for label, ok in checks:
         print(f"   [{'PASS' if ok else 'FAIL'}] {label}")
-    print("\nEjection fraction and serum creatinine, the two predictors Chicco & Jurman highlight, are "
-          "recovered from real data by the same code the demo runs.")
+    print("\nThese checks do not establish external validity or clinical utility.")
 
 
 if __name__ == "__main__":
