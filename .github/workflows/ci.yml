@@ -172,6 +172,8 @@ jobs:
           docker image inspect python:3.12-slim > image-audit/base-image.json
           docker exec clinical-insight-smoke python -c 'import importlib.metadata as m,json; print(json.dumps([{"name": d.metadata["Name"], "version": d.version} for d in m.distributions() if d.metadata["Name"]]))' > image-audit/python-packages.json
           docker exec clinical-insight-smoke dpkg-query -W > image-audit/os-packages.txt
+          docker exec clinical-insight-smoke python scripts/collect_license_inventory.py --output /tmp/license-metadata.json
+          docker cp clinical-insight-smoke:/tmp/license-metadata.json image-audit/license-metadata.json
           python3 -c 'import json; p=json.load(open("image-audit/python-packages.json")); open("image-audit/python-requirements.txt", "w").write("".join(sorted("{}=={}\n".format(x["name"], x["version"]) for x in p)))'
       - name: Audit installed Python package versions
         run: |

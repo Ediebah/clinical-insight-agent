@@ -55,3 +55,7 @@ The other util-linux IDs are [CVE-2026-78408](https://security-tracker.debian.or
 source-package statuses, not proof that the vulnerable functionality is reachable in this image.
 The application runs as a non-root user by default; that does not establish that a deployment is
 protected against every listed issue. Recheck vendor status and the exact deployment environment.
+
+The CI image-audit workflow also records installed-distribution license metadata in its artifact.
+Those declarations support review of the exact image; they are not an exhaustive review of bundled
+components or a legal determination about redistribution.
