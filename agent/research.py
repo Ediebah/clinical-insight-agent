@@ -79,7 +79,9 @@ def from_route(question: str, route: dict, data_source: str) -> dict:
                 and (parameters.get("prior_a"), parameters.get("prior_b")) ==
                     (float(control_beta.group(1)), float(control_beta.group(2)))
                 and (parameters.get("prior_successes"), parameters.get("prior_n")) ==
-                    (int(pilot.group(1)), int(pilot.group(2)))):
+                    (int(pilot.group(1)), int(pilot.group(2)))
+                and (int(pilot.group(1)), int(pilot.group(2))) !=
+                    (float(control_beta.group(1)), float(control_beta.group(2)))):
             parameters["control_prior_a"], parameters["control_prior_b"] = (
                 parameters["prior_a"], parameters["prior_b"])
             parameters["prior_a"] = parameters["prior_b"] = None

@@ -229,6 +229,16 @@ def test_ambiguous_or_conflicting_control_beta_is_not_automatically_reassigned()
         assert not any("automatically attributed" in item.lower() for item in spec["assumptions"])
 
 
+def test_matching_pilot_counts_and_beta_shapes_are_not_automatically_reassigned():
+    question = "A treatment pilot had 3 responses in 4 patients; use Beta(3,4) as the control analysis prior."
+    route = {"model_type": "assurance", "framing": "two_arm", "prior_successes": 3, "prior_n": 4,
+             "prior_a": 3, "prior_b": 4, "control_prior_a": None, "control_prior_b": None}
+    spec = research.from_route(question, route, "demo warehouse")
+    assert (spec["parameters"]["prior_a"], spec["parameters"]["prior_b"]) == (3, 4)
+    assert spec["parameters"]["control_prior_a"] is None
+    assert not any("automatically attributed" in item.lower() for item in spec["assumptions"])
+
+
 def test_bayesian_direction_must_be_boolean_when_supplied():
     frame = pd.DataFrame({"response": [1, 0] * 8})
     params = {"n_planned": 40, "tv": .3, "lrv": .15, "gate_tv": .8, "gate_lrv": .9,
