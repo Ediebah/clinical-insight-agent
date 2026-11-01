@@ -155,3 +155,12 @@ def test_invalid_proposal_records_bounded_diagnostics_without_provider_text():
     assert row["actual_parameters"]["prior_successes"] == 7
     assert row["actual_parameters"]["prior_a"] == "<invalid>"
     assert "sensitive provider text" not in json.dumps(row)
+
+
+def test_extremely_large_integer_does_not_break_rejection_diagnostics():
+    run = evaluator()
+    case = {"id": "trial", "expect": "proposal", "method": "assurance", "parameters": {}}
+    row = run.score(case, _result(params={"higher_is_better": 10**400}))
+    assert row["reason"] == "invalid_specification"
+    assert row["validation_issue"] == "direction"
+    assert row["actual_parameters"]["higher_is_better"] == "<invalid>"

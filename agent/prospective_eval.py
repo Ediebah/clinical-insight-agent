@@ -90,7 +90,7 @@ def _invalid_proposal_diagnostics(case: dict, params: dict, stage: str, exc: Val
         value = params.get(key)
         if value is None or type(value) is bool:
             fields[key] = value
-        elif type(value) in (int, float) and math.isfinite(value):
+        elif type(value) in (int, float) and abs(value) <= 1e100 and math.isfinite(value):
             fields[key] = value
         elif key == "framing" and value in ("single_arm", "two_arm"):
             fields[key] = value
