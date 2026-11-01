@@ -120,3 +120,20 @@ def test_frozen_cases_cover_proposals_and_required_refusals():
     assert len(cases) == 8
     assert {case["expect"] for case in cases} == {"proposal", "abstain", "unsupported"}
     assert all(case["question"] for case in cases)
+
+
+def test_failed_proposal_keeps_usage_and_resets_trace(monkeypatch):
+    run = evaluator()
+    from agent import llm
+
+    reset = []
+    monkeypatch.setattr(llm, "reset_trace", lambda: reset.append(True))
+    monkeypatch.setattr(llm, "trace_summary", lambda: {"calls": 1, "prompt_tokens": 101,
+                                                       "completion_tokens": 12})
+    monkeypatch.setattr(run, "propose", lambda _question: (_ for _ in ()).throw(ValueError("invalid JSON")))
+    case = {"id": "failure", "question": "synthetic", "expect": "proposal", "method": "assurance",
+            "parameters": {}}
+    row = run.evaluate_case(case)
+    assert reset == [True]
+    assert not row["passed"] and row["reason"] == "execution_error"
+    assert row["usage"] == {"calls": 1, "prompt_tokens": 101, "completion_tokens": 12}

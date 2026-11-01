@@ -171,6 +171,21 @@ def propose(question: str):
         result.trace = llm.trace_summary()
 
 
+def evaluate_case(case: dict) -> dict:
+    """Score one case and retain available usage even if model output cannot be parsed."""
+    from . import llm
+    from .agent import AgentResult
+
+    llm.reset_trace()
+    try:
+        row = score(case, propose(case["question"]))
+    except Exception:  # Do not print arbitrary provider output or count errors as abstentions.
+        row = score(case, AgentResult(question=case["question"], error="evaluation error"))
+    trace = llm.trace_summary()
+    row["usage"] = {key: trace.get(key) for key in ("calls", "prompt_tokens", "completion_tokens")}
+    return row
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
@@ -182,20 +197,12 @@ def main() -> int:
     if not math.isfinite(args.pace) or not 0 <= args.pace <= 30:
         parser.error("pace must be between 0 and 30 seconds")
     from . import llm, warehouse
-    from .agent import AgentResult
 
     results = []
     for case in cases["cases"]:
         if args.pace:
             time.sleep(args.pace)
-        try:
-            result = propose(case["question"])
-            row = score(case, result)
-            if isinstance(result.trace, dict):
-                row["usage"] = {key: result.trace.get(key) for key in
-                                ("calls", "prompt_tokens", "completion_tokens")}
-        except Exception:  # A failed case is visible, without printing arbitrary provider output.
-            row = score(case, AgentResult(question=case["question"], error="evaluation error"))
+        row = evaluate_case(case)
         results.append(row)
         print(f"{row['id']}: {'PASS' if row['passed'] else 'FAIL'} ({row['reason']})", flush=True)
     passed = sum(row["passed"] for row in results)
