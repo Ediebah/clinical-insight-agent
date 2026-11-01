@@ -109,6 +109,15 @@ def rate_measure(df: pd.DataFrame) -> str | None:
     return measure if measure is not None and _PCTISH.search(str(measure)) else None
 
 
+def supports_wilson_chart(df: pd.DataFrame) -> bool:
+    """Only the categorical bar-chart path can render selected Wilson intervals."""
+    if df is None or len(df) < 2 or _pick_measure(df) is None:
+        return False
+    if any(_TIME.search(str(c)) or pd.api.types.is_datetime64_any_dtype(df[c]) for c in df.columns):
+        return False
+    return any(not _ID.search(str(c)) for c in _cats(df))
+
+
 def _pct_scale(rate_unit: str | None) -> float | None:
     """Use declared units only; magnitudes and column names do not establish units."""
     if rate_unit not in (None, "fraction", "percent"):

@@ -42,6 +42,7 @@ from agent.charts import (
     power_curve_chart,
     radar_chart,
     rate_measure,
+    supports_wilson_chart,
     survival_plot,
 )
 from agent.pdf_evidence import MAX_PDF_BYTES, MAX_PDF_PAGES, extract_pdf_evidence
@@ -2037,7 +2038,7 @@ if result is not None:
             selected = st.selectbox(f"Units for {measure}", list(unit_choices), key=f"rate_unit_{result_key}")
             rate_unit = unit_choices[selected]
             st.caption("Column names and values do not establish units. Select units only if you know them.")
-        if rate_unit is not None:
+        if rate_unit is not None and supports_wilson_chart(result.dataframe):
             numeric_cols = [c for c in result.dataframe.columns if c != measure and
                             pd.api.types.is_numeric_dtype(result.dataframe[c])]
             with st.expander("Optional: select counts for Wilson intervals"):

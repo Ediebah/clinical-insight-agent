@@ -289,6 +289,26 @@ def test_rate_display_requires_explicit_units_and_accepts_selection():
     unit.set_value("Percent — values are already percentages").run()
     assert not at.exception, [str(e.value) for e in at.exception]
     assert any("1.2%" in str(item.value) for item in at.markdown)
+    assert any("select counts for Wilson" in str(item.label) for item in at.expander)
+
+
+def test_time_series_does_not_offer_unavailable_wilson_controls():
+    import pandas as pd
+
+    from agent.agent import AgentResult
+
+    at = AppTest.from_file(APP_FILE, default_timeout=120).run()
+    at.segmented_control[0].set_value("🔬 Analyze").run()
+    at.session_state["result"] = AgentResult(
+        question="Synthetic rates", sql="SELECT 1", interpretation="Synthetic result",
+        dataframe=pd.DataFrame({"month": ["2025-01", "2025-02"], "event_rate": [20., 40.],
+                                "events": [2, 4], "total": [10, 10]}))
+    at.session_state["result_q"] = "Synthetic rates"
+    at.run()
+    unit = next(item for item in at.selectbox if str(item.label) == "Units for event_rate")
+    unit.set_value("Percent — values are already percentages").run()
+    assert not at.exception, [str(e.value) for e in at.exception]
+    assert not any("select counts for Wilson" in str(item.label) for item in at.expander)
 
 
 def test_byod_upload_still_works_when_deid_is_unavailable(monkeypatch):
