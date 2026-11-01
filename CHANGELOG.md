@@ -11,6 +11,7 @@ versions follow [SemVer](https://semver.org/).
   cache collisions and fall back to uncached export when result serialization fails.
 - Add a reproducible public-data research demonstration and independent-evaluation, reviewer, and
   distribution-review handoffs. These do not establish independent validation or review.
+- Welcome voluntary review with key-free steps and reporting templates; link two starter issues.
 - Correct the survival example to report integrated Brier score separately and clarify limitations
   in older examples and data-provenance notices.
 

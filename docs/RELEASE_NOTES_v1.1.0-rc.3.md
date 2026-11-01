@@ -18,6 +18,8 @@ independently clinically validated.
   evaluation has yet been conducted under the handoff protocol.
 - Corrects the survival example to report integrated Brier score separately and clarifies evidence
   and provenance limitations in other examples and notices.
+- Adds a voluntary open-review path and links two key-free starter issues. Open testing does not
+  itself establish independent validation.
 
 ## Installation
 
