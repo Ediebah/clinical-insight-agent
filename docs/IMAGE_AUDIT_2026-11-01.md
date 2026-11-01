@@ -24,8 +24,18 @@ versions were newer. That explains why a scan of installed distributions and a s
 bundled components differ. The [full Trivy report](audits/image_trivy_2026-11-01.json.gz) has
 SHA-256 `1e6297a4dd3de9caa0b0c6bd84c2c475697e1d87b7c5e025771df763993dad40`.
 
-The Dockerfile was subsequently changed to remove pip from the runtime image after installation;
-that change must be assessed using a new image scan. The CI scan records findings without failing
-on severity, so a green CI status does not mean that the image is free of advisories. Assess the
-specific execution paths, available vendor updates, and deployment controls before distribution.
-The base tag and transitive dependencies can change at later builds; scan the exact image to be used.
+A second image, built in [CI run 41283126650](https://github.com/Ediebah/clinical-insight-agent/actions/runs/41283126650)
+from merge commit `1071a70fb22a56e5c6d77d3bb5b3f334daa62bc6`, removed pip from the runtime image.
+Its image ID was `sha256:7288e8c80af0d6110fae5bffca28f17310d3d93f644d177414aa3ed6050f6f2e`
+and it used the same base digest. The installer-removal smoke check passed. Pip-audit returned no
+advisories for the 84 installed distributions; Trivy reported no Python library advisories and
+again reported 166 OS entries, 44 high across eight IDs, with no fixed version listed. Reports:
+[Trivy](audits/image_trivy_without_pip_2026-11-01.json.gz), SHA-256
+`0e545f6ca9881967a15a536df280bf02edcd9ceef59b65b4584ce7193e9532de`; and
+[pip-audit](audits/image_pip_audit_without_pip_2026-11-01.json), SHA-256
+`f67d6ebc09a615491234f22fce31d448f9c433604f81cb70018980a60e3fa9a1`.
+
+The CI scan records findings without failing on severity, so a green CI status does not mean that
+the image is free of advisories. Assess the specific execution paths, available vendor updates, and
+deployment controls before distribution. The base tag and transitive dependencies can change at
+later builds; scan the exact image to be used.

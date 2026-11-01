@@ -5,6 +5,10 @@ versions follow [SemVer](https://semver.org/).
 
 ## Unreleased — research workflow changes
 
+- Refuse a generated Beta prior that is represented only as prior-study counts; prompt users to
+  correct the specification. Recognize explicitly stated percentage-point inputs. The paid Bayesian
+  evaluation identified this issue and remains separate from deterministic validation.
+
 - Rebuild the synthetic demo warehouse from recorded Synthea 4.0.0 inputs and export all rows of
   its 16 named models. Add a build manifest and a safe export tool. Earlier Git history retains the
   previous demo and Berkeley fixture, whose exact provenance remains incomplete.

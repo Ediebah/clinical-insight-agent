@@ -165,3 +165,23 @@ def test_approved_analysis_refuses_truncated_upload(monkeypatch):
         AssertionError("truncated upload reached retrieval")))
     result = agent.run_analysis("What predicts y?", approved_spec={"method": "logistic"}, input_truncated=True)
     assert result.error and "truncat" in result.error.lower()
+
+
+def test_beta_shape_parameters_are_not_mistaken_for_study_counts():
+    question = ("40 patients had 12 responses. Use a Beta(1,1) prior, with target 30% and "
+                "reference 15%; gates 0.80, 0.90, 0.10.")
+    route = {"model_type": "interim", "n_planned": 100, "tv": .3, "lrv": .15,
+             "prior_successes": 1, "prior_n": 1, "gate_tv": .8, "gate_lrv": .9,
+             "stop_lrv": .1}
+    params = research.from_route(question, route, "demo warehouse")["parameters"]
+    assert params["prior_successes"] is None and params["prior_n"] is None
+    import pytest
+    with pytest.raises(ValueError, match="prior"):
+        research.require_bayesian_inputs(params)
+
+
+def test_percentage_point_targets_can_be_verified_from_question():
+    question = "Assess a 15-point benefit against a 0 percentage point minimum."
+    route = {"model_type": "assurance", "tv": .15, "lrv": 0.0}
+    params = research.from_route(question, route, "demo warehouse")["parameters"]
+    assert params["tv"] == .15 and params["lrv"] == 0.0

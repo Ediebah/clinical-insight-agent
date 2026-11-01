@@ -447,7 +447,9 @@ BAYES = [
                   "reference, and stopping, respectively."
                   + (" Use a Beta(1,1) prior for each observed arm." if case.fn == "interim" else "")
                   + (" Use a Beta(1,1) control analysis prior." if case.fn == "assurance"
-                     and case.params.get("framing") == "two_arm" else "")),
+                     and case.params.get("framing") == "two_arm" else "")
+                  + (" Set the lower reference to 0 percentage points." if
+                     case.params.get("framing") == "two_arm" else "")),
         params={**case.params, "gate_tv": .8, "gate_lrv": .9, "stop_lrv": .1,
                 **({"prior_a": 1., "prior_b": 1.} if case.fn == "interim" else {}),
                 **({"control_prior_a": 1., "control_prior_b": 1.}

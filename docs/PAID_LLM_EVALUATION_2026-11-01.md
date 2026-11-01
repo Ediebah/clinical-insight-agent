@@ -20,3 +20,13 @@ inputs; it is a comparison of extraction and execution, not independent numerica
 The evaluation automatically approves generated specifications for synthetic cases; it does not
 measure human review. These small, selected tests do not establish general accuracy, clinical
 validation, or performance on sensitive data. Results can vary by model and run.
+
+A [focused repeat](https://github.com/Ediebah/clinical-insight-agent/actions/runs/41283134318)
+on commit `bbebbe5062d4133b99d8d87797f7feea2b1c08e7` scored 3/8 and failed the same threshold.
+The added diagnostics showed that two cases were safely stopped because stated decision gates were
+not extracted, and two two-arm cases lacked targets after the numeric grounding check. In the
+interim mismatch, the extracted `prior_successes=1, prior_n=1` did not match the stated Beta(1,1)
+prior, changing the predictive probability from 0.2896 to 0.4172. The benchmark automatically
+approved that incorrect specification, so this is not evidence that a human reviewed it. The code
+now clears that ambiguous representation and requires correction; updated percentage-point
+grounding and prompt guidance need separate evaluation.

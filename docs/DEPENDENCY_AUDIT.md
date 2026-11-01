@@ -28,7 +28,7 @@ A second clean environment installed the final pinned requirements from scratch 
 
 The accompanying [license metadata snapshot](runtime_license_metadata_2026-10-31.json) records what those installed distributions declare. It was generated in that environment with `python scripts/collect_license_inventory.py --output license-metadata.json`. It is a starting point for checking actual license files and bundled components, not a legal review or proof of permission to distribute them.
 
-The Dockerfile copies both local package directories before installing `requirements.txt`. A subsequent CI image build and vulnerability scan identified unresolved OS findings and components bundled in pip; see the [image audit](IMAGE_AUDIT_2026-11-01.md). The Dockerfile now removes pip after dependency installation, but the effect must be checked in a new scan. Audit the exact image before use or distribution.
+The Dockerfile copies both local package directories before installing `requirements.txt`. A subsequent CI image build and vulnerability scan identified unresolved OS findings and components bundled in pip; see the [image audit](IMAGE_AUDIT_2026-11-01.md). A second scan after removing pip found no Python library advisories; the OS findings remained. Audit the exact image before use or distribution.
 
 The check was performed without automatic dependency changes:
 
