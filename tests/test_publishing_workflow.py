@@ -71,8 +71,10 @@ def test_prepublication_check_refuses_tampered_or_extra_files(tmp_path):
         ["bash", "-c", script], cwd=tmp_path, env=env, capture_output=True, check=False
     )
     assert result.returncode != 0
+    assert b"FAILED" in result.stdout
     (dist / "unexpected.txt").write_text("unexpected")
     result = subprocess.run(
         ["bash", "-c", script], cwd=tmp_path, env=env, capture_output=True, check=False
     )
     assert result.returncode != 0
+    assert result.stdout == b""  # The file-count guard stops before the checksum check.
