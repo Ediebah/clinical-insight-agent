@@ -27,9 +27,8 @@ from .eval_dataset import BAYES
 
 HISTORY = Path(__file__).resolve().parent / "bayes_eval_history.jsonl"
 
-# Both paths run the same closed-form code, so a correct extraction agrees to within float noise.
-# A whole percentage point of slack is already far looser than "right"; anything beyond it is a
-# different parameter, not a rounding difference.
+# Both paths call the same modeling implementation. The tolerance is a benchmark choice, not
+# a bound on numerical error or evidence of independent correctness.
 TOL = 0.01
 PASS_THRESHOLD = 0.85
 

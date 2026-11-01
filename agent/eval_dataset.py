@@ -349,12 +349,9 @@ ROUTE_NO_SQL = {"sample_size", "assurance", "aggregate"}
 # of the TV produces a confident GO on a trial that should stop, and nothing in the routing eval
 # would notice.
 #
-# bayes.py is closed-form conjugate, so the reference is computed by calling the same modeling
-# entry point with the CORRECT parameters at eval time — deliberately not hardcoded. Hardcoding
-# would re-test bayes.py (which has its own unit suite) and would rot whenever a grid legitimately
-# changes. Computing it live isolates the one thing the agent actually controls here: pulling
-# n_planned / tv / lrv / the prior out of English. A numeric mismatch is therefore an EXTRACTION
-# mismatch may also reflect generated SQL or other execution differences.
+# The reference calls the same modeling entry point with the benchmark's selected parameters.
+# It tests whether the routed execution agrees with that reference, not independent numerical
+# accuracy. Mismatches can reflect parameter extraction, generated SQL, or execution differences.
 # ---------------------------------------------------------------------------------------------
 
 @dataclass(frozen=True)

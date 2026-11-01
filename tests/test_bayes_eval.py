@@ -1,9 +1,8 @@
 """Label integrity for the Bayesian numeric oracle (no API key needed).
 
-agent.bayes_eval measures the agent against a reference computed from bayes.py. That only means
-something if the reference itself is sound, so these pin the LABELS — deterministically, in CI —
-even though comparing the agent to them needs a key. A case whose params no longer produce its
-stated verdict is a broken ruler, and would otherwise be discovered as a mystery agent regression.
+These tests check that the reference runs and remains consistent with the case labels. Because
+the reference calls the same modeling implementation, label consistency does not independently
+validate the calculations. Comparing the agent with the reference needs an API key.
 """
 import pandas as pd
 import pytest
