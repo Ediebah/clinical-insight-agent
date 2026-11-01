@@ -33,6 +33,25 @@ def test_nonconverged_logistic_fit_discloses_it():
     assert any("converg" in issue.lower() for issue in result.issues)
 
 
+def test_nonconverged_cox_fit_discloses_it(monkeypatch):
+    from pathlib import Path
+
+    import pandas as pd
+    from statsmodels.duration.hazard_regression import PHReg
+
+    original_fit = PHReg.fit
+
+    def one_iteration(self, *args, **kwargs):
+        kwargs.update(maxiter=1, disp=False)
+        return original_fit(self, *args, **kwargs)
+
+    monkeypatch.setattr(PHReg, "fit", one_iteration)
+    data = pd.read_csv(Path(__file__).resolve().parents[1] / "examples/heart_failure.csv")
+    result = modeling.fit_cox(data, "time", "DEATH_EVENT", ["age", "serum_creatinine"])
+    assert result.error is None
+    assert any("converg" in issue.lower() for issue in result.issues)
+
+
 def test_survival_reports_integrated_brier_score_not_skill():
     from sklearn.model_selection import KFold
     from sksurv.linear_model import CoxPHSurvivalAnalysis

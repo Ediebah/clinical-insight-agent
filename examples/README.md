@@ -2,6 +2,10 @@
 
 The key-free examples `synthetic_result.csv`, `synthetic_observations.csv`, `association_spec.json`, and `assurance_design.json` are small constructed examples. Follow the commands in the [root README](../README.md).
 
+The [breast-cancer research demonstration](breast_cancer_research_demo.md) uses a public dataset
+and an explicit, reviewable specification to generate a key-free research bundle. It is an
+exploratory association example, not external validation or a clinical prediction study.
+
 The other scripts use copies or transformations of the following public datasets:
 
 - [UCI Heart Disease, Cleveland](https://archive.ics.uci.edu/dataset/45/heart+disease), described in `heart_disease_validation.py`.

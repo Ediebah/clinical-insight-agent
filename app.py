@@ -41,6 +41,7 @@ from agent.charts import (
     oc_curve_chart,
     power_curve_chart,
     radar_chart,
+    rate_measure,
     survival_plot,
 )
 from agent.pdf_evidence import MAX_PDF_BYTES, MAX_PDF_PAGES, extract_pdf_evidence
@@ -1626,9 +1627,9 @@ def _result_key(result) -> str:
 
 
 @st.cache_data(show_spinner=False, max_entries=8)
-def _cached_report(_result, content_key: str):   # keyed on content_key (a content hash), not the question
+def _cached_report(_result, content_key: str, rate_unit=None, numerator=None, denominator=None):
     from agent.report import build_docx
-    return build_docx(_result)
+    return build_docx(_result, rate_unit=rate_unit, numerator=numerator, denominator=denominator)
 
 
 # Re-enabled: the .docx now renders figures with a dedicated light/print theme (white background, dark
@@ -1636,12 +1637,12 @@ def _cached_report(_result, content_key: str):   # keyed on content_key (a conte
 _REPORT_EXPORT_ENABLED = True
 
 
-def _report_button(result, view: str):
+def _report_button(result, view: str, *, rate_unit=None, numerator=None, denominator=None):
     """Offer the analysis as a regulated-style .docx report (cached by content so charts render once)."""
     if not _REPORT_EXPORT_ENABLED:
         return
     try:
-        data = _cached_report(result, _result_key(result))
+        data = _cached_report(result, _result_key(result), rate_unit, numerator, denominator)
     except Exception as _e:  # noqa: BLE001
         st.caption(f"Report export unavailable: {_e}")
         return
@@ -2024,7 +2025,27 @@ if result is not None:
 
     eyebrow(f"Result <span class='n'>· {result.n_rows} row(s)</span>")
 
-    cards = kpi_cards(result.dataframe, result_q)
+    rate_unit = numerator = denominator = None
+    measure = rate_measure(result.dataframe)
+    if measure is not None:
+        unit_choices = {"Unspecified — show raw values": None, "Fraction — show percentage labels": "fraction",
+                        "Percent — values are already percentages": "percent"}
+        result_key = _result_key(result)
+        selected = st.selectbox(f"Units for {measure}", list(unit_choices), key=f"rate_unit_{result_key}")
+        rate_unit = unit_choices[selected]
+        st.caption("Column names and values do not establish units. Select units only if you know them.")
+        if rate_unit is not None:
+            numeric_cols = [c for c in result.dataframe.columns if c != measure and
+                            pd.api.types.is_numeric_dtype(result.dataframe[c])]
+            with st.expander("Optional: select counts for Wilson intervals"):
+                numerator = st.selectbox("Numerator", [None, *numeric_cols], key=f"numer_{result_key}",
+                                         format_func=lambda c: "Not selected" if c is None else str(c))
+                denominator = st.selectbox("Denominator", [None, *numeric_cols], key=f"denom_{result_key}",
+                                           format_func=lambda c: "Not selected" if c is None else str(c))
+                st.caption("Intervals appear only when the selected integer counts match the rates. "
+                           "You must verify the numerator and denominator are appropriate.")
+
+    cards = kpi_cards(result.dataframe, result_q, rate_unit=rate_unit)
     if cards:
         chtml = "".join(
             f"<div class='kpi-card'><div class='kpi-label'>{html.escape(c['label'])}</div>"
@@ -2033,7 +2054,8 @@ if result is not None:
             for c in cards)
         st.markdown(f"<div class='kpi-row'>{chtml}</div>", unsafe_allow_html=True)
 
-    _chart = build_chart(result.dataframe, result_q)
+    _chart = build_chart(result.dataframe, result_q, rate_unit=rate_unit,
+                         numerator=numerator, denominator=denominator)
     if _chart is not None:
         st.altair_chart(_chart, width="stretch")
 
@@ -2067,7 +2089,7 @@ if result is not None:
 
     eyebrow("Interpretation & recommendation")
     st.markdown(result.interpretation)
-    _report_button(result, "agg")
+    _report_button(result, "agg", rate_unit=rate_unit, numerator=numerator, denominator=denominator)
 
     if result.trace:
         t = result.trace

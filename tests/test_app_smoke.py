@@ -271,6 +271,26 @@ def test_analyze_view_renders_without_exception():
     assert any("Synthetic demo · non-sensitive data only" in str(item.value) for item in at.markdown)
 
 
+def test_rate_display_requires_explicit_units_and_accepts_selection():
+    import pandas as pd
+
+    from agent.agent import AgentResult
+
+    at = AppTest.from_file(APP_FILE, default_timeout=120).run()
+    at.segmented_control[0].set_value("🔬 Analyze").run()
+    at.session_state["result"] = AgentResult(
+        question="Synthetic rates", sql="SELECT 1", interpretation="Synthetic result",
+        dataframe=pd.DataFrame({"group": ["A", "B"], "event_rate": [0.5, 1.2]}))
+    at.session_state["result_q"] = "Synthetic rates"
+    at.run()
+    assert not at.exception, [str(e.value) for e in at.exception]
+    unit = next(item for item in at.selectbox if str(item.label) == "Units for event_rate")
+    assert unit.value == "Unspecified — show raw values"
+    unit.set_value("Percent — values are already percentages").run()
+    assert not at.exception, [str(e.value) for e in at.exception]
+    assert any("1.2%" in str(item.value) for item in at.markdown)
+
+
 def test_byod_upload_still_works_when_deid_is_unavailable(monkeypatch):
     """Fail open: a missing model must never block an upload."""
     monkeypatch.setattr("agent.deid.available", lambda: False)

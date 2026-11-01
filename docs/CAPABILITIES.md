@@ -6,7 +6,7 @@ All methods are exploratory. Requirements below are minimum technical requiremen
 |---|---|---|
 | `caveat` | A result table; optional explicit column roles | Deterministic checks and small labeled examples. Role inference and warnings can miss problems or flag benign patterns. A confounding warning does not measure confounding. |
 | Logistic / OLS | Outcome and predictors; independent observations, model-specific functional form | Unit tests and public-data regression comparisons. Data-driven selection and single imputation make coefficients and intervals exploratory. |
-| Cox / Kaplan–Meier | Duration and event; relevant censoring and proportional-hazards assumptions | Synthetic tests and a public-data comparison. Check censoring and time origin. Competing-risk and repeated-measure models are unsupported. |
+| Cox / Kaplan–Meier | Duration and event; relevant censoring and proportional-hazards assumptions | Synthetic tests and a public-data comparison. Cox convergence warnings are surfaced when the fitting library emits them; absence of a warning does not prove convergence. Check censoring and time origin. Competing-risk and repeated-measure models are unsupported. |
 | Prediction / forest | Outcome, predictors, independent units; fold-safe preprocessing | Nested cross-validation evaluates selection internally. Fold variation is not a confidence interval; external, temporal, and subgroup validation remain necessary. |
 | Survival ML | Duration, event, predictors; appropriate censoring and follow-up | Nested tuning reports concordance, time-dependent AUC, and integrated Brier score separately. Some metrics may be unavailable for a fold. Integrated Brier score is not a skill score. |
 | Decision curve / failure analysis | Binary outcome and predictors | Out-of-fold predictions and nested automatic family selection. Risks can be miscalibrated. Curves from this prototype do not establish clinical utility. |
@@ -17,3 +17,11 @@ All methods are exploratory. Requirements below are minimum technical requiremen
 | Published-design reproduction | Text-based PDF or plain text for supported single-arm binary design | Extracted values require review and source evidence. Unsupported designs, encrypted or scanned PDFs, and missing values must not be silently filled. |
 
 No assurance is made for patient care, PHI, sensitive uploads, regulatory submissions, production multi-tenancy, general causal identification, competing-risk inference, or external clinical prediction performance.
+
+For rate-like aggregate charts, values are displayed in their original units by default; column
+names and magnitudes do not determine whether a value is a fraction or a percentage. A user may
+explicitly select units for percentage labels. Wilson intervals require explicit numerator and
+denominator columns, finite nonnegative integer counts, and agreement with the displayed rate up
+to rounding. An arithmetic match does not establish that the denominator is scientifically
+appropriate or that binomial assumptions hold. These display choices are carried into report
+figures; the data table remains in its original units.

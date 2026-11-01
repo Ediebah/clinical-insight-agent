@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0",
+  "question": "In this public dataset, how is mean radius associated with the recorded malignant label?",
+  "population": "all rows",
+  "outcome": "malignant",
+  "predictors": ["mean_radius"],
+  "method": "logistic",
+  "assumptions": [
+    "Observations are treated as independent; the provenance record does not establish this for every row.",
+    "Log odds are modeled as linear in mean radius; this assumption requires review.",
+    "Exploratory association only; no causal or clinical decision claim."
+  ],
+  "exclusions": [],
+  "data_source": "examples/breast_cancer.csv",
+  "sql": "",
+  "parameters": {}
+}

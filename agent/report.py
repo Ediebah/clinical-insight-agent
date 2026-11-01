@@ -163,7 +163,7 @@ def _cell(v) -> str:
     return str(v)
 
 
-def _figure_titles(result, m):
+def _figure_titles(result, m, *, rate_unit=None, numerator=None, denominator=None):
     """(figure, caption) pairs matching the on-screen result, so the report shows the same charts."""
     from agent import charts as ch
     mt = m.get("model_type")
@@ -185,13 +185,15 @@ def _figure_titles(result, m):
         elif m.get("terms"):                         # logistic / ols / cox / causal / association
             pairs = [(ch.forest_plot(m), f"Adjusted {m.get('effect_label', 'estimates')} with 95% CIs.")]
         elif not m and getattr(result, "dataframe", None) is not None:
-            pairs = [(ch.build_chart(result.dataframe), "Summary of the query result.")]
+            pairs = [(ch.build_chart(result.dataframe, rate_unit=rate_unit, numerator=numerator,
+                                     denominator=denominator), "Summary of the query result.")]
     except Exception:
         pairs = []
     return [(f, c) for f, c in pairs if f is not None]
 
 
-def build_docx(result, *, when: _dt.datetime | None = None) -> bytes:
+def build_docx(result, *, when: _dt.datetime | None = None, rate_unit=None,
+               numerator=None, denominator=None) -> bytes:
     """Build the industry-format .docx SAR for an AgentResult and return its bytes."""
     from docx import Document
     from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -460,7 +462,8 @@ def build_docx(result, *, when: _dt.datetime | None = None) -> bytes:
 
     from agent import charts as _ch
     with _ch.render_for_print():                      # light/print palette so figures are legible on white
-        for fig, caption in _figure_titles(result, m):
+        for fig, caption in _figure_titles(result, m, rate_unit=rate_unit, numerator=numerator,
+                                           denominator=denominator):
             png = _chart_png(fig)
             if png:
                 figure_caption(caption)

@@ -1,9 +1,8 @@
-"""Validation on real public data (keyless, no LLM).
+"""Key-free development regression checks using public data and one published-design example.
 
-The agent must not merely *run* on real inputs; it must reproduce the *established* findings. This file
-is the "judged against the literature" guardrail across the agent's statistical methods: if a change
-silently breaks the modeling, CI catches it against real ground truth, not synthetic data. Three
-independent literatures are pinned here:
+These familiar data and broad checks are not independent validation or real-world ground truth.
+They can detect some changes in behavior but cannot establish statistical or clinical validity.
+The following checks are included:
 
   * Logistic + random forest — UCI Cleveland heart-disease dataset (Detrano et al., 1989). The
     dominant coronary-artery-disease predictors (diseased vessels ``ca``, asymptomatic chest pain,
