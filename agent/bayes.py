@@ -11,11 +11,13 @@ tests and the examples keep importing exactly what they always did.
 For new code prefer the high-level API, which builds the Prior and DecisionRule for you:
 
     import assurance
-    assurance.design(n=100, tv=0.30, lrv=0.15, prior_successes=8, prior_n=20)
-    assurance.interim(successes=12, n=40, n_planned=100, tv=0.30, lrv=0.15)
+    assurance.design(n=100, tv=0.30, lrv=0.15, prior_successes=8, prior_n=20,
+                     gate_tv=0.8, gate_lrv=0.9, stop_lrv=0.1)
+    assurance.interim(successes=12, n=40, n_planned=100, tv=0.30, lrv=0.15,
+                      prior_a=1, prior_b=1, gate_tv=0.8, gate_lrv=0.9, stop_lrv=0.1)
 
-Every model is CONJUGATE, so every quantity is closed-form or deterministic quadrature. There is NO
-Monte Carlo: no seed to manage, and re-running never changes a verdict.
+The supported conjugate calculations use closed forms or deterministic quadrature rather than Monte
+Carlo. Floating-point libraries and platforms can differ, especially near a decision threshold.
 """
 from __future__ import annotations
 

@@ -116,7 +116,8 @@ def test_fit_model_dispatches_two_arm_interim():
     df = pd.DataFrame(rows, columns=["arm", "responded"])
     spec = {"model_type": "interim", "outcome": "responded", "n_planned": 100,
             "tv": 0.15, "lrv": 0.0, "framing": "two_arm", "group": "arm", "control": "control",
-            "gate_tv": .8, "gate_lrv": .9, "stop_lrv": .1, "prior_a": 1, "prior_b": 1}
+            "gate_tv": .8, "gate_lrv": .9, "stop_lrv": .1, "prior_a": 1, "prior_b": 1,
+            "control_prior_a": 1, "control_prior_b": 1}
     mr = agent._fit_model(spec, df)
     assert mr.model_type == "interim" and mr.error is None
     assert {a["arm"] for a in mr.arms} == {"treatment", "control"}
@@ -131,7 +132,8 @@ def test_run_assurance_two_arm_takes_the_no_data_path(monkeypatch):
 
     spec = {"model_type": "assurance", "framing": "two_arm", "n_planned": 200, "tv": 0.15, "lrv": 0.0,
             "control_rate": 0.35, "prior_successes": 14, "prior_n": 20, "hypothesis": "h",
-            "gate_tv": .8, "gate_lrv": .9, "stop_lrv": .1}
+            "gate_tv": .8, "gate_lrv": .9, "stop_lrv": .1,
+            "control_prior_a": 1, "control_prior_b": 1}
     res = agent._run_assurance("Will the randomized trial succeed?", spec, agent.AgentResult(question="q"))
     assert res.model["model_type"] == "assurance"
     assert res.model["robustness"]["framing"] == "two_arm"

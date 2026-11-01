@@ -26,7 +26,7 @@ The demo database checksum identifies the current file, but its exact Synthea ve
 
 PR #55's CI passed the application and warehouse job, plus independent wheel build, install, and package-test jobs for both packages on Python 3.10 and 3.12. A passing run is evidence for those jobs and environments, not for all compatible Python versions, platforms, transitive-license terms, or production use. Maintainers must verify the release commit and rerun the applicable checklist, including release artifact checksums and security review, before publication. Paid LLM evaluations and external clinical validation are not included in this evidence.
 
-After changing the candidate distribution name, the `clinical-insight-assurance` 0.2.0 wheel and source archive were each installed in a separate clean Python 3.12 environment on macOS. Both installations passed the 63 assurance tests. The wheel environment's import resolved to its installed `assurance` module, and `pip check` passed. These local candidate files are not published release artifacts:
+The historical `clinical-insight-assurance` 0.2.0 wheel and source archive were each installed in a separate clean Python 3.12 environment on macOS and passed 63 assurance tests. Subsequent review found missing-input and two-arm decision defects; these 0.2.0 artifacts are superseded and must not be published. The hashes below are historical evidence, not current release candidates:
 
 - `clinical_insight_assurance-0.2.0-py3-none-any.whl`: SHA-256 `e4d67b121621bfba44647cbc10bca790690c9e6c0578c486137ff5f4d20b4cca`
 - `clinical_insight_assurance-0.2.0.tar.gz`: SHA-256 `21701d35de44bd7ce7517d1392de7aca85e85f7fec1615f17e7fa3fcafac7733`
@@ -36,7 +36,7 @@ Before the distribution rename, the historical `caveat` 0.1.2 candidate wheel an
 - `caveat-0.1.2-py3-none-any.whl`: SHA-256 `1b8772d3f8cc85e8f44c62eea0c6166f3a9b686ff77d37d30d588a19e8795a63`
 - `caveat-0.1.2.tar.gz`: SHA-256 `97b02a6ee9b1fe3b18dcefad1350acb78b4731c86ceff65e4f7242f4e548d0fc`
 
-The renamed `clinical-insight-caveat` 0.1.2 distributions were built twice from commit `b78290d26b3f153f042fca2f6741de2a495c6385` with matching hashes. Each was installed in a separate clean Python 3.12 environment on macOS, passed 85 standalone tests and `pip check`. They remain unpublished candidates:
+The earlier renamed `clinical-insight-caveat` 0.1.2 distributions were built twice from commit `b78290d26b3f153f042fca2f6741de2a495c6385` with matching hashes. Each was installed in a separate clean Python 3.12 environment on macOS, passed 85 standalone tests and `pip check`. These historical artifacts predate the package-level research-use clarification:
 
 - `clinical_insight_caveat-0.1.2-py3-none-any.whl`: SHA-256 `4ba7af255fd7800400057de2ef3ee466f6f7edf5aae075292a26f34a4dc060c6`
 - `clinical_insight_caveat-0.1.2.tar.gz`: SHA-256 `5eee7a4b653524e35c36ba5e18d55c7179a0e73a2934d57bd5e6b2364c4eb167`

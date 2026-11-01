@@ -7,6 +7,7 @@ correctness and applicability still depend on the question, data, assumptions, a
 """
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import asdict, dataclass, field
 
@@ -1971,10 +1972,11 @@ def _sensitivity(prior, n_planned, rule, sd) -> list[dict]:
 
 def calc_assurance(endpoint_type: str = "proportion", framing: str = "single_arm",
                    n_planned=None, tv=None, lrv=None,
-                   gate_tv: float = 0.80, gate_lrv: float = 0.90, stop_lrv: float = 0.10,
+                   gate_tv: float | None = None, gate_lrv: float | None = None, stop_lrv: float | None = None,
                    higher_is_better: bool = True,
                    prior_successes=None, prior_n=None, prior_a=None, prior_b=None,
-                   prior_mu=None, prior_sd=None, sd=None, anchor=None, control_rate=None) -> ModelResult:
+                   prior_mu=None, prior_sd=None, sd=None, anchor=None, control_rate=None,
+                   control_prior_a=None, control_prior_b=None) -> ModelResult:
     """Design-stage Bayesian go/no-go: the probability this trial ends in GO, before it runs.
 
     Classical power asks "what is the chance of success IF the true effect is exactly X". Assurance
@@ -1985,11 +1987,13 @@ def calc_assurance(endpoint_type: str = "proportion", framing: str = "single_arm
         return ModelResult("assurance", "go/no-go", 0, "probability of success", error=msg)
     try:
         from .research_rules import require_bayesian_inputs
-        require_bayesian_inputs({"endpoint_type": endpoint_type, "n_planned": n_planned, "tv": tv, "lrv": lrv,
+        require_bayesian_inputs({"endpoint_type": endpoint_type, "framing": framing,
+                                 "n_planned": n_planned, "tv": tv, "lrv": lrv,
                                  "control_rate": control_rate, "gate_tv": gate_tv, "gate_lrv": gate_lrv,
                                  "stop_lrv": stop_lrv, "prior_a": prior_a, "prior_b": prior_b,
                                  "prior_successes": prior_successes, "prior_n": prior_n,
-                                 "prior_mu": prior_mu, "prior_sd": prior_sd}, require_prior=False)
+                                 "prior_mu": prior_mu, "prior_sd": prior_sd,
+                                 "control_prior_a": control_prior_a, "control_prior_b": control_prior_b})
         if n_planned is None or tv is None or lrv is None:
             return _err("an assurance calculation needs a planned sample size, a target value (TV), "
                         "and a lower reference value (LRV).")
@@ -2000,7 +2004,9 @@ def calc_assurance(endpoint_type: str = "proportion", framing: str = "single_arm
         if framing == "two_arm":
             return _calc_assurance_two_arm(endpoint_type, n_planned, tv, lrv, gate_tv, gate_lrv,
                                            stop_lrv, higher_is_better, prior_successes, prior_n,
-                                           prior_a, prior_b, control_rate, anchor)
+                                           prior_a, prior_b, control_rate, anchor, control_prior_a, control_prior_b)
+        if control_prior_a is not None or control_prior_b is not None:
+            return _err("control prior is only supported for two-arm assurance")
         if endpoint_type == "proportion" and not (0 <= tv <= 1 and 0 <= lrv <= 1):
             return _err("for a proportion endpoint the TV and LRV must be between 0 and 1 "
                         "(express 30% as 0.30).")
@@ -2090,7 +2096,7 @@ def calc_assurance(endpoint_type: str = "proportion", framing: str = "single_arm
         return _err(str(e))
 
 
-def _sensitivity_diff(prior_t, control_rate, n_t, n_c, rule) -> list[dict]:
+def _sensitivity_diff(prior_t, control_rate, n_t, n_c, rule, control_prior) -> list[dict]:
     """Two-arm prior-sensitivity panel: vary the TREATMENT prior (informed, vague, skeptical at
     control+LRV, enthusiastic at control+TV), holding the control rate fixed, and report each prior's
     assurance and its prior-only difference verdict. The control rate does not vary."""
@@ -2114,14 +2120,15 @@ def _sensitivity_diff(prior_t, control_rate, n_t, n_c, rule) -> list[dict]:
         p_lrv = _bayes.prob_exceeds("beta", a, b, thr_lrv, rule.higher_is_better)
         call, _ = _bayes.decide(float(p_tv), float(p_lrv), rule)
         rows.append({"prior": p.name, "params": [round(float(v), 3) for v in p.params],
-                     "assurance": round(_bayes.assurance_diff(p, control_rate, n_t, n_c, rule), 4),
+                     "assurance": round(_bayes.assurance_diff(p, control_rate, n_t, n_c, rule,
+                                                               control_prior=control_prior), 4),
                      "call": call, "provenance": p.provenance})
     return rows
 
 
 def _calc_assurance_two_arm(endpoint_type, n_planned, tv, lrv, gate_tv, gate_lrv, stop_lrv,
                             higher_is_better, prior_successes, prior_n, prior_a, prior_b,
-                            control_rate, anchor) -> ModelResult:
+                            control_rate, anchor, control_prior_a, control_prior_b) -> ModelResult:
     """Design-stage assurance for a randomized two-arm trial: the probability it ends in GO before it
     runs, deciding on the risk difference against a known control rate."""
     def _err(msg):
@@ -2129,9 +2136,19 @@ def _calc_assurance_two_arm(endpoint_type, n_planned, tv, lrv, gate_tv, gate_lrv
     try:
         if endpoint_type != "proportion":
             return _err("two-arm assurance currently supports a binary endpoint only.")
+        if n_planned < 2 or n_planned % 2:
+            return _err("two-arm assurance requires an even total for 1:1 allocation.")
         if control_rate is None or not (0.0 <= float(control_rate) <= 1.0):
             return _err("a two-arm assurance needs a known control response rate between 0 and 1.")
         control_rate = float(control_rate)
+        if control_prior_a is None or control_prior_b is None:
+            return _err("two-arm assurance requires an explicit control prior Beta(a,b).")
+        ca, cb = float(control_prior_a), float(control_prior_b)
+        if not math.isfinite(ca) or not math.isfinite(cb) or ca < 1 or cb < 1:
+            return _err("control prior Beta parameters must be finite and at least 1 for fixed-grid integration.")
+        prior_c = _bayes.Prior("control", "beta", (ca, cb), f"Supplied control prior Beta({ca:g}, {cb:g}).")
+        if not (0 <= control_rate + tv <= 1 and 0 <= control_rate + lrv <= 1):
+            return _err("control rate plus each risk difference must be between 0 and 1.")
         if not (-1.0 <= tv <= 1.0 and -1.0 <= lrv <= 1.0):
             return _err("the two-arm TV and LRV are risk differences and must be between -1 and 1 "
                         "(express a 15-point benefit as 0.15).")
@@ -2154,20 +2171,21 @@ def _calc_assurance_two_arm(endpoint_type, n_planned, tv, lrv, gate_tv, gate_lrv
                                           higher_is_better))
         call, reason = _bayes.decide(p_tv, p_lrv, rule)
 
-        assur = _bayes.assurance_diff(prior_t, control_rate, n_t, n_c, rule)
-        oc = _bayes.operating_characteristics_diff(prior_t, control_rate, n_t, n_c, rule)
+        assur = _bayes.assurance_diff(prior_t, control_rate, n_t, n_c, rule, control_prior=prior_c)
+        oc = _bayes.operating_characteristics_diff(prior_t, control_rate, n_t, n_c, rule,
+                                                   control_prior=prior_c)
 
         def _oc_at(diff):                                        # GO rate at a given TRUE risk difference
             return min(oc, key=lambda r: abs(r["theta"] - diff))["go_rate"]
         t1, power = _oc_at(lrv), _oc_at(tv)
         under_powered = power < 0.80
-        panel = _sensitivity_diff(prior_t, control_rate, n_t, n_c, rule)
+        panel = _sensitivity_diff(prior_t, control_rate, n_t, n_c, rule, prior_c)
 
         params = {"endpoint_type": "proportion", "framing": "two_arm", "n_planned": n_planned,
                   "tv": tv, "lrv": lrv, "gate_tv": gate_tv, "gate_lrv": gate_lrv,
                   "stop_lrv": stop_lrv, "higher_is_better": higher_is_better,
                   "prior_a": a_t, "prior_b": b_t, "prior_mu": None, "prior_sd": None,
-                  "control_rate": control_rate}
+                  "control_rate": control_rate, "control_prior_a": ca, "control_prior_b": cb}
         lock = _prespec.create_lock(params, oc, anchor=anchor)
 
         mr = ModelResult("assurance", "go/no-go", n_planned, "probability of success",
@@ -2180,7 +2198,8 @@ def _calc_assurance_two_arm(endpoint_type, n_planned, tv, lrv, gate_tv, gate_lrv
                       "power": round(power, 4)}
         mr.series = [{"n": int(nn),
                       "assurance": round(_bayes.assurance_diff(prior_t, control_rate,
-                                                               int(nn) // 2, int(nn) // 2, rule), 4)}
+                                                               int(nn) // 2, int(nn) // 2, rule,
+                                                               control_prior=prior_c), 4)}
                      for nn in np.unique(np.linspace(20, max(40, n_planned * 2), 20).astype(int))]
         mr.robustness = {"panel": panel, "under_powered": under_powered, "oc": oc, "framing": "two_arm",
                          "type_i_error": round(t1, 4), "power": round(power, 4)}
@@ -2189,7 +2208,8 @@ def _calc_assurance_two_arm(endpoint_type, n_planned, tv, lrv, gate_tv, gate_lrv
         assur_vals = [r["assurance"] for r in panel]
         skept = next((r["assurance"] for r in panel if r["prior"] == "Skeptical"), min(assur_vals))
         issues = [_prespec.caveat({"status": "PRE-SPECIFIED", "drift": []}),
-                  f"Treatment prior: {prior_t.provenance} Control fixed at {control_rate:.0%}.",
+                  f"Treatment prior: {prior_t.provenance} Control generating rate fixed at {control_rate:.0%}. "
+                  f"{prior_c.provenance}",
                   f"Prior sensitivity: across the four defensible treatment priors the assurance ranges "
                   f"from {min(assur_vals):.0%} to {max(assur_vals):.0%} (see the panel) -- a skeptic "
                   f"(treatment at control + LRV) expects {skept:.0%}, your prior expects {assur:.0%}."]
@@ -2223,9 +2243,10 @@ def _diff_credible_interval(post_t, post_c, higher_is_better: bool) -> tuple[flo
 
 
 def fit_interim(df: pd.DataFrame, outcome: str, n_planned=None, tv=None, lrv=None,
-                gate_tv: float = 0.80, gate_lrv: float = 0.90, stop_lrv: float = 0.10,
+                gate_tv: float | None = None, gate_lrv: float | None = None, stop_lrv: float | None = None,
                 higher_is_better: bool = True,
                 prior_successes=None, prior_n=None, prior_a=None, prior_b=None,
+                control_prior_a=None, control_prior_b=None,
                 lock=None, endpoint_type: str = "proportion",
                 framing: str = "single_arm", group=None, control=None) -> ModelResult:
     """Interim Bayesian go/no-go: given the patients seen so far, will this trial end in GO?
@@ -2238,10 +2259,12 @@ def fit_interim(df: pd.DataFrame, outcome: str, n_planned=None, tv=None, lrv=Non
                            error=msg)
     try:
         from .research_rules import require_bayesian_inputs
-        require_bayesian_inputs({"endpoint_type": endpoint_type, "n_planned": n_planned, "tv": tv, "lrv": lrv,
+        require_bayesian_inputs({"endpoint_type": endpoint_type, "framing": framing,
+                                 "n_planned": n_planned, "tv": tv, "lrv": lrv,
                                  "gate_tv": gate_tv, "gate_lrv": gate_lrv,
                                  "stop_lrv": stop_lrv, "prior_a": prior_a, "prior_b": prior_b,
-                                 "prior_successes": prior_successes, "prior_n": prior_n}, require_prior=False)
+                                 "prior_successes": prior_successes, "prior_n": prior_n,
+                                 "control_prior_a": control_prior_a, "control_prior_b": control_prior_b})
         if framing == "two_arm" and (prior_successes is not None or prior_n is not None):
             return _err("two-arm interim requires an explicit Beta prior; previous-study counts are unsupported")
         if n_planned is None or tv is None or lrv is None:
@@ -2254,7 +2277,9 @@ def fit_interim(df: pd.DataFrame, outcome: str, n_planned=None, tv=None, lrv=Non
         if framing == "two_arm":
             return _fit_interim_two_arm(df, outcome, group, control, n_planned, tv, lrv,
                                         gate_tv, gate_lrv, stop_lrv, higher_is_better,
-                                        prior_a, prior_b, lock)
+                                        prior_a, prior_b, control_prior_a, control_prior_b, lock)
+        if control_prior_a is not None or control_prior_b is not None:
+            return _err("control prior is only supported for two-arm interim analysis")
         if higher_is_better and lrv > tv:
             return _err("the LRV must not exceed the TV.")
         if not (0 <= tv <= 1 and 0 <= lrv <= 1):
@@ -2331,7 +2356,7 @@ def fit_interim(df: pd.DataFrame, outcome: str, n_planned=None, tv=None, lrv=Non
 
 def _fit_interim_two_arm(df, outcome, group, control, n_planned, tv, lrv,
                          gate_tv, gate_lrv, stop_lrv, higher_is_better,
-                         prior_a, prior_b, lock) -> ModelResult:
+                         prior_a, prior_b, control_prior_a, control_prior_b, lock) -> ModelResult:
     """Interim go/no-go for a randomized two-arm binary trial. Decides on the risk difference
     (treatment - control) with the dual-criterion rule and the exact two-arm predictive probability."""
     def _err(msg):
@@ -2359,21 +2384,22 @@ def _fit_interim_two_arm(df, outcome, group, control, n_planned, tv, lrv,
         arms = sorted(d[group].unique())
         if len(arms) != 2:
             return _err(f"a two-arm interim needs exactly two arms; found {len(arms)}.")
-        base = control if control in arms else next((a for a in arms if _is_control(a)), None)
-        if base is None:
-            base = max(arms, key=lambda a: int((d[group] == a).sum()))   # fallback: the larger arm
+        if control is None or str(control) not in arms:
+            return _err("two-arm interim requires an explicit control arm present in the data.")
+        base = str(control)
         trt = next(a for a in arms if a != base)
 
         rule = _bayes.DecisionRule(tv=tv, lrv=lrv, gate_tv=float(gate_tv), gate_lrv=float(gate_lrv),
                                    stop_lrv=float(stop_lrv), higher_is_better=bool(higher_is_better))
         if prior_a is not None and prior_b is not None:
             pa, pb = float(prior_a), float(prior_b)
-            prov = f"Supplied prior Beta({pa:g}, {pb:g}) on each arm."
+            prov = f"Supplied treatment prior Beta({pa:g}, {pb:g})."
         else:
             pa, pb = 1.0, 1.0
-            prov = "Uniform Beta(1,1) on each arm (no prior study supplied)."
+            return _err("two-arm interim requires an explicit treatment prior.")
         prior_t = _bayes.Prior("arm prior", "beta", (pa, pb), prov)
-        prior_c = _bayes.Prior("arm prior", "beta", (pa, pb), prov)
+        ca, cb = float(control_prior_a), float(control_prior_b)
+        prior_c = _bayes.Prior("control", "beta", (ca, cb), f"Supplied control prior Beta({ca:g}, {cb:g}).")
 
         n_planned_t = n_planned_c = int(n_planned) // 2
         summ = {}
@@ -2386,7 +2412,7 @@ def _fit_interim_two_arm(df, outcome, group, control, n_planned, tv, lrv,
 
         (n_t, x_t), (n_c, x_c) = summ[trt], summ[base]
         post_t = _bayes.beta_posterior(pa, pb, x_t, n_t)
-        post_c = _bayes.beta_posterior(pa, pb, x_c, n_c)
+        post_c = _bayes.beta_posterior(ca, cb, x_c, n_c)
         p_tv = float(_bayes.prob_diff_exceeds("beta", post_t, post_c, tv, higher_is_better))
         p_lrv = float(_bayes.prob_diff_exceeds("beta", post_t, post_c, lrv, higher_is_better))
         call, reason = _bayes.decide(p_tv, p_lrv, rule)
@@ -2396,7 +2422,8 @@ def _fit_interim_two_arm(df, outcome, group, control, n_planned, tv, lrv,
         params = {"endpoint_type": "proportion", "framing": "two_arm", "n_planned": int(n_planned),
                   "tv": tv, "lrv": lrv, "gate_tv": gate_tv, "gate_lrv": gate_lrv,
                   "stop_lrv": stop_lrv, "higher_is_better": higher_is_better,
-                  "prior_a": pa, "prior_b": pb, "prior_mu": None, "prior_sd": None}
+                  "prior_a": pa, "prior_b": pb, "prior_mu": None, "prior_sd": None,
+                  "control_prior_a": ca, "control_prior_b": cb}
         ps = _prespec.verify(lock, params)
 
         mean_d, lo_d, hi_d = _diff_credible_interval(post_t, post_c, higher_is_better)
@@ -2428,14 +2455,10 @@ def _fit_interim_two_arm(df, outcome, group, control, n_planned, tv, lrv,
         mr.prespec = {"status": ps["status"], "lock": lock, "drift": ps["drift"]}
         mr.robustness = {"framing": "two_arm"}
 
-        issues = [_prespec.caveat(ps), f"Prior: {prov}"]
+        issues = [_prespec.caveat(ps), f"Treatment prior: {prov}", prior_c.provenance,
+                  "Two-arm probabilities use fixed-grid numerical integration; check results near thresholds."]
         if (n_t + n_c) >= int(n_planned):
             issues.append("Enrolment is complete, so this is the FINAL decision, not a prediction.")
-        rem_t, rem_c = n_planned_t - n_t, n_planned_c - n_c   # remaining patients (thinning keys on these)
-        if (rem_t + 1) * (rem_c + 1) > _bayes.MAX_ENUM_DIFF:
-            issues.append("The predictive probability was grid-binned: the planned enrolment exceeds the "
-                          "exact-enumeration cap, so the PPoS is a close deterministic approximation, "
-                          "not the exact sum.")
         issues.append("Two-arm decision support on the risk difference; not a regulatory submission analysis.")
         mr.issues = issues
         return mr

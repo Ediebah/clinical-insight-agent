@@ -2,12 +2,15 @@
 
 The distribution is named `clinical-insight-caveat`; its Python import remains `caveat`.
 
-**Statistical caveats for analysis results.** Give it a result table and the question that produced
-it; it tells you what would stop a statistician believing the answer.
+**Research prototype:** Use only non-sensitive data. Do not use it for patient care, clinical
+decisions, or regulated submissions. Checks can miss errors and can flag valid results; they do not
+establish that an analysis is valid. Independent statistical review is required.
 
-Everything is deterministic and computed from the data. Nothing here calls a model — an LLM may
-*phrase* a caveat, but it must never decide whether one applies, because a model that invents
-caveats will also omit them.
+**Statistical caveats for analysis results.** Give it a result table and the question that produced
+it; it reports selected checks and reasons when checks are skipped.
+
+The checks do not call a language model. Their findings depend on the supplied data, inferred column
+roles, configuration, and supported checks.
 
 ```python
 import pandas as pd, caveat

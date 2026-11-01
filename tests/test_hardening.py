@@ -205,7 +205,8 @@ def test_report_renders_a_bayesian_go_no_go(tmp_path):
 
     from agent import modeling, report
 
-    mr = modeling.calc_assurance(n_planned=100, tv=0.30, lrv=0.15, prior_successes=8, prior_n=20)
+    mr = modeling.calc_assurance(n_planned=100, tv=0.30, lrv=0.15, prior_successes=8, prior_n=20,
+                                  gate_tv=.8, gate_lrv=.9, stop_lrv=.1)
     assert mr.error is None
     res = SimpleNamespace(question="Will Phase II succeed?", model=mr.as_dict(),
                           sql="", interpretation="**Findings**\nok", findings=[], citations=[],
@@ -229,7 +230,8 @@ def test_report_renders_an_interim_run_without_a_lock():
     from agent import modeling, report
 
     df = pd.DataFrame({"responded": [1] * 12 + [0] * 28})
-    mr = modeling.fit_interim(df, "responded", n_planned=100, tv=0.30, lrv=0.15)
+    mr = modeling.fit_interim(df, "responded", n_planned=100, tv=0.30, lrv=0.15,
+                              prior_a=1, prior_b=1, gate_tv=.8, gate_lrv=.9, stop_lrv=.1)
     assert mr.error is None and mr.prespec["status"] == "EXPLORATORY" and mr.prespec["lock"] is None
     res = SimpleNamespace(question="Stop for futility?", model=mr.as_dict(),
                           sql="", interpretation="**Findings**\nok", findings=[], citations=[],
@@ -253,7 +255,9 @@ def test_report_renders_a_two_arm_interim(tmp_path):
             + [("control", 1)] * 10 + [("control", 0)] * 30)
     df = pd.DataFrame(rows, columns=["arm", "responded"])
     mr = modeling.fit_interim(df, "responded", n_planned=100, tv=0.15, lrv=0.0,
-                              framing="two_arm", group="arm", control="control")
+                              framing="two_arm", group="arm", control="control", prior_a=1, prior_b=1,
+                              control_prior_a=1, control_prior_b=1,
+                              gate_tv=.8, gate_lrv=.9, stop_lrv=.1)
     assert mr.error is None and len(mr.arms) == 2
     res = SimpleNamespace(question="Continue the trial?", model=mr.as_dict(),
                           sql="", interpretation="**Findings**\nok", findings=[], citations=[],

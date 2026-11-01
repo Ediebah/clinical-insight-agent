@@ -24,7 +24,7 @@ import json
 LOCKED_FIELDS: tuple[str, ...] = (
     "endpoint_type", "framing", "n_planned",
     "tv", "lrv", "gate_tv", "gate_lrv", "stop_lrv", "higher_is_better",
-    "prior_a", "prior_b", "prior_mu", "prior_sd", "control_rate",
+    "prior_a", "prior_b", "prior_mu", "prior_sd", "control_rate", "control_prior_a", "control_prior_b",
 )
 
 _PRECISION = 6          # floats are rounded before hashing so 0.1 and 0.10 cannot drift apart

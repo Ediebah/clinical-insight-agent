@@ -1,7 +1,7 @@
 """Regression tests for research-use boundaries."""
 import pandas as pd
 
-from agent import agent, research
+from agent import agent, modeling, research
 
 
 def test_truncated_cohort_is_not_fit(monkeypatch):
@@ -28,6 +28,47 @@ def test_interim_does_not_default_decision_thresholds():
     assert result.error and "threshold" in result.error.lower()
 
 
+def test_direct_bayesian_entry_points_require_prior_and_gates():
+    result = modeling.calc_assurance(n_planned=20, tv=.4, lrv=.3, prior_a=1, prior_b=1)
+    assert result.error and "threshold" in result.error.lower()
+    result = modeling.fit_interim(pd.DataFrame({"response": [0, 1]}), "response",
+                                  n_planned=20, tv=.4, lrv=.3,
+                                  gate_tv=.8, gate_lrv=.9, stop_lrv=.1)
+    assert result.error and "prior" in result.error.lower()
+
+
+def test_two_arm_design_requires_explicit_control_prior():
+    result = modeling.calc_assurance(framing="two_arm", n_planned=20, tv=.2, lrv=0,
+                                    control_rate=.3, prior_a=2, prior_b=2,
+                                    gate_tv=.8, gate_lrv=.9, stop_lrv=.1)
+    assert result.error and "control prior" in result.error.lower()
+
+
+def test_two_arm_design_records_control_prior_in_lock():
+    result = modeling.calc_assurance(framing="two_arm", n_planned=20, tv=.2, lrv=0,
+                                    control_rate=.3, prior_a=2, prior_b=2,
+                                    control_prior_a=2, control_prior_b=3,
+                                    gate_tv=.8, gate_lrv=.9, stop_lrv=.1)
+    assert result.error is None
+    assert result.prespec["lock"]["params"]["control_prior_a"] == 2
+    assert result.prespec["lock"]["params"]["control_prior_b"] == 3
+
+
+def test_direct_two_arm_interim_requires_a_named_control_arm():
+    frame = pd.DataFrame({"arm": ["A", "B"] * 5, "response": [0, 1] * 5})
+    result = modeling.fit_interim(frame, "response", framing="two_arm", group="arm",
+                                  n_planned=20, tv=.2, lrv=0, prior_a=1, prior_b=1,
+                                  control_prior_a=1, control_prior_b=1,
+                                  gate_tv=.8, gate_lrv=.9, stop_lrv=.1)
+    assert result.error and "control" in result.error.lower()
+
+
+def test_unknown_bayesian_framing_is_refused():
+    result = modeling.calc_assurance(framing="competing_risk", n_planned=20, tv=.4, lrv=.3,
+                                    prior_a=1, prior_b=1, gate_tv=.8, gate_lrv=.9, stop_lrv=.1)
+    assert result.error and "framing" in result.error.lower()
+
+
 def test_small_cohort_does_not_mask_invalid_interim_parameters(monkeypatch):
     frame = pd.DataFrame({"response": [0, 1] * 10})
     monkeypatch.setattr(agent, "run_query", lambda *a, **k: frame)
@@ -50,7 +91,8 @@ def test_two_arm_interim_rejects_odd_planned_total():
     frame = pd.DataFrame({"arm": ["treatment", "control"] * 10, "response": [0, 1, 1, 0] * 5})
     spec = {"model_type": "interim", "framing": "two_arm", "outcome": "response", "group": "arm",
             "control": "control", "n_planned": 41, "tv": .3, "lrv": .2, "gate_tv": .8,
-            "gate_lrv": .9, "stop_lrv": .1, "prior_a": 1, "prior_b": 1}
+            "gate_lrv": .9, "stop_lrv": .1, "prior_a": 1, "prior_b": 1,
+            "control_prior_a": 1, "control_prior_b": 1}
     result = agent._fit_model(spec, frame)
     assert result.error and "even" in result.error.lower()
 
@@ -92,11 +134,11 @@ def test_bayesian_thresholds_and_priors_are_valid():
 
 def test_bayesian_direct_model_rejects_invalid_threshold_and_prior_family():
     from agent import modeling
-    result = modeling.calc_assurance(n_planned=20, tv=.4, lrv=.3, gate_tv=1.5,
+    result = modeling.calc_assurance(n_planned=20, tv=.4, lrv=.3, gate_tv=1.5, gate_lrv=.9, stop_lrv=.1,
                                     prior_a=1, prior_b=1)
     assert result.error and "gate_tv" in result.error
     result = modeling.calc_assurance(n_planned=20, tv=.4, lrv=.3, endpoint_type="proportion",
-                                    prior_mu=0, prior_sd=1)
+                                    prior_mu=0, prior_sd=1, gate_tv=.8, gate_lrv=.9, stop_lrv=.1)
     assert result.error and "prior" in result.error.lower()
 
 

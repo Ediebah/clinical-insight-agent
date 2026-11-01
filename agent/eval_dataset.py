@@ -8,7 +8,7 @@ One dataset, many metrics — so labels never drift between evals.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 
 @dataclass(frozen=True)
@@ -436,4 +436,22 @@ BAYES: list[BayesCase] = [
                     group="arm", control="control"),
         observed=dict(t_successes=18, t_n=40, c_successes=10, c_n=38),
         why="both arms must be parsed AND the effect expressed as a difference"),
+]
+
+# These evaluation cases explicitly state the decision inputs used in their references.
+# Historical runs with unstated assumptions are not comparable with this revised set.
+BAYES = [
+    replace(
+        case,
+        question=(case.question + " Use decision gates 0.80, 0.90, and 0.10 for target, "
+                  "reference, and stopping, respectively."
+                  + (" Use a Beta(1,1) prior for each observed arm." if case.fn == "interim" else "")
+                  + (" Use a Beta(1,1) control analysis prior." if case.fn == "assurance"
+                     and case.params.get("framing") == "two_arm" else "")),
+        params={**case.params, "gate_tv": .8, "gate_lrv": .9, "stop_lrv": .1,
+                **({"prior_a": 1., "prior_b": 1.} if case.fn == "interim" else {}),
+                **({"control_prior_a": 1., "control_prior_b": 1.}
+                   if case.params.get("framing") == "two_arm" else {})},
+    )
+    for case in BAYES
 ]

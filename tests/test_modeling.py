@@ -6,6 +6,31 @@ import pytest
 from agent import modeling
 
 
+def _example_bayesian_assumptions(kwargs):
+    kwargs.setdefault("gate_tv", .8)
+    kwargs.setdefault("gate_lrv", .9)
+    kwargs.setdefault("stop_lrv", .1)
+    if not any(kwargs.get(key) is not None for key in (
+        "prior_a", "prior_b", "prior_successes", "prior_n", "prior_mu", "prior_sd"
+    )):
+        if kwargs.get("endpoint_type") == "mean":
+            kwargs.update(prior_mu=0., prior_sd=1.)
+        else:
+            kwargs.update(prior_a=1., prior_b=1.)
+    if kwargs.get("framing") == "two_arm":
+        kwargs.setdefault("control_prior_a", 1.)
+        kwargs.setdefault("control_prior_b", 1.)
+    return kwargs
+
+
+def _assurance_with_example_assumptions(**kwargs):
+    return modeling.calc_assurance(**_example_bayesian_assumptions(kwargs))
+
+
+def _interim_with_example_assumptions(*args, **kwargs):
+    return modeling.fit_interim(*args, **_example_bayesian_assumptions(kwargs))
+
+
 def _logit_data(n=800, seed=0):
     rng = np.random.default_rng(seed)
     x = rng.normal(0, 1, n)
@@ -316,17 +341,17 @@ def test_uplift_string_treatment_control_recognition():
 # ── Bayesian go/no-go: design stage ───────────────────────────────────────────────────────────────
 def test_assurance_verdict_flips_from_go_to_stop_as_the_bar_rises():
     # a strongly positive Phase I (16/20) against a modest bar -> GO
-    go = modeling.calc_assurance(n_planned=100, tv=0.30, lrv=0.15,
+    go = _assurance_with_example_assumptions(n_planned=100, tv=0.30, lrv=0.15,
                                  prior_successes=16, prior_n=20)
     assert go.error is None and go.verdict["call"] == "GO"
     # the same evidence against a bar nobody could clear -> STOP
-    stop = modeling.calc_assurance(n_planned=100, tv=0.99, lrv=0.98,
+    stop = _assurance_with_example_assumptions(n_planned=100, tv=0.99, lrv=0.98,
                                    prior_successes=16, prior_n=20)
     assert stop.verdict["call"] == "STOP"
 
 
 def test_assurance_reports_the_prior_and_its_provenance():
-    r = modeling.calc_assurance(n_planned=100, tv=0.30, lrv=0.15, prior_successes=8, prior_n=20)
+    r = _assurance_with_example_assumptions(n_planned=100, tv=0.30, lrv=0.15, prior_successes=8, prior_n=20)
     assert r.error is None
     joined = " ".join(r.issues)
     assert "Beta(9" in joined and "8" in joined and "20" in joined     # Beta(1,1) + 8/20 -> Beta(9,13)
@@ -335,7 +360,7 @@ def test_assurance_reports_the_prior_and_its_provenance():
 def test_assurance_flags_an_underpowered_design():
     # a GO whose power at the TV is far below 80% must be flagged UNDER-POWERED, not silently passed.
     # Phase I 8/20 vs TV 0.30 / LRV 0.15 at n=100 -> GO but power ~29%.
-    r = modeling.calc_assurance(n_planned=100, tv=0.30, lrv=0.15, prior_successes=8, prior_n=20)
+    r = _assurance_with_example_assumptions(n_planned=100, tv=0.30, lrv=0.15, prior_successes=8, prior_n=20)
     assert r.error is None and r.verdict["call"] == "GO"
     assert r.robustness["under_powered"] is True
     joined = " ".join(r.issues).lower()
@@ -346,7 +371,7 @@ def test_assurance_flags_an_underpowered_design():
 def test_assurance_does_not_flag_a_well_powered_design():
     # a GO with power >= 80% at the TV must NOT be flagged under-powered, and carries no FRAGILE text.
     # Phase I 16/20 -> GO with power ~89%.
-    r = modeling.calc_assurance(n_planned=100, tv=0.30, lrv=0.15, prior_successes=16, prior_n=20)
+    r = _assurance_with_example_assumptions(n_planned=100, tv=0.30, lrv=0.15, prior_successes=16, prior_n=20)
     assert r.error is None and r.verdict["call"] == "GO"
     assert r.robustness["under_powered"] is False
     joined = " ".join(r.issues).lower()
@@ -355,7 +380,7 @@ def test_assurance_does_not_flag_a_well_powered_design():
 
 
 def test_assurance_emits_operating_characteristics():
-    r = modeling.calc_assurance(n_planned=100, tv=0.30, lrv=0.15, prior_successes=8, prior_n=20)
+    r = _assurance_with_example_assumptions(n_planned=100, tv=0.30, lrv=0.15, prior_successes=8, prior_n=20)
     assert 0.0 <= r.robustness["type_i_error"] <= 1.0
     assert 0.0 <= r.robustness["power"] <= 1.0
     joined = " ".join(r.issues).lower()
@@ -364,13 +389,13 @@ def test_assurance_emits_operating_characteristics():
 
 def test_assurance_flags_a_prior_stronger_than_the_planned_data():
     # a 200-observation prior against a 20-patient trial: the prior is doing the work
-    r = modeling.calc_assurance(n_planned=20, tv=0.30, lrv=0.15, prior_successes=70, prior_n=200)
+    r = _assurance_with_example_assumptions(n_planned=20, tv=0.30, lrv=0.15, prior_successes=70, prior_n=200)
     assert any("prior" in i.lower() and "more" in i.lower() for i in r.issues)
 
 
 def test_assurance_attaches_a_valid_lock():
     from agent import prespec
-    r = modeling.calc_assurance(n_planned=100, tv=0.30, lrv=0.15, prior_successes=8, prior_n=20)
+    r = _assurance_with_example_assumptions(n_planned=100, tv=0.30, lrv=0.15, prior_successes=8, prior_n=20)
     lock = r.prespec["lock"]
     assert prespec.verify(lock, lock["params"])["status"] == "PRE-SPECIFIED"
 
@@ -378,7 +403,7 @@ def test_assurance_attaches_a_valid_lock():
 def test_assurance_device_performance_goal_collapses_to_go_no_go():
     # tv == lrv == the performance goal (0.85): Beta(89,13) puts P(above 0.85) at 76.5%, short of
     # both the 80% TV gate and the 90% LRV gate -> CONSIDER, not a clean GO/STOP
-    r = modeling.calc_assurance(n_planned=150, tv=0.85, lrv=0.85, prior_successes=88, prior_n=100)
+    r = _assurance_with_example_assumptions(n_planned=150, tv=0.85, lrv=0.85, prior_successes=88, prior_n=100)
     assert r.error is None and r.verdict["call"] == "CONSIDER"
     assert r.robustness["framing"] == "single_arm"
 
@@ -386,7 +411,7 @@ def test_assurance_device_performance_goal_collapses_to_go_no_go():
 def test_assurance_caveat_says_exceeds_when_assurance_is_above_power():
     # a strong informed prior centred ABOVE the TV: assurance should EXCEED classical power at the TV,
     # and the caveat must say so -- not claim the higher number is "below" the lower one
-    r = modeling.calc_assurance(n_planned=100, tv=0.30, lrv=0.15, prior_successes=16, prior_n=20)
+    r = _assurance_with_example_assumptions(n_planned=100, tv=0.30, lrv=0.15, prior_successes=16, prior_n=20)
     assur, power = r.verdict["assurance"], r.robustness["power"]
     assert assur > power and (assur - power) > 0.05
     caveats = [i for i in r.issues if "classical power" in i]
@@ -399,7 +424,7 @@ def test_assurance_caveat_says_exceeds_when_assurance_is_above_power():
 def test_assurance_caveat_says_below_when_assurance_is_below_power():
     # a weak, pessimistic informed prior (mass well below the TV): assurance should fall BELOW
     # classical power at the TV, and the caveat must correctly say "below"
-    r = modeling.calc_assurance(n_planned=200, tv=0.30, lrv=0.15, prior_successes=1, prior_n=15)
+    r = _assurance_with_example_assumptions(n_planned=200, tv=0.30, lrv=0.15, prior_successes=1, prior_n=15)
     assur, power = r.verdict["assurance"], r.robustness["power"]
     assert assur < power and (power - assur) > 0.05
     caveats = [i for i in r.issues if "classical power" in i]
@@ -410,12 +435,12 @@ def test_assurance_caveat_says_below_when_assurance_is_below_power():
 
 
 def test_assurance_rejects_an_lrv_above_the_tv():
-    r = modeling.calc_assurance(n_planned=100, tv=0.15, lrv=0.30, prior_successes=8, prior_n=20)
+    r = _assurance_with_example_assumptions(n_planned=100, tv=0.15, lrv=0.30, prior_successes=8, prior_n=20)
     assert r.error is not None and "lrv" in r.error.lower()
 
 
 def test_assurance_rejects_out_of_range_proportions():
-    r = modeling.calc_assurance(n_planned=100, tv=1.4, lrv=0.15, prior_successes=8, prior_n=20)
+    r = _assurance_with_example_assumptions(n_planned=100, tv=1.4, lrv=0.15, prior_successes=8, prior_n=20)
     assert r.error is not None
 
 
@@ -425,42 +450,42 @@ def _interim_df(successes: int, n: int) -> pd.DataFrame:
 
 
 def test_interim_stops_for_futility_when_the_data_are_far_below_the_lrv():
-    r = modeling.fit_interim(_interim_df(1, 60), "responded", n_planned=70, tv=0.30, lrv=0.15)
+    r = _interim_with_example_assumptions(_interim_df(1, 60), "responded", n_planned=70, tv=0.30, lrv=0.15)
     assert r.error is None and r.verdict["call"] == "STOP"
     assert r.verdict["predictive_prob"] < 0.05
 
 
 def test_interim_goes_when_the_data_are_strong():
-    r = modeling.fit_interim(_interim_df(30, 50), "responded", n_planned=60, tv=0.30, lrv=0.15)
+    r = _interim_with_example_assumptions(_interim_df(30, 50), "responded", n_planned=60, tv=0.30, lrv=0.15)
     assert r.error is None and r.verdict["call"] == "GO"
 
 
 def test_interim_reports_the_posterior_with_a_credible_interval():
-    r = modeling.fit_interim(_interim_df(12, 40), "responded", n_planned=100, tv=0.30, lrv=0.15)
+    r = _interim_with_example_assumptions(_interim_df(12, 40), "responded", n_planned=100, tv=0.30, lrv=0.15)
     t = r.terms[0]
     assert 0.0 < t.ci_low < t.estimate < t.ci_high < 1.0
     assert "credible" in r.effect_label.lower() or "posterior" in r.effect_label.lower()
 
 
 def test_interim_without_a_lock_is_stamped_exploratory():
-    r = modeling.fit_interim(_interim_df(12, 40), "responded", n_planned=100, tv=0.30, lrv=0.15)
+    r = _interim_with_example_assumptions(_interim_df(12, 40), "responded", n_planned=100, tv=0.30, lrv=0.15)
     assert r.prespec["status"] == "EXPLORATORY"
     assert any("not pre-specified" in i.lower() for i in r.issues)
 
 
 def test_interim_with_a_matching_lock_is_pre_specified():
-    design = modeling.calc_assurance(n_planned=100, tv=0.30, lrv=0.15, prior_successes=8, prior_n=20)
+    design = _assurance_with_example_assumptions(n_planned=100, tv=0.30, lrv=0.15, prior_successes=8, prior_n=20)
     lock = design.prespec["lock"]
-    r = modeling.fit_interim(_interim_df(12, 40), "responded", n_planned=100, tv=0.30, lrv=0.15,
+    r = _interim_with_example_assumptions(_interim_df(12, 40), "responded", n_planned=100, tv=0.30, lrv=0.15,
                              prior_successes=8, prior_n=20, lock=lock)
     assert r.prespec["status"] == "PRE-SPECIFIED"
 
 
 def test_interim_catches_drift_from_the_locked_design():
     """Lock the design at LRV=0.15, then run the interim at LRV=0.10. That is moving the goalposts."""
-    design = modeling.calc_assurance(n_planned=100, tv=0.30, lrv=0.15, prior_successes=8, prior_n=20)
+    design = _assurance_with_example_assumptions(n_planned=100, tv=0.30, lrv=0.15, prior_successes=8, prior_n=20)
     lock = design.prespec["lock"]
-    r = modeling.fit_interim(_interim_df(12, 40), "responded", n_planned=100, tv=0.30, lrv=0.10,
+    r = _interim_with_example_assumptions(_interim_df(12, 40), "responded", n_planned=100, tv=0.30, lrv=0.10,
                              prior_successes=8, prior_n=20, lock=lock)
     assert r.prespec["status"] == "DRIFTED"
     assert any(d["field"] == "lrv" for d in r.prespec["drift"])
@@ -470,18 +495,18 @@ def test_interim_catches_drift_from_the_locked_design():
 def test_interim_guards_the_beta_epsilon_degeneracy():
     """FDA's Jan-2026 draft guidance warns that a near-noninformative Beta(eps,eps) prior becomes
     unexpectedly INFORMATIVE at 0% or 100% response. A real trap at an early interim look."""
-    r = modeling.fit_interim(_interim_df(20, 20), "responded", n_planned=100, tv=0.30, lrv=0.15,
+    r = _interim_with_example_assumptions(_interim_df(20, 20), "responded", n_planned=100, tv=0.30, lrv=0.15,
                              prior_a=0.001, prior_b=0.001)
     assert any("unreliable" in i.lower() or "degenerate" in i.lower() for i in r.issues)
 
 
 def test_interim_rejects_more_observed_than_planned():
-    r = modeling.fit_interim(_interim_df(30, 60), "responded", n_planned=50, tv=0.30, lrv=0.15)
+    r = _interim_with_example_assumptions(_interim_df(30, 60), "responded", n_planned=50, tv=0.30, lrv=0.15)
     assert r.error is not None and "planned" in r.error.lower()
 
 
 def test_interim_at_full_enrollment_reports_the_final_decision():
-    r = modeling.fit_interim(_interim_df(30, 50), "responded", n_planned=50, tv=0.30, lrv=0.15)
+    r = _interim_with_example_assumptions(_interim_df(30, 50), "responded", n_planned=50, tv=0.30, lrv=0.15)
     assert r.error is None
     assert any("complete" in i.lower() or "final" in i.lower() for i in r.issues)
 
@@ -489,7 +514,7 @@ def test_interim_at_full_enrollment_reports_the_final_decision():
 def test_render_carries_the_go_no_go_verdict_and_survives_bayes_robustness():
     """render() feeds _interpret_model: it must carry the verdict for the LLM to lead with, and it
     must not KeyError on the go/no-go robustness dict, which has no 'summary' (the spec-curve shape)."""
-    r = modeling.calc_assurance(n_planned=100, tv=0.30, lrv=0.15, prior_successes=8, prior_n=20)
+    r = _assurance_with_example_assumptions(n_planned=100, tv=0.30, lrv=0.15, prior_successes=8, prior_n=20)
     assert r.error is None
     text = modeling.render(r)
     assert "GO" in text
@@ -498,7 +523,7 @@ def test_render_carries_the_go_no_go_verdict_and_survives_bayes_robustness():
 
 def test_render_carries_the_interim_verdict():
     df = pd.DataFrame({"responded": [1] * 12 + [0] * 28})
-    r = modeling.fit_interim(df, "responded", n_planned=100, tv=0.30, lrv=0.15)
+    r = _interim_with_example_assumptions(df, "responded", n_planned=100, tv=0.30, lrv=0.15)
     assert r.error is None
     assert "VERDICT" in modeling.render(r)
 
@@ -511,7 +536,7 @@ def _two_arm_df(x_t: int, n_t: int, x_c: int, n_c: int) -> pd.DataFrame:
 
 
 def test_two_arm_interim_goes_when_treatment_clearly_beats_control():
-    r = modeling.fit_interim(_two_arm_df(26, 30, 8, 30), "responded", n_planned=80, tv=0.15, lrv=0.0,
+    r = _interim_with_example_assumptions(_two_arm_df(26, 30, 8, 30), "responded", n_planned=80, tv=0.15, lrv=0.0,
                              framing="two_arm", group="arm", control="control")
     assert r.error is None and r.verdict["call"] == "GO"
     arms = {a["arm"]: a for a in r.arms}
@@ -519,14 +544,14 @@ def test_two_arm_interim_goes_when_treatment_clearly_beats_control():
 
 
 def test_two_arm_interim_stops_for_futility_when_arms_are_equal():
-    r = modeling.fit_interim(_two_arm_df(9, 45, 9, 45), "responded", n_planned=100, tv=0.15, lrv=0.0,
+    r = _interim_with_example_assumptions(_two_arm_df(9, 45, 9, 45), "responded", n_planned=100, tv=0.15, lrv=0.0,
                              framing="two_arm", group="arm", control="control")
     assert r.error is None and r.verdict["call"] == "STOP"
     assert r.verdict["predictive_prob"] < 0.10
 
 
 def test_two_arm_interim_reports_the_risk_difference_with_a_credible_interval():
-    r = modeling.fit_interim(_two_arm_df(18, 40, 10, 40), "responded", n_planned=100, tv=0.15, lrv=0.0,
+    r = _interim_with_example_assumptions(_two_arm_df(18, 40, 10, 40), "responded", n_planned=100, tv=0.15, lrv=0.0,
                              framing="two_arm", group="arm", control="control")
     t = r.terms[0]
     assert "difference" in t.name.lower()
@@ -535,29 +560,27 @@ def test_two_arm_interim_reports_the_risk_difference_with_a_credible_interval():
 
 
 def test_two_arm_interim_without_a_lock_is_exploratory():
-    r = modeling.fit_interim(_two_arm_df(18, 40, 10, 40), "responded", n_planned=100, tv=0.15, lrv=0.0,
+    r = _interim_with_example_assumptions(_two_arm_df(18, 40, 10, 40), "responded", n_planned=100, tv=0.15, lrv=0.0,
                              framing="two_arm", group="arm", control="control")
     assert r.prespec["status"] == "EXPLORATORY"
     assert any("not pre-specified" in i.lower() for i in r.issues)
 
 
-def test_two_arm_interim_infers_control_when_not_named():
-    # 'control' is recognized by name even without the control= argument
-    r = modeling.fit_interim(_two_arm_df(20, 40, 12, 40), "responded", n_planned=100, tv=0.15, lrv=0.0,
+def test_two_arm_interim_requires_control_when_not_named():
+    r = _interim_with_example_assumptions(_two_arm_df(20, 40, 12, 40), "responded", n_planned=100, tv=0.15, lrv=0.0,
                              framing="two_arm", group="arm")
-    assert r.error is None
-    assert next(a for a in r.arms if a["is_baseline"])["arm"] == "control"
+    assert r.error and "control" in r.error.lower()
 
 
 def test_two_arm_interim_rejects_a_single_arm_cohort():
     df = pd.DataFrame({"arm": ["treatment"] * 20, "responded": [1] * 12 + [0] * 8})
-    r = modeling.fit_interim(df, "responded", n_planned=100, tv=0.15, lrv=0.0,
+    r = _interim_with_example_assumptions(df, "responded", n_planned=100, tv=0.15, lrv=0.0,
                              framing="two_arm", group="arm", control="control")
     assert r.error is not None and "two arms" in r.error.lower()
 
 
 def test_two_arm_interim_rejects_more_observed_than_planned_per_arm():
-    r = modeling.fit_interim(_two_arm_df(30, 60, 20, 60), "responded", n_planned=100, tv=0.15, lrv=0.0,
+    r = _interim_with_example_assumptions(_two_arm_df(30, 60, 20, 60), "responded", n_planned=100, tv=0.15, lrv=0.0,
                              framing="two_arm", group="arm", control="control")
     assert r.error is not None and "planned" in r.error.lower()
 
@@ -565,7 +588,7 @@ def test_two_arm_interim_rejects_more_observed_than_planned_per_arm():
 def test_two_arm_interim_accepts_a_negative_lrv_non_inferiority_floor():
     # a risk-difference LRV may be negative (a non-inferiority-style floor); it must NOT be rejected as
     # out of [0,1], and a clearly-better treatment against a small negative floor should still be able to GO
-    r = modeling.fit_interim(_two_arm_df(28, 30, 8, 30), "responded", n_planned=80, tv=0.15, lrv=-0.05,
+    r = _interim_with_example_assumptions(_two_arm_df(28, 30, 8, 30), "responded", n_planned=80, tv=0.15, lrv=-0.05,
                              framing="two_arm", group="arm", control="control")
     assert r.error is None and r.verdict["call"] in ("GO", "CONSIDER", "STOP")
 
@@ -573,20 +596,19 @@ def test_two_arm_interim_accepts_a_negative_lrv_non_inferiority_floor():
 def test_two_arm_interim_no_false_grid_binned_caveat_at_common_size():
     # n_planned=200 -> 100 planned/arm, but only ~40 observed/arm -> remaining grid 61x61=3721 < cap,
     # so the PPoS is EXACT and the grid-binned caveat must NOT appear (regression: it keyed on planned n)
-    r = modeling.fit_interim(_two_arm_df(18, 40, 10, 40), "responded", n_planned=200, tv=0.15, lrv=0.0,
+    r = _interim_with_example_assumptions(_two_arm_df(18, 40, 10, 40), "responded", n_planned=200, tv=0.15, lrv=0.0,
                              framing="two_arm", group="arm", control="control")
     assert r.error is None
     assert not any("grid-binned" in i.lower() for i in r.issues)
 
 
-def test_two_arm_interim_grid_binned_caveat_fires_when_thinning(monkeypatch):
-    # force the cap low so the remaining grid exceeds it -> the caveat SHOULD appear
-    from agent import bayes
-    monkeypatch.setattr(bayes, "MAX_ENUM_DIFF", 100)
-    r = modeling.fit_interim(_two_arm_df(18, 40, 10, 40), "responded", n_planned=200, tv=0.15, lrv=0.0,
+def test_two_arm_interim_refuses_outcome_grid_above_cap(monkeypatch):
+    # A large completion grid is refused instead of silently approximated.
+    from assurance import core
+    monkeypatch.setattr(core, "MAX_ENUM_DIFF", 100)
+    r = _interim_with_example_assumptions(_two_arm_df(18, 40, 10, 40), "responded", n_planned=200, tv=0.15, lrv=0.0,
                              framing="two_arm", group="arm", control="control")
-    assert r.error is None
-    assert any("grid-binned" in i.lower() for i in r.issues)
+    assert r.error and "enumeration cap" in r.error.lower()
 
 
 def test_two_arm_interim_lower_is_better_adverse_event_rate():
@@ -595,7 +617,7 @@ def test_two_arm_interim_lower_is_better_adverse_event_rate():
     # hoped-for 15pp reduction is tv=-0.15 (a minimum floor of "no worse than control" is lrv=0.0).
     # (tv=+0.15 is rejected by validation: with higher_is_better=False the TV must not exceed the LRV,
     # matching the sign convention already exercised in tests/test_bayes.py's lower-is-better rule.)
-    r = modeling.fit_interim(_two_arm_df(6, 40, 18, 40), "responded", n_planned=100, tv=-0.15, lrv=0.0,
+    r = _interim_with_example_assumptions(_two_arm_df(6, 40, 18, 40), "responded", n_planned=100, tv=-0.15, lrv=0.0,
                              higher_is_better=False, framing="two_arm", group="arm", control="control")
     assert r.error is None and r.verdict["call"] in ("GO", "CONSIDER", "STOP")
     # treatment event rate (6/40=15%) is well below control (18/40=45%) -> favorable -> not a STOP
@@ -605,7 +627,7 @@ def test_two_arm_interim_lower_is_better_adverse_event_rate():
 # ── Bayesian go/no-go: two-arm design-stage assurance ─────────────────────────────────────────────
 def test_two_arm_assurance_go_for_a_strong_expected_effect():
     # treatment expected ~70% (Phase I 14/20), control 35%, big benefit -> GO
-    r = modeling.calc_assurance(framing="two_arm", n_planned=200, tv=0.15, lrv=0.0,
+    r = _assurance_with_example_assumptions(framing="two_arm", n_planned=200, tv=0.15, lrv=0.0,
                                 control_rate=0.35, prior_successes=14, prior_n=20)
     assert r.error is None and r.verdict["call"] == "GO"
     assert 0.0 <= r.verdict["assurance"] <= 1.0
@@ -614,7 +636,7 @@ def test_two_arm_assurance_go_for_a_strong_expected_effect():
 
 def test_two_arm_assurance_flags_underpowered_and_keeps_the_panel():
     # a small trial with a modest expected benefit -> power at the TV below 80%
-    r = modeling.calc_assurance(framing="two_arm", n_planned=40, tv=0.15, lrv=0.0,
+    r = _assurance_with_example_assumptions(framing="two_arm", n_planned=40, tv=0.15, lrv=0.0,
                                 control_rate=0.35, prior_successes=6, prior_n=20)
     assert r.error is None
     assert r.robustness["under_powered"] is True
@@ -623,7 +645,7 @@ def test_two_arm_assurance_flags_underpowered_and_keeps_the_panel():
 
 
 def test_two_arm_assurance_emits_the_oc_and_planning_curve():
-    r = modeling.calc_assurance(framing="two_arm", n_planned=200, tv=0.15, lrv=0.0,
+    r = _assurance_with_example_assumptions(framing="two_arm", n_planned=200, tv=0.15, lrv=0.0,
                                 control_rate=0.35, prior_successes=14, prior_n=20)
     assert len(r.robustness["oc"]) > 10 and all("theta" in row for row in r.robustness["oc"])
     assert len(r.series) > 5 and all("assurance" in p for p in r.series)   # assurance-vs-n planning curve
@@ -631,7 +653,7 @@ def test_two_arm_assurance_emits_the_oc_and_planning_curve():
 
 def test_two_arm_assurance_lock_round_trips():
     from agent import prespec
-    r = modeling.calc_assurance(framing="two_arm", n_planned=200, tv=0.15, lrv=0.0,
+    r = _assurance_with_example_assumptions(framing="two_arm", n_planned=200, tv=0.15, lrv=0.0,
                                 control_rate=0.35, prior_successes=14, prior_n=20)
     lock = r.prespec["lock"]
     assert prespec.verify(lock, lock["params"])["status"] == "PRE-SPECIFIED"
@@ -639,17 +661,17 @@ def test_two_arm_assurance_lock_round_trips():
 
 
 def test_two_arm_assurance_requires_a_valid_control_rate():
-    r = modeling.calc_assurance(framing="two_arm", n_planned=200, tv=0.15, lrv=0.0,
+    r = _assurance_with_example_assumptions(framing="two_arm", n_planned=200, tv=0.15, lrv=0.0,
                                 prior_successes=14, prior_n=20)
     assert r.error is not None and "control" in r.error.lower()
-    r2 = modeling.calc_assurance(framing="two_arm", n_planned=200, tv=0.15, lrv=0.0,
+    r2 = _assurance_with_example_assumptions(framing="two_arm", n_planned=200, tv=0.15, lrv=0.0,
                                  control_rate=1.4, prior_successes=14, prior_n=20)
     assert r2.error is not None and "control" in r2.error.lower()
 
 
 def test_two_arm_assurance_accepts_a_negative_lrv():
     # a risk-difference LRV may be negative (a non-inferiority-style floor) and must not be rejected
-    r = modeling.calc_assurance(framing="two_arm", n_planned=200, tv=0.15, lrv=-0.05,
+    r = _assurance_with_example_assumptions(framing="two_arm", n_planned=200, tv=0.15, lrv=-0.05,
                                 control_rate=0.35, prior_successes=14, prior_n=20)
     assert r.error is None and r.verdict["call"] in ("GO", "CONSIDER", "STOP")
 
@@ -658,7 +680,7 @@ def test_two_arm_assurance_lower_is_better_adverse_event():
     # lower is better: the treatment is expected to have FEWER adverse events than control.
     # risk difference d = rate_t - rate_c; with higher_is_better=False the target is a NEGATIVE d,
     # so tv <= lrv is required (a bigger reduction is the target, any reduction is the floor).
-    r = modeling.calc_assurance(framing="two_arm", n_planned=200, tv=-0.15, lrv=0.0,
+    r = _assurance_with_example_assumptions(framing="two_arm", n_planned=200, tv=-0.15, lrv=0.0,
                                 higher_is_better=False, control_rate=0.45,
                                 prior_successes=6, prior_n=20)
     assert r.error is None and r.verdict["call"] in ("GO", "CONSIDER", "STOP")

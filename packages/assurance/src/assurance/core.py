@@ -19,9 +19,10 @@ to compose them themselves.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from numbers import Integral
 
 import numpy as np
-from scipy import stats
+from scipy import integrate, stats
 from scipy.optimize import brentq
 
 _GRID = 2001          # quadrature points for the Beta-difference integral
@@ -84,12 +85,20 @@ def prob_diff_exceeds(kind: str, t: tuple[float, float], c: tuple[float, float],
         mu = t[0] - c[0]
         sd = float(np.hypot(t[1], c[1]))
         sf = float(stats.norm.sf(threshold, loc=mu, scale=sd))
-    else:
+    elif kind == "beta":
+        _validate_diff_control(c)
         v = np.linspace(0.0, 1.0, _GRID)
         f_c = stats.beta.pdf(v, c[0], c[1])
         sf_t = stats.beta.sf(np.clip(v + threshold, 0.0, 1.0), t[0], t[1])
-        sf = float(np.trapezoid(f_c * sf_t, v))
+        sf = float(integrate.trapezoid(f_c * sf_t, v))
+    else:
+        raise ValueError("unsupported distribution for difference probability")
     return sf if higher_is_better else 1.0 - sf
+
+
+def _validate_diff_control(params):
+    if len(params) != 2 or any(not np.isfinite(value) or value < 1 for value in params):
+        raise ValueError("control Beta parameters must be finite and at least 1 for fixed-grid integration")
 
 
 # ── the decision rule ─────────────────────────────────────────────────────────────────────────────
@@ -288,7 +297,7 @@ def predictive_prob_success(prior: Prior, x: int, n: int, n_planned: int, rule: 
 
 
 # ── two-arm predictive probability of success ─────────────────────────────────────────────────────
-MAX_ENUM_DIFF = 10_000    # cap on the (reachable) completion grid; above it, thin on a fixed stride
+MAX_ENUM_DIFF = 10_000    # cap on the (reachable) completion grid; larger requests are refused
 
 # trapezoid weights on the fixed [0,1] quadrature grid, computed once
 _WV = np.full(_GRID, 1.0 / (_GRID - 1))
@@ -326,6 +335,9 @@ def _go_diff_block(t_ab, st, n_t: int, c_ab, sc, n_c: int, rule: DecisionRule) -
 def go_grid_diff(prior_t: Prior, prior_c: Prior, n_t: int, n_c: int, rule: DecisionRule) -> np.ndarray:
     """go[st, sc] == 1 iff a trial that finishes with st/n_t treatment and sc/n_c control responders is a
     GO. The two-arm analog of go_grid_binary; reused by the predictive probability and by the tests."""
+    if prior_t.kind != "beta" or prior_c.kind != "beta":
+        raise ValueError("two-arm grids support Beta priors only")
+    _validate_diff_control(prior_c.params)
     return _go_diff_block(prior_t.params, np.arange(n_t + 1), n_t,
                           prior_c.params, np.arange(n_c + 1), n_c, rule)
 
@@ -340,10 +352,19 @@ def predictive_prob_success_diff(prior_t: Prior, prior_c: Prior, x_t: int, n_t: 
 
         PPoS = SUM_{y_t, y_c} BetaBinom(y_t; m_t, ...) * BetaBinom(y_c; m_c, ...) * go[x_t+y_t, x_c+y_c]
 
-    No simulation error. Above MAX_ENUM_DIFF reachable cells the completion grid is thinned on a fixed
-    stride (deterministic, still no Monte Carlo)."""
+    The outcome sum is enumerated without thinning; beta-difference probabilities still use fixed-grid
+    quadrature. Requests above MAX_ENUM_DIFF reachable cells are refused."""
     if prior_t.kind != "beta" or prior_c.kind != "beta":
         raise ValueError("the two-arm predictive probability supports a binary endpoint only")
+    _validate_diff_control(prior_c.params)
+    for label, successes, observed, planned in (
+        ("treatment", x_t, n_t, n_planned_t), ("control", x_c, n_c, n_planned_c),
+    ):
+        values = (successes, observed, planned)
+        if any(isinstance(value, bool) or not isinstance(value, Integral) for value in values):
+            raise ValueError(f"{label} counts must be integers")
+        if planned <= 0 or observed < 0 or not 0 <= successes <= observed:
+            raise ValueError(f"invalid {label} counts")
     if n_t > n_planned_t or n_c > n_planned_c:
         raise ValueError("observed n exceeds the planned n in an arm")
     post_t = beta_posterior(*prior_t.params, x_t, n_t)        # observed posterior -> predictive weights
@@ -351,14 +372,11 @@ def predictive_prob_success_diff(prior_t: Prior, prior_c: Prior, x_t: int, n_t: 
     m_t, m_c = n_planned_t - n_t, n_planned_c - n_c
     y_t = np.arange(m_t + 1)
     y_c = np.arange(m_c + 1)
-    if (m_t + 1) * (m_c + 1) > MAX_ENUM_DIFF:                 # thin: keep <= sqrt(cap) points per arm
-        side = max(1, int(MAX_ENUM_DIFF ** 0.5))
-        step_t = max(1, -(-(m_t + 1) // side))                # ceil division
-        step_c = max(1, -(-(m_c + 1) // side))
-        y_t, y_c = y_t[::step_t], y_c[::step_c]
+    if (m_t + 1) * (m_c + 1) > MAX_ENUM_DIFF:
+        raise ValueError(f"two-arm completion grid exceeds the {MAX_ENUM_DIFF:,} enumeration cap")
     w_t = stats.betabinom.pmf(y_t, m_t, post_t[0], post_t[1])
     w_c = stats.betabinom.pmf(y_c, m_c, post_c[0], post_c[1])
-    w_t = w_t / w_t.sum()                # renormalize (exact when unthinned; a subsample, not binning, when thinned)
+    w_t = w_t / w_t.sum()
     w_c = w_c / w_c.sum()
     go = _go_diff_block(prior_t.params, x_t + y_t, n_planned_t,
                         prior_c.params, x_c + y_c, n_planned_c, rule)
@@ -367,11 +385,12 @@ def predictive_prob_success_diff(prior_t: Prior, prior_c: Prior, x_t: int, n_t: 
 
 # ── two-arm design-stage assurance ────────────────────────────────────────────────────────────────
 def assurance_diff(prior_t: Prior, control_rate: float, n_planned_t: int, n_planned_c: int,
-                   rule: DecisionRule) -> float:
+                   rule: DecisionRule, control_prior: Prior | None = None) -> float:
     """P(a randomized trial ends in GO), before it runs. The treatment arm is averaged over its
     prior-predictive (beta-binomial); the control responds at the known control_rate and contributes
-    sampling variability only (binomial). The analysis decision uses a vague control prior, exactly as
-    the shipped two-arm interim decides. Exact -- no Monte Carlo.
+    sampling variability only (binomial). The analysis decision uses the supplied control prior;
+    this low-level function defaults to Beta(1,1) when none is supplied. Outcome counts are enumerated;
+    beta-difference probabilities use fixed-grid quadrature and can have numerical error.
 
         assurance = SUM_{s_t, s_c} BetaBinom(s_t; n_t, prior_t) * Binom(s_c; n_c, control_rate) * go[s_t, s_c]
     """
@@ -379,14 +398,16 @@ def assurance_diff(prior_t: Prior, control_rate: float, n_planned_t: int, n_plan
         raise ValueError("two-arm assurance supports a binary endpoint only")
     if not 0.0 <= control_rate <= 1.0:
         raise ValueError("control_rate must be between 0 and 1")
-    go = go_grid_diff(prior_t, Prior("Vague", "beta", (1.0, 1.0), ""), n_planned_t, n_planned_c, rule)
+    pc = control_prior or Prior("Vague", "beta", (1.0, 1.0), "")
+    go = go_grid_diff(prior_t, pc, n_planned_t, n_planned_c, rule)
     w_t = stats.betabinom.pmf(np.arange(n_planned_t + 1), n_planned_t, *prior_t.params)
     w_c = stats.binom.pmf(np.arange(n_planned_c + 1), n_planned_c, control_rate)
     return float(w_t @ go @ w_c)
 
 
 def operating_characteristics_diff(prior_t: Prior, control_rate: float, n_planned_t: int,
-                                   n_planned_c: int, rule: DecisionRule, grid=None) -> list[dict]:
+                                   n_planned_c: int, rule: DecisionRule, grid=None,
+                                   control_prior: Prior | None = None) -> list[dict]:
     """The GO rate at each TRUE risk difference, with control fixed at control_rate. `theta` carries the
     risk difference (treatment rate - control_rate) so the existing OC chart plots it correctly; `theta_t`
     is the treatment rate. Type I error = GO rate at difference = LRV; power = GO rate at difference = TV."""
@@ -394,7 +415,8 @@ def operating_characteristics_diff(prior_t: Prior, control_rate: float, n_planne
         raise ValueError("two-arm operating characteristics support a binary endpoint only")
     if not 0.0 <= control_rate <= 1.0:
         raise ValueError("control_rate must be between 0 and 1")
-    go = go_grid_diff(prior_t, Prior("Vague", "beta", (1.0, 1.0), ""), n_planned_t, n_planned_c, rule)
+    pc = control_prior or Prior("Vague", "beta", (1.0, 1.0), "")
+    go = go_grid_diff(prior_t, pc, n_planned_t, n_planned_c, rule)
     w_c = stats.binom.pmf(np.arange(n_planned_c + 1), n_planned_c, control_rate)
     if grid is None:
         span = abs(rule.tv - rule.lrv) or 0.1

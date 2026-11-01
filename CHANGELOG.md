@@ -23,11 +23,18 @@ versions follow [SemVer](https://semver.org/).
 - Update Streamlit and Pillow to allow a patched Pillow release, and copy local libraries before
   installing the runtime requirements in the Dockerfile.
 - Keep Streamlit's CORS and XSRF protections enabled in the default container command.
+- Require explicit Bayesian priors and decision gates in direct entry points, and explicit control
+  priors and control arms for two-arm analyses. Correct the standalone two-arm prior-only verdict.
+- Refuse oversized two-arm interim grids and control priors with endpoint singularities rather than
+  returning unlabeled or invalid numerical results. Record control priors in design locks.
+- Add research-use boundaries to both standalone package descriptions. Update the Bayesian
+  extraction-evaluation examples to state their assumptions; earlier results are not comparable.
 
 These changes have not yet been published as a release. The historical section below records
 the repository's earlier changelog claims; it has not been independently audited here.
-Candidate package versions are `clinical-insight-assurance` 0.2.0 (imported as `assurance`, with stricter validation) and `caveat` 0.1.2
-(documentation and packaging changes). Neither is asserted to be published.
+Candidate package versions are `clinical-insight-assurance` 0.3.0 (imported as `assurance`, with
+breaking changes to required Bayesian inputs) and `clinical-insight-caveat` 0.1.2 (imported as
+`caveat`). Neither is asserted to be published.
 
 ## [1.0.0] — 2026-07-13
 
