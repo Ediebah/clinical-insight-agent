@@ -3,7 +3,7 @@
 Kept out of app.py deliberately. app.py is ~1,250 lines and this is a page of prose that changes
 for editorial reasons, not code reasons; holding it here means a typo fix never touches the
 smoke-tested render path. Stdlib only, no Streamlit import, so tests/test_about.py can assert the
-load-bearing claims (synthetic, no PHI, read-only, the counts) without the app harness.
+load-bearing claims (synthetic demo, non-sensitive input, read-only, the counts) without the app harness.
 
 Structure follows the project's landing page (docs/index.html): a serif section head with a muted
 standfirst, then hairline-gutter cell grids, numbered pipeline steps, and an accent-bordered note.

@@ -51,7 +51,7 @@
     "scripts/create_demo_database.py": "f28b6d468d1cc451674900143fdf8027d3b98f6166c41a5e7208ed68ff95e6b4",
     "scripts/load_raw.py": "721fc16a94b95735579ecfdcbb64c88873819f99d962bb5c2ecd594827f74c55",
     "warehouse/dbt_project.yml": "329a9aa1595b61d114b16684e3cb7bde3db622e9a1be0ba1456ba3a0bc6a977e",
-    "warehouse/models/marts/analytics/_analytics.yml": "7e931cf5d05535a7b01ba7254162aa957ad97e8f2b51bf44875635bef12d0a96",
+    "warehouse/models/marts/analytics/_analytics.yml": "9b271ff7d6db39863300288caf39734f5a3be9cff2e09bbaac23d9e14adb5079",
     "warehouse/models/marts/analytics/mart_condition_prevalence.sql": "2ca18b852d6ffd295525e081ca1df1da24c584a651817c6489e2bf59ea7ac53a",
     "warehouse/models/marts/analytics/mart_cost_by_condition.sql": "ef826834f33bd1c3aaa9aa65ceeb01ffe7bd735bd89059e7b47801e1c3674cc4",
     "warehouse/models/marts/analytics/mart_experiments.sql": "64a8be92a906f151dc3782a4ef11738d1de818789073d33e52d1ee671c1c4a38",

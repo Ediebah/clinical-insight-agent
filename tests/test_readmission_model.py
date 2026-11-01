@@ -25,3 +25,7 @@ def test_same_day_return_does_not_hide_later_readmission():
                         f"from ({sql}) where index_encounter_id='index'").fetchone()
     assert str(result[0]) == "2024-01-23 08:00:00"
     assert result[1:] == (21, True)
+    db.execute("delete from fct_encounters where encounter_id='later'")
+    result = db.execute(f"select next_admission_start, days_to_next_admission, is_30d_readmission "
+                        f"from ({sql}) where index_encounter_id='index'").fetchone()
+    assert result == (None, None, False)

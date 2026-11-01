@@ -1,7 +1,8 @@
 # Container for the Clinical Insight Agent (Streamlit). Portable across Cloud Run / Hugging Face
 # Spaces (Docker) / Render / Railway / Fly. The OpenAI key is supplied at RUNTIME as the
 # OPENAI_API_KEY env var — it is never baked into the image.
-FROM python:3.12-slim
+ARG PYTHON_BASE=python:3.12-slim
+FROM ${PYTHON_BASE}
 
 ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \

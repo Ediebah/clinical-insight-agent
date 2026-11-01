@@ -32,10 +32,10 @@
           "type": "VARCHAR",
           "description": "Primary key (SNOMED-CT code).",
           "example_values": [
-            "160904001",
-            "73438004",
-            "427419006",
-            "161744009"
+            "237602007",
+            "422650009",
+            "127013003",
+            "90781000119102"
           ]
         },
         {
@@ -43,10 +43,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "Traumatic dislocation of temporomandibular joint (disorder)",
-            "Idiopathic atrophic hypothyroidism (disorder)",
-            "History of aortic valve replacement (situation)",
-            "Mitral valve regurgitation (disorder)"
+            "Carcinoma in situ of tongue",
+            "Encounter for other procedures for purposes other than remedying health state",
+            "Carcinoma in situ of larynx",
+            "Multiple myeloma not having achieved remission"
           ]
         },
         {
@@ -54,6 +54,7 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
+            "ICD10",
             "SNOMED-CT"
           ]
         }
@@ -89,10 +90,10 @@
           "type": "VARCHAR",
           "description": "Primary key (RxNorm code).",
           "example_values": [
-            "310988",
-            "849574",
-            "1049625",
-            "476556"
+            "351109",
+            "1234995",
+            "106892",
+            "198039"
           ]
         },
         {
@@ -100,10 +101,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "120 ACTUAT fluticasone propionate 0.11 MG/ACTUAT Metered Dose Inhaler [Flovent]",
+            "amoxicillin 875 MG / clavulanate 125 MG Oral Tablet",
+            "etoposide 100 MG Injection [Etopophos]",
             "proparacaine hydrochloride 5 MG/ML Ophthalmic Solution",
-            "Doxycycline Monohydrate 50 MG Oral Tablet",
-            "{7 (ethinyl estradiol 0.035 MG / norgestimate 0.18 MG Oral Tablet) / 7 (ethinyl estradiol 0.035 MG / norgestimate 0.215 MG Oral Tablet) / 7 (ethinyl estradiol 0.035 MG / norgestimate 0.25 MG Oral Tablet) / 7 (inert ingredients 1 MG Oral Tablet) } Pack [Ortho Tri-Cyclen 28 Day]"
+            "Meperidine Hydrochloride 50 MG Oral Tablet"
           ]
         }
       ]
@@ -144,10 +145,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "BOSTON HEALTH CARE FOR THE HOMELESS PROGRAM INC",
-            "NURSE ON CALL",
-            "CAPE HERITAGE REHABILITATION & HEALTH CARE CENTER",
-            "EAST FALMOUTH FAMILY PRACTICE PC"
+            "TRINITY FAMILY MEDICINE",
+            "CAREWELL URGENT CARE CENTERS OF MA  PC",
+            "LIFE CARE CENTER OF PLYMOUTH",
+            "URGENT CARE CENTERS OF CENTRAL MASSACHUSETTS LLC"
           ]
         },
         {
@@ -155,10 +156,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "BRIDGEWATER",
-            "FALMOUTH",
-            "NEEDHAM",
-            "LYNNFIELD"
+            "NORTH READING",
+            "SHARON",
+            "BOSTON",
+            "MARLBOROUGH"
           ]
         },
         {
@@ -174,10 +175,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "025328305",
-            "014535768",
-            "018033735",
-            "021711599"
+            "012389645",
+            "019704267",
+            "019607938",
+            "025371438"
           ]
         },
         {
@@ -266,10 +267,10 @@
           "type": "VARCHAR",
           "description": "Clinical age band.",
           "example_values": [
-            "18-39",
             "0-17",
             "40-64",
-            "75+"
+            "75+",
+            "18-39"
           ]
         },
         {
@@ -286,9 +287,9 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
+            "white",
+            "native",
             "other",
-            "black",
-            "hawaiian",
             "asian"
           ]
         },
@@ -297,8 +298,8 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "nonhispanic",
-            "hispanic"
+            "hispanic",
+            "nonhispanic"
           ]
         },
         {
@@ -307,8 +308,8 @@
           "description": "",
           "example_values": [
             "W",
-            "S",
             "M",
+            "S",
             "D"
           ]
         },
@@ -336,10 +337,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "Barnstable County",
             "Worcester County",
             "Nantucket County",
-            "Suffolk County"
+            "Suffolk County",
+            "Barnstable County"
           ]
         },
         {
@@ -348,8 +349,8 @@
           "description": "",
           "example_values": [
             "02134",
-            "02155",
             "01904",
+            "02155",
             "02324"
           ]
         },
@@ -409,9 +410,9 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
+            "Dual Eligible",
             "Medicare",
-            "Humana",
-            "Medicaid",
+            "UnitedHealthcare",
             "Blue Cross Blue Shield"
           ]
         },
@@ -421,8 +422,8 @@
           "description": "",
           "example_values": [
             "NO_INSURANCE",
-            "GOVERNMENT",
-            "PRIVATE"
+            "PRIVATE",
+            "GOVERNMENT"
           ]
         },
         {
@@ -555,10 +556,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "BRIDGEWATER",
-            "FALMOUTH",
-            "NEEDHAM",
-            "LYNNFIELD"
+            "NORTH READING",
+            "SHARON",
+            "BOSTON",
+            "MARLBOROUGH"
           ]
         },
         {
@@ -574,10 +575,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
+            "021482329",
             "025328305",
             "014535768",
-            "018033735",
-            "021711599"
+            "018033735"
           ]
         },
         {
@@ -647,10 +648,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "840544004",
-            "160904001",
-            "161744009",
-            "73438004"
+            "59621000",
+            "26929004",
+            "44054006",
+            "156073000"
           ]
         },
         {
@@ -784,10 +785,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "hospice",
-            "ambulatory",
-            "virtual",
-            "wellness"
+            "urgentcare",
+            "home",
+            "wellness",
+            "ambulatory"
           ]
         },
         {
@@ -806,10 +807,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "Well child visit (procedure)",
-            "Non-urgent orthopedic admission (procedure)",
             "Urgent care clinic (environment)",
-            "Admission to ward (procedure)"
+            "Admission to ward (procedure)",
+            "Hospital admission  for observation (procedure)",
+            "Well child visit (procedure)"
           ]
         },
         {
@@ -817,10 +818,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "128613002",
-            "37849005",
-            "37320007",
-            "110030002"
+            "262521009",
+            "58150001",
+            "203646004",
+            "94260004"
           ]
         },
         {
@@ -828,10 +829,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
+            "Epidermal burn of skin (disorder)",
             "Seizure disorder (disorder)",
-            "Mitral valve regurgitation (disorder)",
-            "Idiopathic atrophic hypothyroidism (disorder)",
-            "Bleeding from anus (disorder)"
+            "Tree nut (substance)",
+            "Wheat (substance)"
           ]
         },
         {
@@ -922,7 +923,7 @@
             "849574",
             "1049504",
             "1049625",
-            "349094"
+            "197604"
           ]
         },
         {
@@ -1047,10 +1048,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "imaging",
-            "vital-signs",
             "survey",
-            "laboratory"
+            "laboratory",
+            "imaging",
+            "therapy"
           ]
         },
         {
@@ -1061,7 +1062,7 @@
             "55758-7",
             "5804-0",
             "93029-7",
-            "93031-3"
+            "32207-3"
           ]
         },
         {
@@ -1069,10 +1070,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "Body Height",
-            "QOLS",
             "Body mass index (BMI) [Ratio]",
-            "pH of Urine by Test strip"
+            "pH of Urine by Test strip",
+            "Alkaline phosphatase [Enzymatic activity/volume] in Serum or Plasma",
+            "Housing status"
           ]
         },
         {
@@ -1080,10 +1081,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "41.6",
-            "124.3",
-            "103.2",
-            "140.6"
+            "21.7",
+            "28.6",
+            "77.0",
+            "11.5"
           ]
         },
         {
@@ -1099,8 +1100,8 @@
           "example_values": [
             "{score}",
             "kg/m2",
-            "s",
-            "pg/mL"
+            "pg/mL",
+            "s"
           ]
         },
         {
@@ -1108,8 +1109,8 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "text",
-            "numeric"
+            "numeric",
+            "text"
           ]
         }
       ]
@@ -1162,9 +1163,9 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "104326007",
-            "241046008",
-            "52052004",
+            "223495004",
+            "269911007",
+            "D0330",
             "274474001"
           ]
         },
@@ -1197,10 +1198,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "37320007",
+            "1231000119100",
             "267020005",
             "37849005",
-            "1231000119100"
+            "414545008"
           ]
         },
         {
@@ -1208,10 +1209,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "Traumatic dislocation of temporomandibular joint (disorder)",
-            "Proliferative diabetic retinopathy due to type II diabetes mellitus",
-            "History of aortic valve replacement (situation)",
-            "Adolescent idiopathic scoliosis (disorder)"
+            "Chronic obstructive bronchitis (disorder)",
+            "Dependent drug abuse (disorder)",
+            "Laceration of forearm (disorder)",
+            "Rupture of patellar tendon (disorder)"
           ]
         }
       ]
@@ -1274,10 +1275,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "160904001",
             "73438004",
-            "427419006",
-            "161744009"
+            "160904001",
+            "161744009",
+            "224295006"
           ]
         },
         {
@@ -1285,10 +1286,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "Traumatic dislocation of temporomandibular joint (disorder)",
-            "Idiopathic atrophic hypothyroidism (disorder)",
-            "History of aortic valve replacement (situation)",
-            "Mitral valve regurgitation (disorder)"
+            "Carcinoma in situ of tongue",
+            "Encounter for other procedures for purposes other than remedying health state",
+            "Carcinoma in situ of larynx",
+            "Multiple myeloma not having achieved remission"
           ]
         },
         {
@@ -1296,10 +1297,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "18-39",
             "0-17",
-            "40-64",
-            "75+"
+            "18-39",
+            "75+",
+            "65-74"
           ]
         },
         {
@@ -1385,10 +1386,10 @@
           "type": "VARCHAR",
           "description": "PK \u2014 SNOMED-CT condition code.",
           "example_values": [
-            "88805009",
-            "90560007",
-            "73438004",
-            "161744009"
+            "4356008",
+            "1085951000119102",
+            "22253000",
+            "D00.07"
           ]
         },
         {
@@ -1396,10 +1397,10 @@
           "type": "VARCHAR",
           "description": "",
           "example_values": [
-            "Pre-eclampsia (disorder)",
-            "Severe anxiety (panic) (finding)",
-            "Epidermal burn of skin (disorder)",
-            "Seizure disorder (disorder)"
+            "Gingival recession",
+            "Pneumonia (disorder)",
+            "Excessive attrition of teeth",
+            "Malignant neoplasm of mandible"
           ]
         },
         {
@@ -1439,13 +1440,54 @@
       "foreign_keys": [],
       "depends_on": [],
       "upstream": [],
-      "columns": []
+      "columns": [
+        {
+          "name": "experiment",
+          "type": "VARCHAR",
+          "description": "Experiment name (e.g. checkout_redesign).",
+          "example_values": [
+            "aggressive_upsell",
+            "pricing_page",
+            "checkout_redesign",
+            "onboarding_email"
+          ]
+        },
+        {
+          "name": "variant",
+          "type": "VARCHAR",
+          "description": "The arm the user was assigned to (control / treatment / variant_b \u2026).",
+          "example_values": [
+            "variant_b",
+            "variant_c",
+            "control",
+            "treatment"
+          ]
+        },
+        {
+          "name": "assignment_id",
+          "type": "VARCHAR",
+          "description": "PK \u2014 one user's assignment to an experiment variant.",
+          "example_values": []
+        },
+        {
+          "name": "converted",
+          "type": "INTEGER",
+          "description": "1 if the user converted, else 0 (the primary binary metric).",
+          "example_values": []
+        },
+        {
+          "name": "revenue",
+          "type": "DOUBLE",
+          "description": "Revenue for converted users, else 0 (a continuous secondary metric).",
+          "example_values": []
+        }
+      ]
     },
     {
       "name": "mart_readmissions",
       "layer": "analytics",
       "relation": "healthcare.main.mart_readmissions",
-      "description": "30-day inpatient readmission flags. One row per index inpatient encounter; is_30d_readmission is true when the same patient is admitted again strictly after discharge and within a 1-30 day window (a same-day transfer / overlapping stay is not a readmission).",
+      "description": "30-day inpatient readmission flags. One row per index inpatient encounter the patient survived to discharge (died-in-stay admissions are excluded from the denominator, per standard readmission measures); is_30d_readmission is true when the same patient is admitted again strictly after discharge and within a 1-30 day window (a same-day transfer / overlapping stay is not a readmission). The candidate is the earliest admission strictly after discharge on a later calendar day, so an overlapping or same-day stay cannot hide a later qualifying readmission.",
       "primary_key": [
         "index_encounter_id"
       ],
@@ -1457,7 +1499,8 @@
         }
       ],
       "depends_on": [
-        "fct_encounters"
+        "fct_encounters",
+        "dim_patient"
       ],
       "upstream": [
         {
@@ -1466,9 +1509,24 @@
           "layer": "raw"
         },
         {
+          "name": "synthea.patients",
+          "kind": "source",
+          "layer": "raw"
+        },
+        {
           "name": "stg_encounters",
           "kind": "model",
           "layer": "staging"
+        },
+        {
+          "name": "stg_patients",
+          "kind": "model",
+          "layer": "staging"
+        },
+        {
+          "name": "dim_patient",
+          "kind": "model",
+          "layer": "core"
         },
         {
           "name": "fct_encounters",
@@ -1510,7 +1568,7 @@
         {
           "name": "days_to_next_admission",
           "type": "BIGINT",
-          "description": "Days from discharge to the next inpatient admission; null when the next stay overlaps discharge (no clean gap).",
+          "description": "Calendar days from discharge to the earliest subsequent inpatient admission on a later calendar day; null when no such admission exists. Same-day and overlapping stays are excluded.",
           "example_values": []
         },
         {
@@ -1538,7 +1596,45 @@
       "foreign_keys": [],
       "depends_on": [],
       "upstream": [],
-      "columns": []
+      "columns": [
+        {
+          "name": "trial",
+          "type": "VARCHAR",
+          "description": "Trial name (antibiotic_ni, device_ni).",
+          "example_values": [
+            "device_ni",
+            "antibiotic_ni"
+          ]
+        },
+        {
+          "name": "arm",
+          "type": "VARCHAR",
+          "description": "Randomized arm (standard_of_care / new_drug / new_device).",
+          "example_values": [
+            "new_drug",
+            "standard_of_care",
+            "new_device"
+          ]
+        },
+        {
+          "name": "subject_id",
+          "type": "VARCHAR",
+          "description": "PK \u2014 one randomized subject.",
+          "example_values": []
+        },
+        {
+          "name": "cured",
+          "type": "INTEGER",
+          "description": "1 if the subject met the cure endpoint, else 0.",
+          "example_values": []
+        },
+        {
+          "name": "adverse_event",
+          "type": "INTEGER",
+          "description": "1 if the subject had an adverse event, else 0.",
+          "example_values": []
+        }
+      ]
     }
   ],
   "metrics": [
