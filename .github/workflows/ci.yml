@@ -108,6 +108,20 @@ jobs:
           python -m build packages/${{ matrix.package }} --outdir dist/${{ matrix.package }}
           cd dist/${{ matrix.package }}
           sha256sum *.whl *.tar.gz > SHA256SUMS
+      - name: Check caveat source-archive contents
+        if: matrix.package == 'caveat'
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import tarfile
+
+          archives = list(Path('dist/caveat').glob('*.tar.gz'))
+          assert len(archives) == 1, 'expected one caveat source archive'
+          with tarfile.open(archives[0]) as archive:
+              names = archive.getnames()
+          assert any(name.endswith('/tests/test_checks.py') for name in names), 'package tests missing'
+          assert not any(name.endswith('/tests/test_real_data.py') for name in names), 'unreviewed fixture included'
+          PY
       - name: Install and test built wheel in a clean environment
         run: |
           python -m venv /tmp/package-test

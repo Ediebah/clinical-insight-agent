@@ -8,7 +8,7 @@ Status: **candidates for maintainer review, not published releases**. The projec
 
 - Provides deterministic checks for selected statistical concerns in result tables, with no language model required. The Python import remains `caveat`.
 - Can miss problems or flag valid analyses. Findings and skipped checks need independent review; they do not establish that an analysis is valid.
-- Includes package-level research-use boundaries and omits the incomplete validation directory from the source archive.
+- Includes package-level research-use boundaries and omits the incomplete validation directory and the Berkeley fixture from the source archive.
 
 ### clinical-insight-assurance 0.3.0
 
@@ -19,11 +19,11 @@ Status: **candidates for maintainer review, not published releases**. The projec
 
 ## Artifact scope and verification
 
-The four artifacts, source commits, hashes, clean-install tests, and Python-version evidence are recorded in [release status](RELEASE_STATUS.md). The same hashes were reproduced independently and by the Linux package jobs in [PR #64](https://github.com/Ediebah/clinical-insight-agent/pull/64). All six PR checks passed; the local key-free suite passed 648 tests with numerical warnings from existing modeling tests. The assurance minimum-dependency run emitted four SciPy warnings. Paid LLM evaluation and independent clinical validation were not performed.
+The four artifacts, source commits, hashes, clean-install tests, and Python-version evidence are recorded in [release status](RELEASE_STATUS.md). The package code passed all six checks in [PR #64](https://github.com/Ediebah/clinical-insight-agent/pull/64); the caveat source archive was subsequently revised to exclude the Berkeley fixture. The local key-free suite passed 648 tests with numerical warnings from existing modeling tests. The assurance minimum-dependency run emitted four SciPy warnings. Paid LLM evaluation and independent clinical validation were not performed.
 
-The two wheels contain their respective Python modules, distribution metadata, and the project's MIT license; the wheels do not bundle NumPy, pandas, SciPy, datasets, or model weights. These libraries are resolved separately during installation. The two source archives contain code, tests, package metadata, README and license files. The caveat archive includes a 12-row aggregate Berkeley admissions fixture in `tests/test_real_data.py`; the wheel does not include the test fixture. It is not patient-level clinical data.
+The two wheels contain their respective Python modules, distribution metadata, and the project's MIT license; the wheels do not bundle NumPy, pandas, SciPy, datasets, or model weights. These libraries are resolved separately during installation. The two source archives contain code, tests, package metadata, README and license files. The revised caveat source archive and wheel exclude `tests/test_real_data.py`, which contains a 12-row aggregate Berkeley admissions fixture. The source module retains a short historical reference to Berkeley; it does not contain the fixture table.
 
-The fixture cites Bickel, Hammel, and O'Connell (1975). The [R project dataset documentation](https://stat.ethz.ch/R-manual/R-devel/library/datasets/html/UCBAdmissions.html) independently describes the six-department aggregate and cites the paper. That documentation does not establish the specific source from which this fixture was copied or grant redistribution rights. Verify provenance and the applicable rights or remove/replace the fixture before distributing the source archive.
+The repository still contains the fixture and cites Bickel, Hammel, and O'Connell (1975). The [R project dataset documentation](https://stat.ethz.ch/R-manual/R-devel/library/datasets/html/UCBAdmissions.html) independently describes the six-department aggregate and cites the paper. That documentation does not establish the specific source from which this fixture was copied or grant redistribution rights. The fixture's provenance and applicable rights remain open for the public repository and other distributions that include it.
 
 ## Resolved runtime and third-party terms
 
@@ -42,4 +42,4 @@ These inventories describe one resolution, not a lockfile or an exhaustive audit
 
 `pip-audit` 2.10.1 queried the clean runtime environments on 2026-10-31. It returned no known advisory entries for the distributions it could query. It skipped the two unpublished project distributions, so it did not audit this project's code. Reports: [caveat](caveat_dependency_audit_2026-10-31.json) and [assurance](assurance_dependency_audit_2026-10-31.json). This is point-in-time evidence, not proof of security or a finding for other versions.
 
-Before publication, the maintainer must review the actual artifact contents, Berkeley fixture provenance and rights, applicable dependency notices, numerical limitations, versioned release notes, and final checksums. The two PyPI publishers are pending. They do not reserve names, and first use creates the projects if accepted; another publisher can claim a name first. See [PyPI's documentation](https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/). Trusted Publishing has not been tested end to end, and publication requires a separate explicit decision.
+Before publication, the maintainer must review the actual artifact contents, applicable dependency notices, numerical limitations, versioned release notes, and final checksums. Separately, resolve Berkeley fixture provenance and rights for any distribution that includes it. The two PyPI publishers are pending. They do not reserve names, and first use creates the projects if accepted; another publisher can claim a name first. See [PyPI's documentation](https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/). Trusted Publishing has not been tested end to end, and publication requires a separate explicit decision.
