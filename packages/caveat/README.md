@@ -1,5 +1,7 @@
 # caveat
 
+The distribution is named `clinical-insight-caveat`; its Python import remains `caveat`.
+
 **Statistical caveats for analysis results.** Give it a result table and the question that produced
 it; it tells you what would stop a statistician believing the answer.
 
