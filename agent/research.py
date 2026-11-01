@@ -56,12 +56,16 @@ def from_route(question: str, route: dict, data_source: str) -> dict:
                 if not math.isfinite(numeric) or not any(
                         math.isclose(numeric, n, rel_tol=1e-9, abs_tol=1e-9) for n in numbers):
                     parameters[key] = None
-        # Beta shape parameters are not prior-study successes and sample size. If a routed
-        # specification confuses them, clear the counts and require an explicit correction.
-        if re.search(r"\bbeta\s*\(\s*\d+(?:\.\d+)?\s*,\s*\d+(?:\.\d+)?\s*\)",
-                     question, re.IGNORECASE) and (parameters.get("prior_a") is None or
-                                                   parameters.get("prior_b") is None):
-            if parameters.get("prior_successes") is not None or parameters.get("prior_n") is not None:
+        # A Beta(a,b) is not a successes / sample-size pair. If the extracted counts exactly
+        # duplicate stated shape parameters and no treatment Beta was extracted, abstain rather
+        # than guessing. Distinct prior-study counts remain available for review.
+        beta_shapes = re.findall(r"\bbeta\s*\(\s*(\d+(?:\.\d+)?)\s*,\s*"
+                                 r"(\d+(?:\.\d+)?)\s*\)", question, re.IGNORECASE)
+        counts = (parameters.get("prior_successes"), parameters.get("prior_n"))
+        if (parameters.get("prior_a") is None or parameters.get("prior_b") is None) and \
+                all(value is not None for value in counts):
+            if any(float(counts[0]) == float(a) and float(counts[1]) == float(b)
+                   for a, b in beta_shapes):
                 parameters["prior_successes"] = None
                 parameters["prior_n"] = None
     return {"schema_version": SCHEMA_VERSION, "question": question,

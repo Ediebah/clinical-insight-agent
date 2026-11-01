@@ -5,8 +5,8 @@ versions follow [SemVer](https://semver.org/).
 
 ## Unreleased — research workflow changes
 
-- Refuse a generated Beta prior that is represented only as prior-study counts; prompt users to
-  correct the specification. Recognize explicitly stated percentage-point inputs. The paid Bayesian
+- Clear generated prior-study counts that duplicate stated Beta shape parameters when no treatment
+  Beta prior was extracted; request a correction. Recognize explicitly stated percentage-point inputs. The paid Bayesian
   evaluation identified this issue and remains separate from deterministic validation.
 
 - Rebuild the synthetic demo warehouse from recorded Synthea 4.0.0 inputs and export all rows of

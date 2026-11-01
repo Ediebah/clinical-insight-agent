@@ -185,3 +185,11 @@ def test_percentage_point_targets_can_be_verified_from_question():
     route = {"model_type": "assurance", "tv": .15, "lrv": 0.0}
     params = research.from_route(question, route, "demo warehouse")["parameters"]
     assert params["tv"] == .15 and params["lrv"] == 0.0
+
+
+def test_control_beta_does_not_discard_different_prior_study_counts():
+    question = "Prior work had 14 responses in 20 patients. Use a Beta(1,1) control prior."
+    route = {"model_type": "assurance", "framing": "two_arm", "prior_successes": 14,
+             "prior_n": 20, "control_prior_a": 1, "control_prior_b": 1}
+    params = research.from_route(question, route, "demo warehouse")["parameters"]
+    assert (params["prior_successes"], params["prior_n"]) == (14, 20)
