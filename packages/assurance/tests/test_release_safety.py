@@ -58,6 +58,19 @@ def test_beta_difference_does_not_require_numpy_2_trapezoid(monkeypatch):
     assert core.prob_diff_exceeds("beta", (2., 2.), (2., 2.), 0.) == pytest.approx(.5, abs=1e-5)
 
 
+def test_fixed_grid_probability_stays_in_bounds():
+    assert core.prob_diff_exceeds("beta", (1., 1.), (1., 101.), -1.) == pytest.approx(1., abs=1e-12)
+
+
+def test_fixed_grid_refuses_an_underresolved_control_density():
+    with pytest.raises(ValueError, match="grid"):
+        core.prob_diff_exceeds("beta", (1., 1.), (1., 10001.), 0.)
+    with pytest.raises(ValueError, match="grid"):
+        core.go_grid_diff(Prior("t", "beta", (1., 1.), "specified"),
+                          Prior("c", "beta", (1., 10001.), "specified"),
+                          2, 2, core.DecisionRule(.2, 0))
+
+
 @pytest.mark.parametrize("successes,n", [(6, 5), (-1, 5), (0, -1)])
 def test_invalid_control_counts_are_refused(successes, n):
     with pytest.raises(ValueError, match="control"):

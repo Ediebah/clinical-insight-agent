@@ -110,8 +110,9 @@ under a skeptic centred at the LRV is a statement about the prior, not about the
 The high-level API requires explicit treatment priors and decision gates. Two-arm calls also require
 an explicit control prior. The design calculation treats `control_rate` as a fixed generating rate;
 the control prior is used in the analysis. Two-arm results use fixed-grid numerical integration, and
-their precision is not guaranteed near a decision threshold. Control Beta parameters below one and
-interim completion grids above 10,000 cells are refused. Low-level primitives have their own defaults
+their precision is not guaranteed near a decision threshold. The control density's approximate grid
+mass must be within 0.5% of one; this is a diagnostic, not an error bound on the result. Control Beta
+parameters below one and interim completion grids above 10,000 cells are refused. Low-level primitives have their own defaults
 and require expert review of every assumption. No set of example priors is universally defensible.
 
 `assurance.core` exposes everything the convenience layer is built from — `Prior`, `DecisionRule`,

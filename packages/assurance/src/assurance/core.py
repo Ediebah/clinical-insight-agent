@@ -26,6 +26,7 @@ from scipy import integrate, stats
 from scipy.optimize import brentq
 
 _GRID = 2001          # quadrature points for the Beta-difference integral
+_MASS_TOL = 0.005     # reject visibly underresolved density; not an error bound on the result
 
 
 @dataclass(frozen=True)
@@ -89,8 +90,10 @@ def prob_diff_exceeds(kind: str, t: tuple[float, float], c: tuple[float, float],
         _validate_diff_control(c)
         v = np.linspace(0.0, 1.0, _GRID)
         f_c = stats.beta.pdf(v, c[0], c[1])
+        mass = float(integrate.trapezoid(f_c, v))
+        _check_grid_mass(np.array([mass]))
         sf_t = stats.beta.sf(np.clip(v + threshold, 0.0, 1.0), t[0], t[1])
-        sf = float(integrate.trapezoid(f_c * sf_t, v))
+        sf = float(integrate.trapezoid(f_c * sf_t, v) / mass)
     else:
         raise ValueError("unsupported distribution for difference probability")
     return sf if higher_is_better else 1.0 - sf
@@ -99,6 +102,11 @@ def prob_diff_exceeds(kind: str, t: tuple[float, float], c: tuple[float, float],
 def _validate_diff_control(params):
     if len(params) != 2 or any(not np.isfinite(value) or value < 1 for value in params):
         raise ValueError("control Beta parameters must be finite and at least 1 for fixed-grid integration")
+
+
+def _check_grid_mass(mass):
+    if not np.all(np.isfinite(mass)) or np.any(np.abs(mass - 1) > _MASS_TOL):
+        raise ValueError("fixed grid does not adequately resolve the control density")
 
 
 # ── the decision rule ─────────────────────────────────────────────────────────────────────────────
@@ -320,6 +328,9 @@ def _go_diff_block(t_ab, st, n_t: int, c_ab, sc, n_c: int, rule: DecisionRule) -
     a_t, b_t = at + st, bt + (n_t - st)                       # final treatment posteriors  (len_st,)
     a_c, b_c = ac + sc, bc + (n_c - sc)                       # final control posteriors    (len_sc,)
     f_c = stats.beta.pdf(_VGRID[None, :], a_c[:, None], b_c[:, None])      # (len_sc, GRID)
+    mass = f_c @ _WV
+    _check_grid_mass(mass)
+    f_c = f_c / mass[:, None]
 
     def block_p(threshold):
         thr = np.clip(_VGRID + threshold, 0.0, 1.0)
