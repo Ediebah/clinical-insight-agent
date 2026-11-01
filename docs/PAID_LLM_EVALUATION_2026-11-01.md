@@ -39,3 +39,10 @@ because the control prior was not extracted into the required fields. These refu
 an incorrect numerical result, but the benchmark did not complete those requested analyses. A
 single small repeat is not sufficient to estimate a stable failure rate or prove the safeguard
 covers every prior-extraction error.
+
+A [further focused run after routing-guidance changes](https://github.com/Ediebah/clinical-insight-agent/actions/runs/41283742378)
+on commit `3d9c4d0f14baaf85522ed1931223c0149154e07f` scored 7/8 (87.5%), exceeding the
+pre-set 85% threshold. The remaining two-arm assurance case stopped and requested an explicit
+control prior even though it was stated in the question; it did not produce a numerical result.
+These prompt changes were informed by prior cases, so this is not an independent holdout result.
+It does not establish consistent performance, clinical validity, or a reliable error rate.
