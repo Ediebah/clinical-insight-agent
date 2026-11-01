@@ -41,9 +41,9 @@ The earlier renamed `clinical-insight-caveat` 0.1.2 distributions were built twi
 - `clinical_insight_caveat-0.1.2-py3-none-any.whl`: SHA-256 `4ba7af255fd7800400057de2ef3ee466f6f7edf5aae075292a26f34a4dc060c6`
 - `clinical_insight_caveat-0.1.2.tar.gz`: SHA-256 `5eee7a4b653524e35c36ba5e18d55c7179a0e73a2934d57bd5e6b2364c4eb167`
 
-The corrected caveat candidate was built from source commit `68ffbeddef8fc7d8fba4f3eb612959a849a92fe6`, and assurance from `b9c163b12d0cb5571edcffb736550b50fcdcacd2`. Each wheel and source archive was installed in a separate clean Python 3.12 environment on macOS; each caveat installation passed 85 tests and each assurance installation passed 79 tests, followed by `pip check`. Assurance also passed 79 tests on Python 3.10 with NumPy 1.23.5 and SciPy 1.10.1, with two SciPy divide-by-zero warnings during two-arm calculations. These checks do not establish numerical accuracy in all cases, distribution rights, or clinical validation. The candidates are not published:
+The corrected caveat candidate was built from source commit `68ffbeddef8fc7d8fba4f3eb612959a849a92fe6`, and assurance from `4e2ce9fb3694bdf83476924341337dc89b72f9f5`. Each wheel and source archive was installed in a separate clean Python 3.12 environment on macOS; each caveat installation passed 85 tests and each assurance installation passed 81 tests, followed by `pip check`. Assurance also passed 81 tests on Python 3.10 with NumPy 1.23.5 and SciPy 1.10.1, with four SciPy divide-by-zero warnings during two-arm calculations. These checks do not establish numerical accuracy in all cases, distribution rights, or clinical validation. The candidates are not published:
 
 - `clinical_insight_caveat-0.1.2-py3-none-any.whl`: SHA-256 `58ec40d509d1dab2d8d3610e5a3955ebbc44ce6f6c174c88a0666a5b69150a84`
 - `clinical_insight_caveat-0.1.2.tar.gz`: SHA-256 `91696f113f9468f84a2f2dc38f389c6a2fb9bb53b028e7a5f197967cd76fd5fc`
-- `clinical_insight_assurance-0.3.0-py3-none-any.whl`: SHA-256 `2b33e21b1a856a72adbe58a77e98ceead16c7d25c419eb27ff2174bc731f893b`
-- `clinical_insight_assurance-0.3.0.tar.gz`: SHA-256 `15c07e1321d404f24bf21bf75032371c88a0d03fe3be1a1594f56b489d747b58`
+- `clinical_insight_assurance-0.3.0-py3-none-any.whl`: SHA-256 `e458c1e1b2ab57263f4c0bbb52dc6c602ecbba5f374de50744eec853676b0a2d`
+- `clinical_insight_assurance-0.3.0.tar.gz`: SHA-256 `a3acd756625413941a497a9c2704ee659b9ba75288d88f423e3ad499f1edba92`
