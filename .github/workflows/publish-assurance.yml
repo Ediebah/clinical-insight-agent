@@ -24,7 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: 4e2ce9fb3694bdf83476924341337dc89b72f9f5
+          ref: 844c58c2e6737ca1cfe9fbc2f51e24576f1d1f5b
           persist-credentials: false
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
@@ -39,10 +39,10 @@ jobs:
           case "$PACKAGE" in
             clinical-insight-assurance)
               project=packages/assurance
-              wheel=clinical_insight_assurance-0.3.0-py3-none-any.whl
-              source=clinical_insight_assurance-0.3.0.tar.gz
-              wheel_sha=e458c1e1b2ab57263f4c0bbb52dc6c602ecbba5f374de50744eec853676b0a2d
-              source_sha=a3acd756625413941a497a9c2704ee659b9ba75288d88f423e3ad499f1edba92
+              wheel=clinical_insight_assurance-0.3.1-py3-none-any.whl
+              source=clinical_insight_assurance-0.3.1.tar.gz
+              wheel_sha=d6e3967060cfd033f1a40d94aff08db34ccca59e2af075c1f739848cc2df0845
+              source_sha=6d86306c8b383670ff1dad934dcf67c78179e1972904bcceca8de0baafa07649
               ;;
             *) echo 'Unsupported package' >&2; exit 1 ;;
           esac
@@ -85,10 +85,10 @@ jobs:
           set -euo pipefail
           case "$PACKAGE" in
             clinical-insight-assurance)
-              wheel=clinical_insight_assurance-0.3.0-py3-none-any.whl
-              source=clinical_insight_assurance-0.3.0.tar.gz
-              wheel_sha=e458c1e1b2ab57263f4c0bbb52dc6c602ecbba5f374de50744eec853676b0a2d
-              source_sha=a3acd756625413941a497a9c2704ee659b9ba75288d88f423e3ad499f1edba92
+              wheel=clinical_insight_assurance-0.3.1-py3-none-any.whl
+              source=clinical_insight_assurance-0.3.1.tar.gz
+              wheel_sha=d6e3967060cfd033f1a40d94aff08db34ccca59e2af075c1f739848cc2df0845
+              source_sha=6d86306c8b383670ff1dad934dcf67c78179e1972904bcceca8de0baafa07649
               ;;
             *) echo 'Unsupported package' >&2; exit 1 ;;
           esac

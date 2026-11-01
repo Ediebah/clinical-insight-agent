@@ -4,7 +4,7 @@ On 2026-10-31, the maintainer authorized and published `clinical-insight-caveat`
 
 The manual-only `.github/workflows/publish-caveat.yml` and `.github/workflows/publish-assurance.yml` workflows build their respective libraries from their fixed source commits, compare both generated distributions against reviewed SHA-256 values, and install and test the wheel in a separate environment. A checksum mismatch stops the workflow. Each publishing job targets the `pypi` GitHub environment and obtains an OpenID Connect token for PyPI Trusted Publishing. No API token is stored in the repository.
 
-The fixed source commits and hashes are specific to the published versions, `clinical-insight-caveat` 0.1.2 and `clinical-insight-assurance` 0.3.0. The previous assurance 0.2.0 candidate was superseded after correctness issues were found. A future release requires a new version and reviewed changes to the pinned values; do not dispatch these workflows unchanged to repeat an existing upload. The `caveat` and `assurance` Python import names are retained. The separate PyPI project named `assurance` belongs to another publisher.
+The workflows now pin reviewed patch candidates `clinical-insight-caveat` 0.1.3 and `clinical-insight-assurance` 0.3.1, prepared to correct stale PyPI descriptions. These versions are not yet published; dispatch requires a separate publication decision. The published versions remain 0.1.2 and 0.3.0. The earlier assurance 0.2.0 candidate was superseded after correctness issues were found. The `caveat` and `assurance` Python import names are retained. The separate PyPI project named `assurance` belongs to another publisher.
 
 ## GitHub protection
 
