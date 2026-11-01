@@ -58,7 +58,7 @@ def build_prior(*, endpoint: str = "proportion", tv: float, lrv: float,
 
 
 def sensitivity(prior: Prior, n_planned: int, rule, sd: float | None = None) -> list[dict]:
-    """Assurance under each of four defensible priors, with each one's prior-only verdict.
+    """Assurance under each of four example priors, with each one's prior-only verdict.
 
     The single number is never the whole answer. A design whose assurance is 0.8 under your prior
     and 0.2 under a skeptic centred at the LRV is a design whose result is a statement about the

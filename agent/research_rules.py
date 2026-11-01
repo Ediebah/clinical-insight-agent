@@ -4,6 +4,15 @@ import numbers
 
 
 def require_bayesian_inputs(params: dict, *, require_prior: bool = True) -> None:
+    if params.get("framing", "single_arm") not in ("single_arm", "two_arm"):
+        raise ValueError("Unsupported Bayesian framing")
+    if params.get("framing") == "two_arm" or params.get("control_rate") is not None:
+        try:
+            ca, cb = float(params["control_prior_a"]), float(params["control_prior_b"])
+        except (KeyError, ValueError, TypeError):
+            raise ValueError("An explicit control prior Beta(a,b) is required for a two-arm analysis") from None
+        if not math.isfinite(ca) or not math.isfinite(cb) or ca < 1 or cb < 1:
+            raise ValueError("Control prior Beta parameters must be finite and at least 1")
     for key in ("tv", "lrv", "n_planned", "n", "control_rate"):
         if params.get(key) is None:
             continue

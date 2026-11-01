@@ -402,7 +402,9 @@ def _route(question: str, context: str) -> dict:
         "`framing`='two_arm', `control_rate`=the known control response rate (e.g. standard of care "
         "responds 35% -> 0.35), and express `tv`/`lrv` as RISK DIFFERENCES treatment-minus-control (a "
         "15-point benefit hoped for -> tv 0.15; any benefit is the floor -> lrv 0). Supply the treatment "
-        "prior from Phase I as `prior_successes` + `prior_n`. n_planned is the TOTAL across both arms.\n"
+        "prior from Phase I as `prior_successes` + `prior_n`. Extract explicit control Beta prior "
+        "parameters as `control_prior_a` and `control_prior_b`; leave them null if unstated. "
+        "n_planned is the TOTAL across both arms.\n"
         "  'interim'     an INTERIM Bayesian go/no-go on data collected SO FAR — 'we are 40 patients "
         "in with 12 responses, continue or stop', 'stop for futility?', 'predictive probability of "
         "success'. analytic_sql returns ONE ROW PER SUBJECT OBSERVED SO FAR with a binary `outcome` "
@@ -419,7 +421,8 @@ def _route(question: str, context: str) -> dict:
         "For a RANDOMIZED / two-arm interim (treatment vs a concurrent control or placebo, e.g. '18/40 "
         "on the drug vs 10/38 on control') set `framing`='two_arm', and ALWAYS set ALL THREE of "
         "`outcome`=the binary response column, `group`=the arm column, and `control`=the control arm's "
-        "value. Express `tv`/`lrv` as RISK DIFFERENCES treatment-minus-control (e.g. a 15-point benefit "
+        "value. Extract treatment and control Beta priors separately as `prior_a`, `prior_b`, "
+        "`control_prior_a`, and `control_prior_b` only if stated. Express `tv`/`lrv` as RISK DIFFERENCES treatment-minus-control (e.g. a 15-point benefit "
         "hoped for -> tv 0.15; any benefit is the floor -> lrv 0). analytic_sql returns one row per "
         "subject with the arm column + a binary outcome column; when counts are stated directly, "
         "synthesize each arm's rows with range() (e.g. `SELECT 'treatment' AS arm, 1 AS responded FROM "
@@ -445,7 +448,8 @@ def _route(question: str, context: str) -> dict:
         '"kind":"superiority", "outcome_type":"proportion", "p_control":0.7, "p_treatment":0.8, '
         '"effect":0.1, "mean_control":0, "mean_treatment":0, "sd":1, "alpha":0.05, "power":0.8, "ratio":1, '
         '"n_planned":100, "tv":0.3, "lrv":0.15, "gate_tv":0.8, "gate_lrv":0.9, "stop_lrv":0.1, '
-        '"prior_successes":8, "prior_n":20, "prior_a":1, "prior_b":1, "framing":"single_arm", '
+        '"prior_successes":8, "prior_n":20, "prior_a":1, "prior_b":1, '
+        '"control_prior_a":null, "control_prior_b":null, "framing":"single_arm", '
         '"analytic_sql":"SELECT ...", "hypothesis":"one sentence"}. '
         'Plain aggregation → {"mode":"aggregate"}.\n'
         # The gate is checked BEFORE _triage so a specific model question isn't clarified away as
@@ -505,7 +509,7 @@ def _fit_model(spec: dict, df) -> modeling.ModelResult:
         if spec.get("framing") == "two_arm":
             if spec.get("prior_a") is None or spec.get("prior_b") is None:
                 return modeling.ModelResult("interim", spec.get("outcome", ""), 0, "",
-                    error="Two-arm interim requires an explicit Beta prior_a and prior_b for both arms.")
+                    error="Two-arm interim requires an explicit treatment Beta prior_a and prior_b.")
             if not spec.get("control"):
                 return modeling.ModelResult("interim", spec.get("outcome", ""), 0, "",
                                             error="Two-arm interim requires an explicit control arm.")
@@ -516,6 +520,7 @@ def _fit_model(spec: dict, df) -> modeling.ModelResult:
             higher_is_better=spec.get("higher_is_better", True),
             prior_successes=spec.get("prior_successes"), prior_n=spec.get("prior_n"),
             prior_a=spec.get("prior_a"), prior_b=spec.get("prior_b"),
+            control_prior_a=spec.get("control_prior_a"), control_prior_b=spec.get("control_prior_b"),
             framing=spec.get("framing", "single_arm"),
             group=spec.get("group"), control=spec.get("control"))
     return modeling.ModelResult(mt or "?", spec.get("outcome", ""), 0, "", error=f"unknown model_type: {mt}")
@@ -664,7 +669,8 @@ def _run_sample_size(question: str, spec: dict, result: AgentResult,
 
 _ASSURANCE_KEYS = ("endpoint_type", "framing", "n_planned", "tv", "lrv", "gate_tv", "gate_lrv",
                    "stop_lrv", "higher_is_better", "prior_successes", "prior_n", "prior_a",
-                   "prior_b", "prior_mu", "prior_sd", "sd", "anchor", "control_rate")
+                   "prior_b", "prior_mu", "prior_sd", "sd", "anchor", "control_rate",
+                   "control_prior_a", "control_prior_b")
 
 
 def _run_assurance(question: str, spec: dict, result: AgentResult,

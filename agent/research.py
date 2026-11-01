@@ -44,7 +44,8 @@ def from_route(question: str, route: dict, data_source: str) -> dict:
             value = float(token.rstrip("%").strip())
             numbers.add(value / 100 if token.endswith("%") else value)
         for key in ("n_planned", "tv", "lrv", "gate_tv", "gate_lrv", "stop_lrv", "prior_successes",
-                    "prior_n", "prior_a", "prior_b", "prior_mu", "prior_sd", "sd", "control_rate"):
+                    "prior_n", "prior_a", "prior_b", "prior_mu", "prior_sd", "sd", "control_rate",
+                    "control_prior_a", "control_prior_b"):
             value = parameters.get(key)
             if value is not None:
                 try:

@@ -26,7 +26,7 @@ The demo database checksum identifies the current file, but its exact Synthea ve
 
 PR #55's CI passed the application and warehouse job, plus independent wheel build, install, and package-test jobs for both packages on Python 3.10 and 3.12. A passing run is evidence for those jobs and environments, not for all compatible Python versions, platforms, transitive-license terms, or production use. Maintainers must verify the release commit and rerun the applicable checklist, including release artifact checksums and security review, before publication. Paid LLM evaluations and external clinical validation are not included in this evidence.
 
-After changing the candidate distribution name, the `clinical-insight-assurance` 0.2.0 wheel and source archive were each installed in a separate clean Python 3.12 environment on macOS. Both installations passed the 63 assurance tests. The wheel environment's import resolved to its installed `assurance` module, and `pip check` passed. These local candidate files are not published release artifacts:
+The historical `clinical-insight-assurance` 0.2.0 wheel and source archive were each installed in a separate clean Python 3.12 environment on macOS and passed 63 assurance tests. Subsequent review found missing-input and two-arm decision defects; these 0.2.0 artifacts are superseded and must not be published. The hashes below are historical evidence, not current release candidates:
 
 - `clinical_insight_assurance-0.2.0-py3-none-any.whl`: SHA-256 `e4d67b121621bfba44647cbc10bca790690c9e6c0578c486137ff5f4d20b4cca`
 - `clinical_insight_assurance-0.2.0.tar.gz`: SHA-256 `21701d35de44bd7ce7517d1392de7aca85e85f7fec1615f17e7fa3fcafac7733`
@@ -36,7 +36,14 @@ Before the distribution rename, the historical `caveat` 0.1.2 candidate wheel an
 - `caveat-0.1.2-py3-none-any.whl`: SHA-256 `1b8772d3f8cc85e8f44c62eea0c6166f3a9b686ff77d37d30d588a19e8795a63`
 - `caveat-0.1.2.tar.gz`: SHA-256 `97b02a6ee9b1fe3b18dcefad1350acb78b4731c86ceff65e4f7242f4e548d0fc`
 
-The renamed `clinical-insight-caveat` 0.1.2 distributions were built twice from commit `b78290d26b3f153f042fca2f6741de2a495c6385` with matching hashes. Each was installed in a separate clean Python 3.12 environment on macOS, passed 85 standalone tests and `pip check`. They remain unpublished candidates:
+The earlier renamed `clinical-insight-caveat` 0.1.2 distributions were built twice from commit `b78290d26b3f153f042fca2f6741de2a495c6385` with matching hashes. Each was installed in a separate clean Python 3.12 environment on macOS, passed 85 standalone tests and `pip check`. These historical artifacts predate the package-level research-use clarification:
 
 - `clinical_insight_caveat-0.1.2-py3-none-any.whl`: SHA-256 `4ba7af255fd7800400057de2ef3ee466f6f7edf5aae075292a26f34a4dc060c6`
 - `clinical_insight_caveat-0.1.2.tar.gz`: SHA-256 `5eee7a4b653524e35c36ba5e18d55c7179a0e73a2934d57bd5e6b2364c4eb167`
+
+The corrected caveat candidate was built from source commit `68ffbeddef8fc7d8fba4f3eb612959a849a92fe6`, and assurance from `4e2ce9fb3694bdf83476924341337dc89b72f9f5`. Each wheel and source archive was installed in a separate clean Python 3.12 environment on macOS; each caveat installation passed 85 tests and each assurance installation passed 81 tests, followed by `pip check`. Assurance also passed 81 tests on Python 3.10 with NumPy 1.23.5 and SciPy 1.10.1, with four SciPy divide-by-zero warnings during two-arm calculations. These checks do not establish numerical accuracy in all cases, distribution rights, or clinical validation. The candidates are not published:
+
+- `clinical_insight_caveat-0.1.2-py3-none-any.whl`: SHA-256 `58ec40d509d1dab2d8d3610e5a3955ebbc44ce6f6c174c88a0666a5b69150a84`
+- `clinical_insight_caveat-0.1.2.tar.gz`: SHA-256 `91696f113f9468f84a2f2dc38f389c6a2fb9bb53b028e7a5f197967cd76fd5fc`
+- `clinical_insight_assurance-0.3.0-py3-none-any.whl`: SHA-256 `e458c1e1b2ab57263f4c0bbb52dc6c602ecbba5f374de50744eec853676b0a2d`
+- `clinical_insight_assurance-0.3.0.tar.gz`: SHA-256 `a3acd756625413941a497a9c2704ee659b9ba75288d88f423e3ad499f1edba92`

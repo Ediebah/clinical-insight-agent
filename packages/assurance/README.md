@@ -1,34 +1,37 @@
 # assurance
 
-**Bayesian go/no-go for trial design and interim decisions.** Conjugate, closed-form, no Monte Carlo.
+**Exploratory Bayesian calculations for trial design.** Conjugate models, with deterministic numerical integration where needed.
+
+**Research prototype:** Do not use this library for patient care, clinical decisions, trial stopping,
+regulated submissions, or confidential data. Its results require independent statistical review.
+The decision labels illustrate a specified rule; they are not recommendations.
 
 ```python
 import assurance
 
-d = assurance.design(n=100, tv=0.30, lrv=0.15, prior_successes=8, prior_n=20)
+d = assurance.design(n=100, tv=0.30, lrv=0.15, prior_successes=8, prior_n=20,
+                     gate_tv=0.80, gate_lrv=0.90, stop_lrv=0.10)
 print(d.summary())
 ```
 
 ```text
 assurance 76.1%   power 28.9%   type I 0.0%   n=100
-decision (prior only): GO - P(above TV 0.3) = 85.2%, P(above LRV 0.15) = 99.8%. Clears both gates.
+decision (prior only): GO - P(above TV 0.3) = 85.2%, P(above LRV 0.15) = 99.8%. Clears both pre-specified gates (80% at the TV and 90% at the LRV).
 prior: Beta(9, 13), from a uniform prior updated with the previous study: 8 responses in 20 patients.
 UNDER-POWERED: power at the TV is 29%, below the conventional 80%. Even if the true effect equals
 the Target Value this design reaches GO only 29% of the time.
-prior sensitivity: assurance ranges 6% to 76% across four defensible priors
+prior sensitivity: assurance ranges 6% to 76% across four example priors
 ```
 
 That output is the argument for the library. The headline number looks good; the two lines under it
-say the design succeeds mostly because the prior is optimistic, and that a skeptic would put the
-chance at 6%. A single assurance figure hides both.
+illustrate how results change when the prior changes. A single assurance figure hides that sensitivity.
 
 ## Why assurance rather than power
 
 Classical power asks *"what is the chance of success **if** the true effect is exactly X?"* — a
 question nobody can answer, because if you knew X you would not run the trial. **Assurance**
-integrates over what you actually believe about X and answers the question a decision-maker has:
-*given everything we know, what is the chance this trial succeeds?* It is usually the lower and more
-honest number.
+integrates power over a specified prior for X. It is conditional on that prior and the design
+assumptions; it can be higher or lower than power at a selected effect size.
 
 ## No Monte Carlo, and why that matters
 
@@ -56,7 +59,8 @@ A device performance goal is the degenerate case TV == LRV.
 ## Interim analysis, and the one subtlety
 
 ```python
-i = assurance.interim(successes=12, n=40, n_planned=100, tv=0.30, lrv=0.15)
+i = assurance.interim(successes=12, n=40, n_planned=100, tv=0.30, lrv=0.15,
+                      prior_a=1, prior_b=1, gate_tv=0.80, gate_lrv=0.90, stop_lrv=0.10)
 i.predictive_probability   # 0.2896 — P(the trial ENDS in GO), not P(the effect is real)
 i.decision                 # 'CONSIDER'
 ```
@@ -76,11 +80,15 @@ becomes STOP and `.futile` is True.
 the total across both arms:
 
 ```python
+control_prior = assurance.Prior("Control", "beta", (1., 1.), "Example uniform prior")
 assurance.design(n=200, tv=0.15, lrv=0.0, control_rate=0.35,
-                 prior_successes=14, prior_n=20)       # assurance 0.8875
+                 prior_successes=14, prior_n=20, control_prior=control_prior,
+                 gate_tv=0.80, gate_lrv=0.90, stop_lrv=0.10)  # assurance 0.8875
 
 assurance.interim(successes=18, n=40, control_successes=10, control_n=38,
-                  n_planned=200, tv=0.15, lrv=0.0)     # PPoS 0.3783
+                  n_planned=200, tv=0.15, lrv=0.0, prior_a=1, prior_b=1,
+                  control_prior=control_prior, gate_tv=0.80, gate_lrv=0.90,
+                  stop_lrv=0.10)                       # PPoS 0.3783
 ```
 
 ## Priors, stated rather than assumed
@@ -93,11 +101,19 @@ d.prior.provenance
 d.prior_ess          # 22.0 — if this exceeds n, the prior is doing more work than the trial will
 ```
 
-`d.sensitivity` reports assurance under four defensible priors — informed, vague, skeptical,
+`d.sensitivity` reports assurance under four example priors — informed, vague, skeptical,
 enthusiastic — with each one's verdict. A design whose assurance is 0.8 under your prior and 0.2
 under a skeptic centred at the LRV is a statement about the prior, not about the drug.
 
 ## The primitives
+
+The high-level API requires explicit treatment priors and decision gates. Two-arm calls also require
+an explicit control prior. The design calculation treats `control_rate` as a fixed generating rate;
+the control prior is used in the analysis. Two-arm results use fixed-grid numerical integration, and
+their precision is not guaranteed near a decision threshold. The control density's approximate grid
+mass must be within 0.5% of one; this is a diagnostic, not an error bound on the result. Control Beta
+parameters below one and interim completion grids above 10,000 cells are refused. Low-level primitives have their own defaults
+and require expert review of every assumption. No set of example priors is universally defensible.
 
 `assurance.core` exposes everything the convenience layer is built from — `Prior`, `DecisionRule`,
 `beta_posterior`, `prob_exceeds`, `prob_diff_exceeds`, `decide`, `assurance`, `assurance_diff`,
