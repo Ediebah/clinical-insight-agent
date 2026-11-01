@@ -93,6 +93,13 @@ def test_wilson_intervals_require_explicit_consistent_counts():
     assert charts._add_ci(nullable, "rate", rate_unit="fraction", numerator="events", denominator="total") is False
 
 
+@pytest.mark.parametrize("rate,k,unit", [(-.0001, 0, "fraction"), (1.0001, 100, "fraction"),
+                                         (-.01, 0, "percent"), (100.01, 100, "percent")])
+def test_wilson_intervals_reject_out_of_range_rates_even_near_rounding(rate, k, unit):
+    df = pd.DataFrame({"rate": [rate], "events": [k], "total": [100]})
+    assert not charts._add_ci(df, "rate", rate_unit=unit, numerator="events", denominator="total")
+
+
 def test_invalid_units_are_rejected():
     with pytest.raises(ValueError, match="rate_unit"):
         charts.kpi_cards(pd.DataFrame({"rate": [.5]}), rate_unit="guess")

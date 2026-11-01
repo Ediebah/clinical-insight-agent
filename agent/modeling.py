@@ -458,10 +458,7 @@ def fit_ols(df: pd.DataFrame, outcome: str, predictors: list[str]) -> ModelResul
 def fit_cox(df: pd.DataFrame, duration: str, event: str, predictors: list[str]) -> ModelResult:
     """Cox proportional-hazards → adjusted hazard ratios (time-to-event / survival)."""
     try:
-        import warnings
-
-        from statsmodels.duration.hazard_regression import PHReg
-        from statsmodels.tools.sm_exceptions import ConvergenceWarning
+        from statsmodels.duration.hazard_regression import PHReg, PHRegResults
         d, preds, issues = _prepare(df, [duration, event], predictors)
         if not preds:
             return ModelResult("cox", duration, len(d), "hazard ratio",
@@ -478,17 +475,18 @@ def fit_cox(df: pd.DataFrame, duration: str, event: str, predictors: list[str]) 
             return ModelResult("cox", duration, len(d), "hazard ratio",
                                error="No events observed (all rows are censored) — a Cox model needs events.")
         mod = PHReg.from_formula(_formula(duration, preds, d), data=d, status=d[event])
-        # PHRegResults does not reliably expose optimizer return values. Preserve other warnings
-        # and surface an explicit convergence warning when statsmodels emits one.
-        with warnings.catch_warnings(record=True) as fit_warnings:
-            warnings.simplefilter("always", ConvergenceWarning)
-            r = mod.fit()
-        if any(issubclass(item.category, ConvergenceWarning) for item in fit_warnings):
-            issues.append("The Cox fit reported a convergence warning; estimates, confidence intervals "
-                          "and p-values may be unreliable. Do not interpret them without further review.")
-        for item in fit_warnings:
-            if not issubclass(item.category, ConvergenceWarning):
-                warnings.warn_explicit(item.message, item.category, item.filename, item.lineno)
+        # PHReg.fit discards optimizer status when it wraps the generic results. Obtain the
+        # per-fit status before constructing the same ungrouped PHRegResults wrapper. Avoid
+        # process-global warning capture, which can mix warnings across Streamlit sessions.
+        mod.groups = None
+        fit_result = super(PHReg, mod).fit(disp=False)
+        r = PHRegResults(mod, fit_result.params, fit_result.cov_params())
+        status = (getattr(fit_result, "mle_retvals", None) or {}).get("converged")
+        if status is None:
+            issues.append("Cox optimizer convergence status is unavailable; review the fit before interpretation.")
+        elif not status:
+            issues.append("The Cox fit did not converge; estimates, confidence intervals and p-values "
+                          "may be unreliable. Do not interpret them without further review.")
         ci = r.conf_int()
         terms = [Term(name, float(np.exp(r.params[i])), float(np.exp(ci[i, 0])),
                       float(np.exp(ci[i, 1])), float(r.pvalues[i]))

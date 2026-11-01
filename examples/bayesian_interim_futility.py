@@ -3,7 +3,8 @@
 The heart-disease and heart-failure examples check the agent's *regression* code against real datasets.
 This one tests the agent's *Bayesian go/no-go* engine, which reasons over response counts rather than
 a table of rows. It applies a design and hypothetical stopping-boundary case from a published methods
-paper, then checks the independently computed predictive probability against a locked engine value.
+paper, then checks the predictive probability against a locked value produced by the same engine.
+This is a regression check, not an independent numerical calculation.
 
     Reference : Chen D.-G., Chen J.D. (2019), "Application of Bayesian predictive probability for
                 interim futility analysis in single-arm phase II trial", Translational Cancer Research
@@ -15,7 +16,7 @@ paper, then checks the independently computed predictive probability against a l
     The case  : The paper's hypothetical first-interim stopping boundary is 8 or fewer responses among
                 25 patients. At 8/25, 13 or more of the remaining 25 must respond to reach the final
                 efficacy boundary of 21/50. The paper does not report a predictive-probability value
-                for this case; the engine independently computes it.
+                for this case; the engine computes it.
 
 The agent's own interim engine (`modeling.fit_interim`, the same calculation the app uses for an
 interim question) is handed that boundary case and must return the locked deterministic result.
@@ -54,7 +55,7 @@ def main() -> None:
     print("   enrolment   50 planned, interim after 25")
     print(f"   interim     {mr.fit_stat}\n")
 
-    print("Publication boundary and independently computed result")
+    print("Publication boundary and engine-computed result")
     print("-" * 62)
     prior = bayes.Prior("Vague", "beta", (1.0, 1.0), "non-informative Beta(1,1)")
     rule = bayes.DecisionRule(tv=0.30, lrv=0.30, gate_tv=0.95, gate_lrv=0.95, stop_lrv=0.0)
@@ -67,8 +68,9 @@ def main() -> None:
     ]
     for label, ok in checks:
         print(f"   [{'PASS' if ok else 'FAIL'}] {label}")
-    print(f"\nThe agent independently computes PPoS = {ppos:.4f} for the paper's hypothetical 8/25 "
-          "boundary case. Chen & Chen do not report this numerical probability.")
+    print(f"\nThe engine computes PPoS = {ppos:.4f} for the paper's hypothetical 8/25 "
+          "boundary case. Chen & Chen do not report this numerical probability; this comparison "
+          "is not an independent calculation.")
 
 
 if __name__ == "__main__":

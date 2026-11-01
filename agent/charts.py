@@ -176,6 +176,8 @@ def _add_ci(d: pd.DataFrame, y: str, *, rate_unit: str | None = None,
         return False
     scale = 100.0 if rate_unit == "percent" else 1.0
     # Permit common displayed rounding, but never infer the denominator's meaning from the match.
+    if (rates < 0).any() or (rates > scale).any():
+        return False
     if not np.isclose(rates, scale * ks / ns, rtol=0, atol=0.01 if scale == 100 else 0.0001).all():
         return False
     los, his = [], []

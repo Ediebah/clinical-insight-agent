@@ -15,9 +15,37 @@ warnings.filterwarnings("ignore")
 app = pytest.importorskip("app")   # imports the Streamlit app in bare mode (module-level st.* are no-ops)
 
 from agent import modeling  # noqa: E402
+from agent.agent import AgentResult  # noqa: E402
 
 _CSV = Path(__file__).resolve().parent.parent / "examples" / "heart_disease_cleveland.csv"
 _PREDS = ["age", "sex", "cp", "trestbps", "chol", "thalach", "exang", "oldpeak", "ca", "thal"]
+
+
+def test_report_cache_identity_includes_schema_and_report_metadata():
+    first = AgentResult(question="same", dataframe=pd.DataFrame({"rate": [.2, .4]}), citations=["source_a"])
+    other_schema = AgentResult(question="same", dataframe=pd.DataFrame({"other": [.2, .4]}), citations=["source_a"])
+    other_source = AgentResult(question="same", dataframe=pd.DataFrame({"rate": [.2, .4]}), citations=["source_b"])
+    other_order = AgentResult(question="same", dataframe=pd.DataFrame({"rate": [.4, .2]}), citations=["source_a"])
+    assert app._result_key(first) != app._result_key(other_schema)
+    assert app._result_key(first) != app._result_key(other_source)
+    assert app._result_key(first) != app._result_key(other_order)
+
+
+def test_unserializable_result_is_not_assigned_a_shared_cache_identity():
+    result = AgentResult(question="same", dataframe=pd.DataFrame({"rate": [.2]}), lineage={"bad": lambda: None})
+    assert app._result_key(result) is None
+
+
+def test_unserializable_result_bypasses_the_shared_report_cache(monkeypatch):
+    from agent import report
+
+    result = AgentResult(question="same", dataframe=pd.DataFrame({"rate": [.2]}), lineage={"bad": lambda: None})
+    saved = []
+    monkeypatch.setattr(app, "_cached_report", lambda *_a, **_k: pytest.fail("shared cache was used"))
+    monkeypatch.setattr(report, "build_docx", lambda *_a, **_k: b"private report")
+    monkeypatch.setattr(app.st, "download_button", lambda _label, **kwargs: saved.append(kwargs["data"]))
+    app._report_button(result, "test")
+    assert saved == [b"private report"]
 
 
 def _hd() -> pd.DataFrame:

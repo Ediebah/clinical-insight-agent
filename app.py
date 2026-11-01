@@ -1610,20 +1610,15 @@ def _render_data_health(h: dict | None) -> None:
         unsafe_allow_html=True)
 
 
-def _result_key(result) -> str:
-    """Content hash of a result — the report cache is keyed on THIS, never on the question text, so a
-    cross-session cache hit can only mean identical content (no leak of one user's uploaded data)."""
+def _result_key(result) -> str | None:
+    """Hash the whole result; do not share a cache entry if it cannot be serialized."""
     import hashlib
-    parts = [result.question or "", getattr(result, "hypothesis", "") or "", result.sql or "",
-             getattr(result, "interpretation", "") or "",
-             json.dumps(result.model or {}, default=str, sort_keys=True)]
-    df = getattr(result, "dataframe", None)
-    if df is not None:
-        try:
-            parts.append(str(int(pd.util.hash_pandas_object(df, index=True).sum())))
-        except Exception:  # noqa: BLE001
-            parts.append(str(df.shape))
-    return hashlib.sha256("||".join(parts).encode()).hexdigest()
+    import pickle
+
+    try:
+        return hashlib.sha256(pickle.dumps(result, protocol=5)).hexdigest()
+    except Exception:  # noqa: BLE001 — never replace an unhashable result with a shared fallback
+        return None
 
 
 @st.cache_data(show_spinner=False, max_entries=8)
@@ -1642,7 +1637,12 @@ def _report_button(result, view: str, *, rate_unit=None, numerator=None, denomin
     if not _REPORT_EXPORT_ENABLED:
         return
     try:
-        data = _cached_report(result, _result_key(result), rate_unit, numerator, denominator)
+        result_key = _result_key(result)
+        if result_key is None:
+            from agent.report import build_docx
+            data = build_docx(result, rate_unit=rate_unit, numerator=numerator, denominator=denominator)
+        else:
+            data = _cached_report(result, result_key, rate_unit, numerator, denominator)
     except Exception as _e:  # noqa: BLE001
         st.caption(f"Report export unavailable: {_e}")
         return
@@ -2031,9 +2031,12 @@ if result is not None:
         unit_choices = {"Unspecified — show raw values": None, "Fraction — show percentage labels": "fraction",
                         "Percent — values are already percentages": "percent"}
         result_key = _result_key(result)
-        selected = st.selectbox(f"Units for {measure}", list(unit_choices), key=f"rate_unit_{result_key}")
-        rate_unit = unit_choices[selected]
-        st.caption("Column names and values do not establish units. Select units only if you know them.")
+        if result_key is None:
+            st.warning("Could not safely retain display choices for this result; values are shown in original units.")
+        else:
+            selected = st.selectbox(f"Units for {measure}", list(unit_choices), key=f"rate_unit_{result_key}")
+            rate_unit = unit_choices[selected]
+            st.caption("Column names and values do not establish units. Select units only if you know them.")
         if rate_unit is not None:
             numeric_cols = [c for c in result.dataframe.columns if c != measure and
                             pd.api.types.is_numeric_dtype(result.dataframe[c])]
