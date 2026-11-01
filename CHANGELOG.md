@@ -5,9 +5,9 @@ versions follow [SemVer](https://semver.org/).
 
 ## Unreleased — research workflow changes
 
-- Prepare `clinical-insight-caveat` 0.1.3 and `clinical-insight-assurance` 0.3.1 as metadata-only
-  patch candidates to correct outdated publication statements on their PyPI pages. They are not yet
-  published; the package calculations are unchanged from 0.1.2 and 0.3.0 respectively.
+- Publish `clinical-insight-caveat` 0.1.3 and `clinical-insight-assurance` 0.3.1 as metadata-only
+  patches that correct outdated publication statements on their PyPI pages. The package calculations
+  are unchanged from 0.1.2 and 0.3.0 respectively.
 - Require review of inferential analysis specifications; preserve the approved SQL and refuse
   truncated cohorts, implicit causal subsampling, unsupported competing risks, and missing or invalid
   Bayesian inputs.

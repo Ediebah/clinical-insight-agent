@@ -34,8 +34,8 @@ The dashboard works without an API key. Natural-language analysis needs a config
 Install either standalone library from PyPI without installing the app:
 
 ```bash
-python -m pip install clinical-insight-caveat==0.1.2
-python -m pip install clinical-insight-assurance==0.3.0
+python -m pip install clinical-insight-caveat==0.1.3
+python -m pip install clinical-insight-assurance==0.3.1
 ```
 
 Alternatively, install from this checkout:
