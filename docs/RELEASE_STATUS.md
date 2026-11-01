@@ -6,6 +6,7 @@ Status checked 2026-10-31. This is a technical inventory, not a legal opinion or
 
 - The official [PyPI JSON API for `assurance`](https://pypi.org/pypi/assurance/json) returned an existing project, version 0.1.36, with a different description and publisher (I-Ops Operations Intelligence, LLC). Do not publish this library under that name without confirmed ownership and rights; `pip install assurance` presently refers to that separate project.
 - The [PyPI JSON endpoint for `caveat`](https://pypi.org/pypi/caveat/json) returned HTTP 404. This does not establish availability, reservation status, or ownership.
+- The [PyPI JSON endpoint for `clinical-insight-caveat`](https://pypi.org/pypi/clinical-insight-caveat/json) returned HTTP 404 on 2026-10-31. The distribution metadata now uses this name; its Python import remains `caveat`. The response does not reserve the name or establish availability.
 - The [PyPI JSON endpoint for `clinical-insight-assurance`](https://pypi.org/pypi/clinical-insight-assurance/json) returned HTTP 404. The standalone project's distribution metadata now uses this candidate name, but it is not reserved and may not be available when publishing. Its Python import remains `assurance`; other distributions may expose the same import, so avoid co-installing conflicting modules.
 - Confirm the maintainer's PyPI account, chosen names, namespace ownership, publishing permissions, and trusted-publishing configuration before uploading anything. HTTP results can change.
 
@@ -30,7 +31,7 @@ After changing the candidate distribution name, the `clinical-insight-assurance`
 - `clinical_insight_assurance-0.2.0-py3-none-any.whl`: SHA-256 `e4d67b121621bfba44647cbc10bca790690c9e6c0578c486137ff5f4d20b4cca`
 - `clinical_insight_assurance-0.2.0.tar.gz`: SHA-256 `21701d35de44bd7ce7517d1392de7aca85e85f7fec1615f17e7fa3fcafac7733`
 
-The `caveat` 0.1.2 candidate wheel and source archive were separately installed in clean Python 3.12 environments on macOS. Each passed the 85 standalone tests, and imports resolved to the installed package. These are local candidate files, not published release artifacts:
+Before the distribution rename, the historical `caveat` 0.1.2 candidate wheel and source archive were separately installed in clean Python 3.12 environments on macOS. Each passed the 85 standalone tests, and imports resolved to the installed package. These hashes describe the old name and do not identify a `clinical-insight-caveat` release:
 
 - `caveat-0.1.2-py3-none-any.whl`: SHA-256 `1b8772d3f8cc85e8f44c62eea0c6166f3a9b686ff77d37d30d588a19e8795a63`
 - `caveat-0.1.2.tar.gz`: SHA-256 `97b02a6ee9b1fe3b18dcefad1350acb78b4731c86ceff65e4f7242f4e548d0fc`

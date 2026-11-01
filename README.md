@@ -38,7 +38,7 @@ python -m pip install ./packages/caveat
 python -m pip install ./packages/assurance
 ```
 
-Neither library has been published by this project. The candidate distribution name for the `assurance` library is `clinical-insight-assurance`; its Python import remains `assurance`. PyPI's `assurance` identifies a different project. The candidate name is not reserved, and a `caveat` JSON API 404 does not establish availability. See [release status](docs/RELEASE_STATUS.md).
+Neither library has been published by this project. The candidate distributions are `clinical-insight-caveat` and `clinical-insight-assurance`; their Python imports remain `caveat` and `assurance`. PyPI's `assurance` identifies a different project. Pending publishers and a JSON API 404 do not reserve a name or establish availability. See [release status](docs/RELEASE_STATUS.md).
 
 ## Key-free examples
 

@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "caveat"
+name = "clinical-insight-caveat"
 version = "0.1.2"
 description = "Statistical caveats for analysis results — what would stop a statistician believing this table."
 readme = "README.md"
