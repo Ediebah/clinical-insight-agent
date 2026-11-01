@@ -1,0 +1,418 @@
+{
+  "python": "3.12.13",
+  "system": "Darwin",
+  "architecture": "arm64",
+  "distributions": [
+    {
+      "name": "clinical-insight-caveat",
+      "version": "0.1.2",
+      "license_expression": "MIT",
+      "license_classifiers": [],
+      "license_files": [
+        {
+          "path": "clinical_insight_caveat-0.1.2.dist-info/licenses/LICENSE",
+          "sha256": "40327806e4a88ac524cab816fac30c4e218a97a85594addf9e01281ff6d23a27"
+        }
+      ],
+      "requires_dist": [
+        "numpy>=1.23",
+        "pandas>=1.5",
+        "pytest>=7; extra == 'dev'",
+        "ruff>=0.5; extra == 'dev'"
+      ]
+    },
+    {
+      "name": "numpy",
+      "version": "2.5.4",
+      "license_expression": "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0",
+      "license_classifiers": [],
+      "license_files": [
+        {
+          "path": "numpy-2.5.4.dist-info/licenses/LICENSE.txt",
+          "sha256": "649a589ab31076e79e9ce62ba24eae9959598124176640dbc95f87bd10f34fcf"
+        },
+        {
+          "path": "numpy-2.5.4.dist-info/licenses/numpy/_core/include/numpy/libdivide/LICENSE.txt",
+          "sha256": "fbc539f47d0cf83bc61378080fb873d5c14630126cacbfe754035c3926daa5ec"
+        },
+        {
+          "path": "numpy-2.5.4.dist-info/licenses/numpy/_core/src/common/pythoncapi-compat/COPYING",
+          "sha256": "3f2c1ffa76383a55ae0aac01c9737cd70050dff63e1f026694fbe9d662573c98"
+        },
+        {
+          "path": "numpy-2.5.4.dist-info/licenses/numpy/_core/src/highway/LICENSE",
+          "sha256": "e340270d4f64384569a91d546acb5b094d69ce47f0c015db77abb74dc6f815af"
+        },
+        {
+          "path": "numpy-2.5.4.dist-info/licenses/numpy/_core/src/multiarray/dragon4_LICENSE.txt",
+          "sha256": "f7b14309e5f54e5022b26448eefd419988ada2aec01d3c1162d84a0ea8f21f2c"
+        },
+        {
+          "path": "numpy-2.5.4.dist-info/licenses/numpy/_core/src/npysort/x86-simd-sort/LICENSE.md",
+          "sha256": "211e7d737d6179a08f791ebb0a99897ce7cd2457410c542876d125576edfe910"
+        },
+        {
+          "path": "numpy-2.5.4.dist-info/licenses/numpy/_core/src/umath/svml/LICENSE",
+          "sha256": "c17011467b4fe6e20fbfbeda4df09e58c2bca5480a063e55735a4000a379aad9"
+        },
+        {
+          "path": "numpy-2.5.4.dist-info/licenses/numpy/fft/pocketfft/LICENSE.md",
+          "sha256": "a85ca13fdf90160b64a0698215868c13b74d835ad0a4e2ba44713b8c5058a056"
+        },
+        {
+          "path": "numpy-2.5.4.dist-info/licenses/numpy/linalg/lapack_lite/LICENSE.txt",
+          "sha256": "a14cc25e10d40a3aa705b7de2fb764a6535d8ee9b2db4e1724900585457dfd55"
+        },
+        {
+          "path": "numpy-2.5.4.dist-info/licenses/numpy/ma/LICENSE",
+          "sha256": "05f3b88351988ecfad10abe92c0c50e5875c6452d5009a0084cc291551ffcca6"
+        },
+        {
+          "path": "numpy-2.5.4.dist-info/licenses/numpy/random/LICENSE.md",
+          "sha256": "103166b62b80443afb9eb3488e052ea06be0cff566b908f199e561fde49af19f"
+        },
+        {
+          "path": "numpy-2.5.4.dist-info/licenses/numpy/random/src/distributions/LICENSE.md",
+          "sha256": "469778be8f33d54e1bcaab28c281cc472916d2d273f835e55bc487d30503face"
+        },
+        {
+          "path": "numpy-2.5.4.dist-info/licenses/numpy/random/src/mt19937/LICENSE.md",
+          "sha256": "0e111337b25494a773106695f0e799f642b8567aaacca4f116a74a8177179156"
+        },
+        {
+          "path": "numpy-2.5.4.dist-info/licenses/numpy/random/src/pcg64/LICENSE.md",
+          "sha256": "e7d4f4fb20358f314210a892ae17351e04993813646f697ec387385ca2a36918"
+        },
+        {
+          "path": "numpy-2.5.4.dist-info/licenses/numpy/random/src/philox/LICENSE.md",
+          "sha256": "6f5828a57223d4cc7f8ea505a2623e7b978b242752c1515e355f46ba2cec1800"
+        },
+        {
+          "path": "numpy-2.5.4.dist-info/licenses/numpy/random/src/sfc64/LICENSE.md",
+          "sha256": "9d4098846018319cd68e228ee6220361787f73bccbf00237a85e4fc9621b998f"
+        },
+        {
+          "path": "numpy-2.5.4.dist-info/licenses/numpy/random/src/splitmix64/LICENSE.md",
+          "sha256": "268b0ca06759d31ea3ca68dd35f20e877916e927b1c2a835e4592a3c4354b1f9"
+        }
+      ],
+      "requires_dist": []
+    },
+    {
+      "name": "pandas",
+      "version": "3.1.0",
+      "license_expression": "BSD-3-Clause",
+      "license_classifiers": [],
+      "license_files": [
+        {
+          "path": "pandas-3.1.0.dist-info/licenses/LICENSE",
+          "sha256": "9850f6b5bdef7346503065807b878deb8058b976c5c329f4c4d23bf4796ce9ae"
+        },
+        {
+          "path": "pandas-3.1.0.dist-info/licenses/LICENSES/BOTTLENECK_LICENCE",
+          "sha256": "053a90e30580f5d9d79817add1567f88b4a3eeb11bcded9ecf74619d17768066"
+        },
+        {
+          "path": "pandas-3.1.0.dist-info/licenses/LICENSES/DATEUTIL_LICENSE",
+          "sha256": "ba00f51a0d92823b5a1cde27d8b5b9d2321e67ed8da9bc163eff96d5e17e577e"
+        },
+        {
+          "path": "pandas-3.1.0.dist-info/licenses/LICENSES/HAVEN_LICENSE",
+          "sha256": "48216b40b3d1b19452923dd6fd74655bf5c0df9d76b51eb0efade7e0b88bfbcc"
+        },
+        {
+          "path": "pandas-3.1.0.dist-info/licenses/LICENSES/HAVEN_MIT",
+          "sha256": "87217d0a79195441ab615a3abb3ab6777502e57804ea83f973df975a67ebd720"
+        },
+        {
+          "path": "pandas-3.1.0.dist-info/licenses/LICENSES/KLIB_LICENSE",
+          "sha256": "7463172c3a23321c1838896eba437f70a6de80ac5a840b2960966c8c5444abf1"
+        },
+        {
+          "path": "pandas-3.1.0.dist-info/licenses/LICENSES/MUSL_LICENSE",
+          "sha256": "50a343c1ce9e27cd6c58023f13b91d2cd679861fe7fb6bbbbfbec3dcafc3583f"
+        },
+        {
+          "path": "pandas-3.1.0.dist-info/licenses/LICENSES/NUMPY_LICENSE",
+          "sha256": "81d42da02a56b611c35abc83d2241564b46bec3a5b1960b395d55cebca68fb6f"
+        },
+        {
+          "path": "pandas-3.1.0.dist-info/licenses/LICENSES/PACKAGING_LICENSE",
+          "sha256": "1871330068a18f1f07c3f147a41c008e59f367f217041ca6eb20b0298639a128"
+        },
+        {
+          "path": "pandas-3.1.0.dist-info/licenses/LICENSES/PSF_LICENSE",
+          "sha256": "3b2f81fe21d181c499c59a256c8e1968455d6689d269aa85373bfb6af41da3bf"
+        },
+        {
+          "path": "pandas-3.1.0.dist-info/licenses/LICENSES/PYPERCLIP_LICENSE",
+          "sha256": "eafcd440e3570c6bc7b77dcec15dec398d13bc9b5e897336b221ff81ff19f345"
+        },
+        {
+          "path": "pandas-3.1.0.dist-info/licenses/LICENSES/PYUPGRADE_LICENSE",
+          "sha256": "70aedcd6928272bd176e4fdc3384af22ee759d006fb15105d994756e4f2d1b7a"
+        },
+        {
+          "path": "pandas-3.1.0.dist-info/licenses/LICENSES/SAS7BDAT_LICENSE",
+          "sha256": "458d5fd4175825440ad32d6bf6af45d1a19d4adb316b557d869c6560b6692e00"
+        },
+        {
+          "path": "pandas-3.1.0.dist-info/licenses/LICENSES/STATSBASE_JL_LICENSE",
+          "sha256": "f371ccf0fb892a4cd9f2e550c4b8cf4362793d17028dc642ad55c1e01a41dfe1"
+        },
+        {
+          "path": "pandas-3.1.0.dist-info/licenses/LICENSES/ULTRAJSON_LICENSE",
+          "sha256": "2bfbb5bb8ec66d136ec62d836ddc0c0019d44ef4d9389f1f6cab1c1109d774a2"
+        },
+        {
+          "path": "pandas-3.1.0.dist-info/licenses/LICENSES/XSIMD_LICENSE",
+          "sha256": "501352acba62cc54e8e3d293754d606f919c9b425b962193c211f9fa29cd9940"
+        },
+        {
+          "path": "pandas-3.1.0.dist-info/licenses/subprojects/fast_float-8.2.10/LICENSE-APACHE",
+          "sha256": "097a889aa954d04e088b790b10a4014d6189561d0a6013935a73ce3d4ddaaf06"
+        },
+        {
+          "path": "pandas-3.1.0.dist-info/licenses/subprojects/fast_float-8.2.10/LICENSE-BOOST",
+          "sha256": "8d8291caf1cee26d23acf3eb67c9f9a2d58f1c681b16a4fbe8cbfb9e3c0b5a9b"
+        },
+        {
+          "path": "pandas-3.1.0.dist-info/licenses/subprojects/fast_float-8.2.10/LICENSE-MIT",
+          "sha256": "e562f3f974ced7e69dd1db77b820b36bcf8f30377f1aa105723fba449c53c4e6"
+        }
+      ],
+      "requires_dist": [
+        "numpy>=2.0.2; python_version < \"3.14\"",
+        "numpy>=2.3.3; python_version >= \"3.14\"",
+        "python-dateutil>=2.9.0",
+        "tzdata; sys_platform == \"win32\"",
+        "tzdata; sys_platform == \"emscripten\"",
+        "pytest>=8.3.4; extra == \"test\"",
+        "pytest-xdist>=3.6.1; extra == \"test\"",
+        "pyarrow>=16.0.0; extra == \"pyarrow\"",
+        "bottleneck>=1.5.0; extra == \"performance\"",
+        "numba>=0.61.2; extra == \"performance\"",
+        "numexpr!=2.14.1,>=2.11.0; extra == \"performance\"",
+        "scipy>=1.16.1; extra == \"computation\"",
+        "xarray>=2025.7.1; extra == \"computation\"",
+        "fsspec>=2025.7.0; extra == \"fss\"",
+        "s3fs>=2025.7.0; extra == \"aws\"",
+        "gcsfs>=2025.7.0; extra == \"gcp\"",
+        "odfpy>=1.4.1; extra == \"excel\"",
+        "openpyxl>=3.1.5; extra == \"excel\"",
+        "python-calamine>=0.4.0; extra == \"excel\"",
+        "pyxlsb>=1.0.10; extra == \"excel\"",
+        "xlrd>=2.0.2; extra == \"excel\"",
+        "xlsxwriter>=3.2.5; extra == \"excel\"",
+        "pyarrow>=13.0.0; extra == \"parquet\"",
+        "pyarrow>=13.0.0; extra == \"feather\"",
+        "pyiceberg>=0.9.1; extra == \"iceberg\"",
+        "tables>=3.10.2; extra == \"hdf5\"",
+        "pyreadstat>=1.3.0; extra == \"spss\"",
+        "SQLAlchemy>=2.0.42; extra == \"postgresql\"",
+        "psycopg2>=2.9.10; extra == \"postgresql\"",
+        "adbc-driver-postgresql>=1.7.0; extra == \"postgresql\"",
+        "SQLAlchemy>=2.0.42; extra == \"mysql\"",
+        "pymysql>=1.1.1; extra == \"mysql\"",
+        "SQLAlchemy>=2.0.42; extra == \"sql-other\"",
+        "adbc-driver-postgresql>=1.7.0; extra == \"sql-other\"",
+        "adbc-driver-sqlite>=1.7.0; extra == \"sql-other\"",
+        "beautifulsoup4>=4.13.4; extra == \"html\"",
+        "html5lib>=1.1; extra == \"html\"",
+        "lxml>=6.0.0; extra == \"html\"",
+        "lxml>=6.0.0; extra == \"xml\"",
+        "matplotlib>=3.10.5; extra == \"plot\"",
+        "jinja2>=3.1.6; extra == \"output-formatting\"",
+        "tabulate>=0.9.0; extra == \"output-formatting\"",
+        "PyQt5>=5.15.11; extra == \"clipboard\"",
+        "qtpy>=2.4.3; extra == \"clipboard\"",
+        "zstandard>=0.23.0; extra == \"compression\"",
+        "pytz>=2020.1; extra == \"timezone\"",
+        "adbc-driver-postgresql>=1.7.0; extra == \"all\"",
+        "adbc-driver-sqlite>=1.7.0; extra == \"all\"",
+        "beautifulsoup4>=4.13.4; extra == \"all\"",
+        "bottleneck>=1.5.0; extra == \"all\"",
+        "fastparquet>=2024.11.0; extra == \"all\"",
+        "fsspec>=2025.7.0; extra == \"all\"",
+        "gcsfs>=2025.7.0; extra == \"all\"",
+        "html5lib>=1.1; extra == \"all\"",
+        "jinja2>=3.1.6; extra == \"all\"",
+        "lxml>=6.0.0; extra == \"all\"",
+        "matplotlib>=3.10.5; extra == \"all\"",
+        "numba>=0.61.2; extra == \"all\"",
+        "numexpr!=2.14.1,>=2.11.0; extra == \"all\"",
+        "odfpy>=1.4.1; extra == \"all\"",
+        "openpyxl>=3.1.5; extra == \"all\"",
+        "psycopg2>=2.9.10; extra == \"all\"",
+        "pyarrow>=16.0.0; extra == \"all\"",
+        "pyiceberg>=0.9.1; extra == \"all\"",
+        "pymysql>=1.1.1; extra == \"all\"",
+        "PyQt5>=5.15.11; extra == \"all\"",
+        "pyreadstat>=1.3.0; extra == \"all\"",
+        "pytest>=8.3.4; extra == \"all\"",
+        "pytest-xdist>=3.6.1; extra == \"all\"",
+        "python-calamine>=0.4.0; extra == \"all\"",
+        "pytz>=2020.1; extra == \"all\"",
+        "pyxlsb>=1.0.10; extra == \"all\"",
+        "qtpy>=2.4.3; extra == \"all\"",
+        "scipy>=1.16.1; extra == \"all\"",
+        "s3fs>=2025.7.0; extra == \"all\"",
+        "SQLAlchemy>=2.0.42; extra == \"all\"",
+        "tables>=3.10.2; extra == \"all\"",
+        "tabulate>=0.9.0; extra == \"all\"",
+        "xarray>=2025.7.1; extra == \"all\"",
+        "xlrd>=2.0.2; extra == \"all\"",
+        "xlsxwriter>=3.2.5; extra == \"all\"",
+        "zstandard>=0.23.0; extra == \"all\""
+      ]
+    },
+    {
+      "name": "pip",
+      "version": "26.2.2",
+      "license_expression": "MIT",
+      "license_classifiers": [],
+      "license_files": [
+        {
+          "path": "pip-26.2.2.dist-info/licenses/AUTHORS.txt",
+          "sha256": "4eb1fb1705e2def898e81bcba19c3aac80620d27ba3569d6a6df7b4629d1b5c2"
+        },
+        {
+          "path": "pip-26.2.2.dist-info/licenses/LICENSE.txt",
+          "sha256": "634300a669d49aeae65b12c6c48c924c51a4cdf3d1ff086dc3456dc8bcaa2104"
+        },
+        {
+          "path": "pip-26.2.2.dist-info/licenses/src/pip/_vendor/cachecontrol/LICENSE.txt",
+          "sha256": "86eeee87be2a43f3ff1f56496f451f69243926f025fedbb033666c304c4c161b"
+        },
+        {
+          "path": "pip-26.2.2.dist-info/licenses/src/pip/_vendor/certifi/LICENSE",
+          "sha256": "e93716da6b9c0d5a4a1df60fe695b370f0695603d21f6f83f053e42cfc10caf7"
+        },
+        {
+          "path": "pip-26.2.2.dist-info/licenses/src/pip/_vendor/distlib/LICENSE.txt",
+          "sha256": "808e10c8a6ab8deb149ff9b3fb19f447a808094606d712a9ca57fead3552599d"
+        },
+        {
+          "path": "pip-26.2.2.dist-info/licenses/src/pip/_vendor/distro/LICENSE",
+          "sha256": "cb5e8e7e5f4a3988e1063c142c60dc2df75605f4c46515e776e3aca6df976e14"
+        },
+        {
+          "path": "pip-26.2.2.dist-info/licenses/src/pip/_vendor/idna/LICENSE.md",
+          "sha256": "1a9a4f0e3d479a27240ddd59a9137a66ab4a0f9dfdc8ca6188cc0bfd85187f04"
+        },
+        {
+          "path": "pip-26.2.2.dist-info/licenses/src/pip/_vendor/msgpack/COPYING",
+          "sha256": "492dedba85da5872f78e6091bcd1fea474d660d35acb4dee964b8aab3f007427"
+        },
+        {
+          "path": "pip-26.2.2.dist-info/licenses/src/pip/_vendor/packaging/LICENSE",
+          "sha256": "cad1ef5bd340d73e074ba614d26f7deaca5c7940c3d8c34852e65c4909686c48"
+        },
+        {
+          "path": "pip-26.2.2.dist-info/licenses/src/pip/_vendor/packaging/LICENSE.APACHE",
+          "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594"
+        },
+        {
+          "path": "pip-26.2.2.dist-info/licenses/src/pip/_vendor/packaging/LICENSE.BSD",
+          "sha256": "b70e7e9b742f1cc6f948b34c16aa39ffece94196364bc88ff0d2180f0028fac5"
+        },
+        {
+          "path": "pip-26.2.2.dist-info/licenses/src/pip/_vendor/pkg_resources/LICENSE",
+          "sha256": "86da0f01aeae46348a3c3d465195dc1ceccde79f79e87769a64b8da04b2a4741"
+        },
+        {
+          "path": "pip-26.2.2.dist-info/licenses/src/pip/_vendor/platformdirs/LICENSE",
+          "sha256": "29e0fd62e929850e86eb28c3fdccf0cefdf4fa94879011cffb3d0d4bed6d4db6"
+        },
+        {
+          "path": "pip-26.2.2.dist-info/licenses/src/pip/_vendor/pygments/LICENSE",
+          "sha256": "a9d66f1d526df02e29dce73436d34e56e8632f46c275bbdffc70569e882f9f17"
+        },
+        {
+          "path": "pip-26.2.2.dist-info/licenses/src/pip/_vendor/pyproject_hooks/LICENSE",
+          "sha256": "1b22b049b5267d6dfc23a67bf4a84d8ec04b9fdfb1a51d360e42b4342c8b4154"
+        },
+        {
+          "path": "pip-26.2.2.dist-info/licenses/src/pip/_vendor/requests/LICENSE",
+          "sha256": "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b"
+        },
+        {
+          "path": "pip-26.2.2.dist-info/licenses/src/pip/_vendor/resolvelib/LICENSE",
+          "sha256": "f388fd38cad13112c1dc0f669bbe80e7f84541edbafb72f3030d2ca7642c3c9d"
+        },
+        {
+          "path": "pip-26.2.2.dist-info/licenses/src/pip/_vendor/rich/LICENSE",
+          "sha256": "deed7c17a4318158190a3ea239cc879a5a50271cebb98ae7025f48fbe58dca15"
+        },
+        {
+          "path": "pip-26.2.2.dist-info/licenses/src/pip/_vendor/tomli/LICENSE",
+          "sha256": "b80816b0d530b8accb4c2211783790984a6e3b61922c2b5ee92f3372ab2742fe"
+        },
+        {
+          "path": "pip-26.2.2.dist-info/licenses/src/pip/_vendor/tomli_w/LICENSE",
+          "sha256": "b80816b0d530b8accb4c2211783790984a6e3b61922c2b5ee92f3372ab2742fe"
+        },
+        {
+          "path": "pip-26.2.2.dist-info/licenses/src/pip/_vendor/truststore/LICENSE",
+          "sha256": "33be7b7e8fa4fd19b1760e1a8ed8a668bdab852c91b692dd41424bcb725a9fca"
+        },
+        {
+          "path": "pip-26.2.2.dist-info/licenses/src/pip/_vendor/urllib3/LICENSE.txt",
+          "sha256": "130e3a64d5fdd5d096a752694634a7d9df284469de86e5732100268041e3d686"
+        }
+      ],
+      "requires_dist": []
+    },
+    {
+      "name": "python-dateutil",
+      "version": "3.0.0",
+      "license_expression": null,
+      "license_classifiers": [
+        "License :: OSI Approved :: BSD License",
+        "License :: OSI Approved :: Apache Software License"
+      ],
+      "license_files": [
+        {
+          "path": "python_dateutil-3.0.0.dist-info/licenses/LICENSE",
+          "sha256": "ba00f51a0d92823b5a1cde27d8b5b9d2321e67ed8da9bc163eff96d5e17e577e"
+        }
+      ],
+      "requires_dist": [
+        "six>=1.6",
+        "tzdata"
+      ]
+    },
+    {
+      "name": "six",
+      "version": "1.17.0",
+      "license_expression": null,
+      "license_classifiers": [
+        "License :: OSI Approved :: MIT License"
+      ],
+      "license_files": [
+        {
+          "path": "six-1.17.0.dist-info/LICENSE",
+          "sha256": "4375ba20e2b9c6c4e7cad2940a628fd90e95cc3d50ee92aae755715d8ba1fbd0"
+        }
+      ],
+      "requires_dist": []
+    },
+    {
+      "name": "tzdata",
+      "version": "2026.6",
+      "license_expression": null,
+      "license_classifiers": [],
+      "license_files": [
+        {
+          "path": "tzdata-2026.6.dist-info/licenses/LICENSE",
+          "sha256": "df58f69ea88683035d720b5375bcef0cf5aeaa98a1d098d572e0992c378deb46"
+        },
+        {
+          "path": "tzdata-2026.6.dist-info/licenses/licenses/LICENSE_APACHE",
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+        }
+      ],
+      "requires_dist": []
+    }
+  ]
+}
