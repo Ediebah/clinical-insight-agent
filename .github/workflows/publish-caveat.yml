@@ -24,7 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: 73c7876b24e4f853a1d5e90de3e24afc0669c096
+          ref: 844c58c2e6737ca1cfe9fbc2f51e24576f1d1f5b
           persist-credentials: false
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
@@ -39,10 +39,10 @@ jobs:
           case "$PACKAGE" in
             clinical-insight-caveat)
               project=packages/caveat
-              wheel=clinical_insight_caveat-0.1.2-py3-none-any.whl
-              source=clinical_insight_caveat-0.1.2.tar.gz
-              wheel_sha=58ec40d509d1dab2d8d3610e5a3955ebbc44ce6f6c174c88a0666a5b69150a84
-              source_sha=a226b889052ee2ee1062b10522340a7c6d02bc7ab18ec3d33158fd95fd73aa08
+              wheel=clinical_insight_caveat-0.1.3-py3-none-any.whl
+              source=clinical_insight_caveat-0.1.3.tar.gz
+              wheel_sha=10f3ee4e3e3f8a0153c48b832924a0c97045a73e46adb7ef9a4f56da8ba5179a
+              source_sha=29bbb0a5dfdda0d321dc1b5635538953f14b995212aae0ef2b4f4c0d08d0469a
               ;;
             *) echo 'Unsupported package' >&2; exit 1 ;;
           esac
@@ -85,10 +85,10 @@ jobs:
           set -euo pipefail
           case "$PACKAGE" in
             clinical-insight-caveat)
-              wheel=clinical_insight_caveat-0.1.2-py3-none-any.whl
-              source=clinical_insight_caveat-0.1.2.tar.gz
-              wheel_sha=58ec40d509d1dab2d8d3610e5a3955ebbc44ce6f6c174c88a0666a5b69150a84
-              source_sha=a226b889052ee2ee1062b10522340a7c6d02bc7ab18ec3d33158fd95fd73aa08
+              wheel=clinical_insight_caveat-0.1.3-py3-none-any.whl
+              source=clinical_insight_caveat-0.1.3.tar.gz
+              wheel_sha=10f3ee4e3e3f8a0153c48b832924a0c97045a73e46adb7ef9a4f56da8ba5179a
+              source_sha=29bbb0a5dfdda0d321dc1b5635538953f14b995212aae0ef2b4f4c0d08d0469a
               ;;
             *) echo 'Unsupported package' >&2; exit 1 ;;
           esac

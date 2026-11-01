@@ -11,6 +11,7 @@ For standalone release notes, artifact scope, clean runtime inventories, advisor
 - [clinical-insight-caveat 0.1.2](https://pypi.org/project/clinical-insight-caveat/0.1.2/) and [clinical-insight-assurance 0.3.0](https://pypi.org/project/clinical-insight-assurance/0.3.0/) were published on 2026-10-31. Their Python imports remain `caveat` and `assurance`; avoid co-installing conflicting modules.
 - The corresponding PyPI JSON version endpoints listed the four artifact hashes below after publication. Future releases require fresh ownership, permissions, terms, and checksum checks.
 - Each published package was installed from PyPI into a separate clean Python 3.12 environment, ran a synthetic example with LLM key and endpoint variables unset, and passed `pip check`.
+- Patch candidates `clinical-insight-caveat` 0.1.3 and `clinical-insight-assurance` 0.3.1 correct stale publication wording in the package descriptions. These versions are not published and require a separate publication decision.
 
 ## Dependency and data review
 
@@ -49,3 +50,10 @@ The published caveat artifacts were built from source commit `73c7876b24e4f853a1
 - `clinical_insight_caveat-0.1.2.tar.gz`: SHA-256 `a226b889052ee2ee1062b10522340a7c6d02bc7ab18ec3d33158fd95fd73aa08`
 - `clinical_insight_assurance-0.3.0-py3-none-any.whl`: SHA-256 `e458c1e1b2ab57263f4c0bbb52dc6c602ecbba5f374de50744eec853676b0a2d`
 - `clinical_insight_assurance-0.3.0.tar.gz`: SHA-256 `a3acd756625413941a497a9c2704ee659b9ba75288d88f423e3ad499f1edba92`
+
+Metadata-only patch candidates were built twice from commit `844c58c2e6737ca1cfe9fbc2f51e24576f1d1f5b` with matching hashes. Their package descriptions no longer claim the already-published projects are unverified or unpublished. Each wheel and source archive was installed in a separate Python 3.12 environment and tested against the repository suites: 85 caveat tests and 81 assurance tests per artifact, with `pip check` passing. The 78 tests included in the caveat source archive also passed. Assurance passed 81 tests on Python 3.10 with NumPy 1.23.5 and SciPy 1.10.1, with four SciPy divide-by-zero warnings. Both wheel examples ran without an LLM key. The caveat source archive still excludes the unresolved Berkeley fixture. These are candidates, not published releases:
+
+- `clinical_insight_caveat-0.1.3-py3-none-any.whl`: SHA-256 `10f3ee4e3e3f8a0153c48b832924a0c97045a73e46adb7ef9a4f56da8ba5179a`
+- `clinical_insight_caveat-0.1.3.tar.gz`: SHA-256 `29bbb0a5dfdda0d321dc1b5635538953f14b995212aae0ef2b4f4c0d08d0469a`
+- `clinical_insight_assurance-0.3.1-py3-none-any.whl`: SHA-256 `d6e3967060cfd033f1a40d94aff08db34ccca59e2af075c1f739848cc2df0845`
+- `clinical_insight_assurance-0.3.1.tar.gz`: SHA-256 `6d86306c8b383670ff1dad934dcf67c78179e1972904bcceca8de0baafa07649`
