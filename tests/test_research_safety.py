@@ -193,3 +193,23 @@ def test_control_beta_does_not_discard_different_prior_study_counts():
              "prior_n": 20, "control_prior_a": 1, "control_prior_b": 1}
     params = research.from_route(question, route, "demo warehouse")["parameters"]
     assert (params["prior_successes"], params["prior_n"]) == (14, 20)
+
+
+def test_bayesian_direction_must_be_boolean_when_supplied():
+    frame = pd.DataFrame({"response": [1, 0] * 8})
+    params = {"n_planned": 40, "tv": .3, "lrv": .15, "gate_tv": .8, "gate_lrv": .9,
+              "stop_lrv": .1, "prior_a": 1, "prior_b": 1}
+    for invalid in (None, "false", 0, 1):
+        design = modeling.calc_assurance(**params, higher_is_better=invalid)
+        interim = modeling.fit_interim(frame, "response", **params, higher_is_better=invalid)
+        assert design.error and "higher_is_better" in design.error
+        assert interim.error and "higher_is_better" in interim.error
+
+
+def test_interim_spec_rejects_null_outcome_direction():
+    frame = pd.DataFrame({"response": [1, 0] * 8})
+    spec = {"model_type": "interim", "outcome": "response", "n_planned": 40, "tv": .3,
+            "lrv": .15, "gate_tv": .8, "gate_lrv": .9, "stop_lrv": .1,
+            "prior_a": 1, "prior_b": 1, "higher_is_better": None}
+    result = agent._fit_model(spec, frame)
+    assert result.error and "higher_is_better" in result.error
