@@ -2,6 +2,8 @@
 
 Status checked 2026-10-31. This is a technical inventory, not a legal opinion or a publication authorization. A public repository is available, but no release or package publication is asserted here.
 
+For proposed standalone release notes, artifact scope, clean runtime inventories, advisory checks, and the unresolved Berkeley fixture provenance, see [standalone package release review](STANDALONE_RELEASE_REVIEW.md).
+
 ## Package names
 
 - The official [PyPI JSON API for `assurance`](https://pypi.org/pypi/assurance/json) returned an existing project, version 0.1.36, with a different description and publisher (I-Ops Operations Intelligence, LLC). Do not publish this library under that name without confirmed ownership and rights; `pip install assurance` presently refers to that separate project.
