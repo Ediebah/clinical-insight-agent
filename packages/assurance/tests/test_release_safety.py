@@ -126,3 +126,12 @@ def test_two_arm_control_prior_can_be_specified_as_json_numbers():
                               gate_tv=.8, gate_lrv=.9, stop_lrv=.1, full=False)
     assert result.control_prior.params == (1., 1.)
     assert result.under_powered is None
+
+
+def test_two_arm_interim_reports_total_observed_participants():
+    result = assurance.interim(successes=2, n=5, control_successes=1, control_n=4,
+                               n_planned=20, tv=.2, lrv=0, prior_a=1, prior_b=1,
+                               control_prior_a=1, control_prior_b=1,
+                               gate_tv=.8, gate_lrv=.9, stop_lrv=.1)
+    assert result.observed == 9
+    assert "9/20 observed" in result.summary()

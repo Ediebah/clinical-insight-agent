@@ -386,4 +386,5 @@ def interim(*, successes: int, n: int, n_planned: int, tv: float, lrv: float,
     return Interim(predictive_probability=round(float(ppos), 4),
                    posterior_mean=round(float(post_mean), 4),
                    decision=call, reason=reason, prior=p, rule=rule,
-                   observed=n, n_planned=n_planned, control_prior=control_prior)
+                   observed=n + (control_n if control_n is not None else 0),
+                   n_planned=n_planned, control_prior=control_prior)
