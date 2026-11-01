@@ -1988,6 +1988,7 @@ def calc_assurance(endpoint_type: str = "proportion", framing: str = "single_arm
     try:
         from .research_rules import require_bayesian_inputs
         require_bayesian_inputs({"endpoint_type": endpoint_type, "framing": framing,
+                                 "higher_is_better": higher_is_better,
                                  "n_planned": n_planned, "tv": tv, "lrv": lrv,
                                  "control_rate": control_rate, "gate_tv": gate_tv, "gate_lrv": gate_lrv,
                                  "stop_lrv": stop_lrv, "prior_a": prior_a, "prior_b": prior_b,
@@ -2260,6 +2261,7 @@ def fit_interim(df: pd.DataFrame, outcome: str, n_planned=None, tv=None, lrv=Non
     try:
         from .research_rules import require_bayesian_inputs
         require_bayesian_inputs({"endpoint_type": endpoint_type, "framing": framing,
+                                 "higher_is_better": higher_is_better,
                                  "n_planned": n_planned, "tv": tv, "lrv": lrv,
                                  "gate_tv": gate_tv, "gate_lrv": gate_lrv,
                                  "stop_lrv": stop_lrv, "prior_a": prior_a, "prior_b": prior_b,

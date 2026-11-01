@@ -36,6 +36,13 @@ The earlier [smoke run](causal_smoke_results.json) remains available separately.
 
 Model comparison fits transformations within training folds and uses an outer loop to assess model selection. Fold standard deviations are not confidence intervals. The same development dataset does not substitute for independent temporal or external evaluation. For survival, Brier score is reported as integrated Brier score, without a reference-based skill claim. Time-dependent metrics may be unavailable in a fold.
 
-The LLM-backed evaluation workflow is scheduled separately because it uses paid calls. Its synthetic runs automatically approve their generated specifications for evaluation only; this is not a human review. Record model identity, prompt version, test-set version, run date, failures and costs when reporting those results.
+The LLM-backed evaluation workflow has a configured schedule because it uses paid calls; as checked
+on 2026-11-01, that workflow was disabled. Its synthetic runs automatically approve their generated specifications for evaluation only; this is not a human review. Record model identity, prompt version, test-set version, run date, failures and costs when reporting those results.
 
 Use TRIPOD+AI for transparent reporting of prediction studies and PROBAST+AI for risk-of-bias assessment; completing either does not certify this software.
+
+
+The [prospective synthetic specification challenge](../benchmarks/prospective_v1/PROTOCOL.md)
+uses a frozen public case set and records selected proposal fields and required refusals. It was
+not independently authored or blinded, and it does not validate SQL semantics or numerical
+results. A baseline run must be recorded before interpreting its score.

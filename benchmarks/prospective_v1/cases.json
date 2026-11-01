@@ -1,0 +1,50 @@
+{
+  "version": "1.0.0",
+  "description": "Prospective synthetic specification and refusal challenge; not independently authored or blinded.",
+  "cases": [
+    {
+      "id": "design_beta_single",
+      "question": "For an exploratory 84-participant single-arm study, calculate Bayesian assurance. The response target is 36%, the minimum is 21%, and higher response is better. Use treatment prior Beta(2,3), target gate 0.85, minimum gate 0.90, and stop gate 0.10.",
+      "expect": "proposal", "method": "assurance",
+      "parameters": {"n_planned": 84, "tv": 0.36, "lrv": 0.21, "prior_a": 2, "prior_b": 3, "gate_tv": 0.85, "gate_lrv": 0.90, "stop_lrv": 0.10}
+    },
+    {
+      "id": "design_previous_counts",
+      "question": "Calculate Bayesian assurance for an exploratory single-arm study of 110 participants. A previous study observed 6 responses in 18 patients. The response target is 43%, the minimum is 24%, and higher response is better. Set the target gate to 0.75, the minimum gate to 0.88, and the stop gate to 0.05.",
+      "expect": "proposal", "method": "assurance",
+      "parameters": {"n_planned": 110, "tv": 0.43, "lrv": 0.24, "prior_successes": 6, "prior_n": 18, "gate_tv": 0.75, "gate_lrv": 0.88, "stop_lrv": 0.05}
+    },
+    {
+      "id": "design_two_arm_separate_prior",
+      "question": "Calculate Bayesian assurance for a randomized exploratory trial with 140 participants total. The control response rate is 42%. The desired treatment benefit is 12 percentage points and the minimum benefit is 3 percentage points. A treatment pilot had 9 responses in 30 patients; use Beta(2,3) as the control analysis prior. Set target, minimum, and stop gates to 0.78, 0.91, and 0.07 respectively.",
+      "expect": "proposal", "method": "assurance",
+      "parameters": {"framing": "two_arm", "n_planned": 140, "control_rate": 0.42, "tv": 0.12, "lrv": 0.03, "prior_successes": 9, "prior_n": 30, "control_prior_a": 2, "control_prior_b": 3, "gate_tv": 0.78, "gate_lrv": 0.91, "stop_lrv": 0.07}
+    },
+    {
+      "id": "interim_beta_shapes",
+      "question": "For an exploratory Bayesian interim calculation, 8 of 25 patients responded in a planned 96-patient single-arm study. The target response rate is 33%, the minimum is 19%, and higher response is better. Use Beta(3,2) as the prior and gates 0.82, 0.92, and 0.08 for target, minimum, and stop, respectively.",
+      "expect": "proposal", "method": "interim",
+      "parameters": {"n_planned": 96, "tv": 0.33, "lrv": 0.19, "prior_a": 3, "prior_b": 2, "gate_tv": 0.82, "gate_lrv": 0.92, "stop_lrv": 0.08}
+    },
+    {
+      "id": "missing_prior",
+      "question": "Calculate Bayesian assurance for an exploratory 72-person single-arm trial with target response 37%, minimum 22%, and decision gates 0.81, 0.93, and 0.09 for target, minimum, and stop. No prior distribution or previous-study data are available.",
+      "expect": "abstain", "method": "assurance", "reason": "prior"
+    },
+    {
+      "id": "missing_gates",
+      "question": "Calculate Bayesian assurance for an exploratory 66-person single-arm trial with target response 38%, minimum 23%, and prior Beta(2,4). No decision gates have been specified.",
+      "expect": "abstain", "method": "assurance", "reason": "threshold"
+    },
+    {
+      "id": "invalid_beta_prior",
+      "question": "Calculate Bayesian assurance for an exploratory 78-person single-arm trial with target response 39%, minimum 17%, and Beta(0,2) prior. The target, minimum, and stop gates are 0.81, 0.94, and 0.06.",
+      "expect": "abstain", "method": "assurance", "reason": "prior"
+    },
+    {
+      "id": "competing_risk_unsupported",
+      "question": "Estimate time to first readmission with death as a competing risk, using a Fine-Gray model.",
+      "expect": "unsupported", "reason": "competing"
+    }
+  ]
+}

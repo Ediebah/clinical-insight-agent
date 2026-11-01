@@ -4,6 +4,8 @@ import numbers
 
 
 def require_bayesian_inputs(params: dict, *, require_prior: bool = True) -> None:
+    if "higher_is_better" in params and type(params["higher_is_better"]) is not bool:
+        raise ValueError("higher_is_better must be an explicit boolean when supplied")
     if params.get("framing", "single_arm") not in ("single_arm", "two_arm"):
         raise ValueError("Unsupported Bayesian framing")
     if params.get("framing") == "two_arm" or params.get("control_rate") is not None:

@@ -3,7 +3,12 @@
 Notable changes to the Clinical Insight Agent. Format follows [Keep a Changelog](https://keepachangelog.com/);
 versions follow [SemVer](https://semver.org/).
 
-## Unreleased — research workflow changes
+## [1.1.0-rc.1] — 2026-11-01 — research preview
+
+- Reject an explicitly null or non-boolean Bayesian outcome direction instead of interpreting it as lower-is-better.
+- Add a public prospective synthetic specification challenge and a manually authorized paid workflow.
+  The challenge is not independently authored, blinded, or clinical validation.
+- Add public governance and correct the security-reporting guidance.
 
 - Clear generated prior-study counts that duplicate stated Beta shape parameters when no treatment
   Beta prior was extracted; request a correction. Recognize explicitly stated percentage-point inputs. The paid Bayesian
@@ -45,8 +50,7 @@ versions follow [SemVer](https://semver.org/).
 - Add research-use boundaries to both standalone package descriptions. Update the Bayesian
   extraction-evaluation examples to state their assumptions; earlier results are not comparable.
 
-The full application changes above have not been published as a new application release. The
-historical section below records earlier changelog claims; it has not been independently audited here.
+The section below records earlier changelog claims; it has not been independently audited here.
 Standalone versions `clinical-insight-assurance` 0.3.0 (imported as `assurance`, with breaking
 changes to required Bayesian inputs) and `clinical-insight-caveat` 0.1.2 (imported as `caveat`)
 were published to PyPI on 2026-10-31. The full application remains a research prototype.

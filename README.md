@@ -2,7 +2,7 @@
 
 An open-source **exploratory research toolkit** for reviewing statistical analyses over synthetic or other non-sensitive data. It combines a read-only DuckDB/dbt demo warehouse, a natural-language interface, deterministic statistical routines, and two standalone Python libraries.
 
-**Research prototype:** not for patient care, clinical decisions, regulated submissions, PHI, or confidential data. Human review and independent validation are required. A statistical warning is not proof that an analysis is valid.
+**Research prototype:** not for patient care, clinical decisions, regulated submissions, PHI, or confidential data. Human review and independent validation are required. A statistical warning is not proof that an analysis is valid. See [governance and safety](docs/GOVERNANCE.md) for controls and their limits.
 
 **Distribution notice:** the full application pins scikit-survival, which declares GPL-3.0-or-later. Dataset, model, and dependency terms are separate from this project's MIT license; see [third-party notices](THIRD_PARTY_NOTICES.md) and review the actual distribution before release.
 
@@ -59,6 +59,8 @@ python -m agent.public_benchmark
 ```
 
 The final command reports expected and actual behavior for a small versioned set of synthetic cases. It is a regression check, not an estimate of accuracy on arbitrary questions. For Python use, see the [caveat](packages/caveat/README.md) and [assurance](packages/assurance/README.md) examples.
+
+A separate [prospective specification challenge](benchmarks/prospective_v1/PROTOCOL.md) requires paid model calls. Its public cases are not independently authored or blinded and do not validate clinical performance.
 
 For inferential questions, the app proposes an editable JSON specification. Review the population, SQL, outcome, predictors, method, assumptions, exclusions, and decision parameters before approval. An approved query is not automatically rewritten. Truncated cohorts are refused rather than silently modeled.
 The SQL determines the executed cohort; population and exclusion descriptions are review notes and
