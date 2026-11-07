@@ -7,9 +7,10 @@ collections help detect selected regressions; they do not establish correctness,
 or performance on arbitrary questions. A small synthetic case can be contributed and tested
 without an API key.
 
-Start with [issue #58](https://github.com/Ediebah/clinical-insight-agent/issues/58) for a
-missing-denominator example or [issue #59](https://github.com/Ediebah/clinical-insight-agent/issues/59)
-for an in-memory adapter example. Both use synthetic data and need no model or database.
+Start with [issue #59](https://github.com/Ediebah/clinical-insight-agent/issues/59) for an
+in-memory adapter example. It uses synthetic data and needs no model or database. The
+[missing-denominator example](examples/caveat_missing_denominator.md) shows a finished key-free
+example and the test that keeps its documented output current.
 
 ## The four contribution surfaces
 

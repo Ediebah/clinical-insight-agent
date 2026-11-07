@@ -2,6 +2,11 @@
 
 The key-free examples `synthetic_result.csv`, `synthetic_observations.csv`, `association_spec.json`, and `assurance_design.json` are small constructed examples. Follow the commands in the [root README](../README.md).
 
+The [missing-denominator example](caveat_missing_denominator.md) runs the standalone `caveat`
+checks on a three-row, rate-only table. It shows the `missing_denominator` finding, the checks that
+cannot run without counts, and what the library cannot infer. It needs only the local `caveat`
+package.
+
 The [breast-cancer research demonstration](breast_cancer_research_demo.md) uses a public dataset
 and an explicit, reviewable specification to generate a key-free research bundle. It is an
 exploratory association example, not external validation or a clinical prediction study.

@@ -1,7 +1,28 @@
 """Examples must describe the results the implementation actually returns."""
 import importlib.util
+import re
+import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def _documented_output(doc: Path) -> str:
+    """The text block an example's documentation marks as its expected output."""
+    match = re.search(r"<!-- expected-output -->\s*```text\n(.*?)```", doc.read_text(), re.S)
+    assert match, f"{doc.name} has no marked expected-output block"
+    return match.group(1)
+
+
+def test_missing_denominator_example_prints_its_documented_output():
+    result = subprocess.run([sys.executable, "examples/caveat_missing_denominator.py"], cwd=ROOT,
+                            capture_output=True, text=True, timeout=60, check=True)
+    assert result.stdout == _documented_output(ROOT / "examples/caveat_missing_denominator.md")
+    # Guard the behaviour the example exists to show, not just agreement with its own doc.
+    assert "[missing_denominator]" in result.stdout
+    assert "[skipped] contrasts:" in result.stdout
 
 
 def test_survival_example_reports_integrated_brier_without_calling_it_skill(monkeypatch, capsys):
