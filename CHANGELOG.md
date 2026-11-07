@@ -3,6 +3,12 @@
 Notable changes to the Clinical Insight Agent. Format follows [Keep a Changelog](https://keepachangelog.com/);
 versions follow [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+- Add a key-free `caveat` example for a rate-only table: the `missing_denominator` finding, the
+  checks skipped without counts, and the limits of what a rate table can establish. A test keeps
+  the documented output in step with the library ([#58](https://github.com/Ediebah/clinical-insight-agent/issues/58)).
+
 ## [1.1.0-rc.3] — 2026-11-01 — research preview
 
 - Show rate-like values in original units until the user explicitly chooses fraction or percent;
