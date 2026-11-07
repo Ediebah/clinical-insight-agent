@@ -82,8 +82,10 @@ caveat.analyze(df, "Which clinic has the highest screening rate?",
 ```
 
 When a rate and counts are both supplied, `rate_denominator_consistency` runs first. If the rate
-does not match the counts as a fraction or percentage within 0.5 percentage points, the count-based
-checks are withheld.
+does not match the counts as a fraction or percentage within 0.5 percentage points, or the values
+cannot be compared, `contrasts`, `boundary_rate`, `winners_curse` and `simpsons` are withheld.
+`small_sample` still runs on the supplied denominator, so a small-group warning can appear
+alongside the mismatch finding.
 
 ## What this cannot establish
 
